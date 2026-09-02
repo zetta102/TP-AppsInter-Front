@@ -1,0 +1,12 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import MovieDetail from '../../components/catalogue/MovieDetail.tsx';
+---
+
+<!--
+  Static output cannot prerender an unknown UUID, so the spec's `/movies/:id`
+  is implemented as `/movies/detail?id=<uuid>` and resolved client-side.
+-->
+<Layout title="Movie" description="Movie details and upcoming screenings.">
+  <MovieDetail client:load />
+</Layout>

@@ -1,0 +1,8 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminMovies from '../../../components/admin/AdminMovies.tsx';
+---
+
+<Layout title="Movies · Admin" description="Manage the movie catalogue." wide>
+  <AdminMovies client:load />
+</Layout>

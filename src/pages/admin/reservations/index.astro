@@ -1,0 +1,8 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminReservations from '../../../components/admin/AdminReservations.tsx';
+---
+
+<Layout title="Reservations · Admin" description="All reservations." wide>
+  <AdminReservations client:load />
+</Layout>

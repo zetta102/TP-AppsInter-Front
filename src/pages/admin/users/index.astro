@@ -1,0 +1,8 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminUsers from '../../../components/admin/AdminUsers.tsx';
+---
+
+<Layout title="Users · Admin" description="Registered accounts." wide>
+  <AdminUsers client:load />
+</Layout>

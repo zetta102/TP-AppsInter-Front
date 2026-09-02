@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import RegisterForm from '../components/auth/RegisterForm.tsx';
+---
+
+<Layout title="Create account" description="Create a Cine account to reserve seats.">
+  <div class="mx-auto max-w-md">
+    <h1 class="mb-1 text-2xl font-bold">Create your account</h1>
+    <p class="text-ink-500 mb-6 text-sm">
+      New accounts are always customers. Administrator access is provisioned server-side.
+    </p>
+    <RegisterForm client:load />
+  </div>
+</Layout>

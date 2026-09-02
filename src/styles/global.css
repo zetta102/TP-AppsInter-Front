@@ -1,0 +1,133 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink-950: oklch(0.16 0.02 275);
+  --color-ink-900: oklch(0.21 0.025 275);
+  --color-ink-800: oklch(0.27 0.03 275);
+  --color-ink-700: oklch(0.35 0.03 275);
+  --color-ink-600: oklch(0.46 0.025 275);
+  --color-ink-500: oklch(0.58 0.02 275);
+  --color-ink-300: oklch(0.78 0.015 275);
+  --color-ink-100: oklch(0.93 0.008 275);
+
+  --color-brand-600: oklch(0.55 0.19 12);
+  --color-brand-500: oklch(0.63 0.2 12);
+  --color-brand-400: oklch(0.72 0.17 12);
+
+  --color-gold-500: oklch(0.74 0.16 85);
+  --color-gold-400: oklch(0.82 0.15 85);
+
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--color-ink-950);
+    color: var(--color-ink-100);
+    -webkit-font-smoothing: antialiased;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+  }
+}
+
+@utility cine-card {
+  background-color: var(--color-ink-900);
+  border: 1px solid var(--color-ink-800);
+  border-radius: var(--radius-card);
+}
+
+@utility cine-input {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-ink-700);
+  background-color: var(--color-ink-950);
+  padding: --spacing(2) --spacing(3);
+  font-size: var(--text-sm);
+  color: var(--color-ink-100);
+  transition: border-color 150ms ease;
+
+  &::placeholder {
+    color: var(--color-ink-500);
+  }
+
+  &:focus {
+    border-color: var(--color-brand-400);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+@utility cine-label {
+  display: block;
+  margin-bottom: --spacing(1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-ink-300);
+}
+
+@utility cine-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: --spacing(2);
+  border-radius: var(--radius-lg);
+  padding: --spacing(2) --spacing(4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+@utility cine-btn-primary {
+  background-color: var(--color-brand-500);
+  color: white;
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-brand-600);
+  }
+}
+
+@utility cine-btn-secondary {
+  background-color: var(--color-ink-800);
+  color: var(--color-ink-100);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-ink-700);
+  }
+}
+
+@utility cine-btn-ghost {
+  color: var(--color-ink-300);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-ink-800);
+    color: var(--color-ink-100);
+  }
+}
+
+@utility cine-btn-danger {
+  border: 1px solid var(--color-brand-600);
+  color: var(--color-brand-400);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-brand-600);
+    color: white;
+  }
+}

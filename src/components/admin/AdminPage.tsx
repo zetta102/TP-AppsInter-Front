@@ -1,0 +1,39 @@
+import type { ReactNode } from 'react';
+import { AdminGuard } from '../ui/Guards.tsx';
+
+/**
+ * Chrome shared by the admin consoles: the role gate, a title block and a
+ * primary action slot. Keeping it in one place means every console handles a
+ * missing role identically.
+ */
+export function AdminPage({
+  title,
+  description,
+  action,
+  children,
+}: {
+  readonly title: string;
+  readonly description?: string;
+  readonly action?: ReactNode;
+  readonly children: ReactNode;
+}) {
+  return (
+    <AdminGuard>
+      <div className="flex flex-col gap-6">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{title}</h1>
+            {description && <p className="text-ink-500 mt-1 text-sm">{description}</p>}
+          </div>
+          {action}
+        </header>
+        {children}
+      </div>
+    </AdminGuard>
+  );
+}
+
+/** Toolbar row for filters above an admin table. */
+export function AdminToolbar({ children }: { readonly children: ReactNode }) {
+  return <div className="cine-card flex flex-wrap items-end gap-3 p-4">{children}</div>;
+}

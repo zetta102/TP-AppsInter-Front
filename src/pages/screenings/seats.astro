@@ -1,0 +1,13 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SeatPicker from '../../components/booking/SeatPicker.tsx';
+---
+
+<!--
+  The spec's `/screenings/:id/seats` becomes `/screenings/seats?id=<uuid>`:
+  static output cannot prerender an unknown UUID. The seat map itself is a
+  public endpoint, so this page renders without a token.
+-->
+<Layout title="Choose your seats" description="Pick your seats for this screening." wide>
+  <SeatPicker client:load />
+</Layout>
