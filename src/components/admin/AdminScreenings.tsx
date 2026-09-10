@@ -33,6 +33,8 @@ import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { Modal } from '../ui/Modal.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { ScreeningAvailability } from '../catalogue/MovieCard.tsx';
+import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { Pagination } from '../ui/Pagination.tsx';
 
 const PAGE_SIZE = 15;
@@ -46,11 +48,12 @@ interface FormState {
 const initialFormState: FormState = { error: null, fieldErrors: {} };
 
 /**
- * `/admin/screenings` — the scheduler.
+ * `/admin/screenings` — el programador de funciones.
  *
- * `endsAt` is computed server-side as `startsAt + runtime + 15 min` turnover and
- * must never be sent. We mirror the same arithmetic purely as a preview so the
- * admin can see the block a screening will occupy before saving.
+ * `endsAt` se calcula del lado del servidor como `startsAt + runtime + 15 min`
+ * de recambio y nunca debe enviarse. Reflejamos la misma cuenta solo como
+ * vista previa para que el administrador vea el bloque que ocupará una función
+ * antes de guardar.
  */
 export default function AdminScreenings() {
   const [page, setPage] = useState(0);
@@ -71,6 +74,11 @@ export default function AdminScreenings() {
     [],
   );
 
+  // Si falla, vuelve al valor predeterminado documentado (15), para que el programador
+  // siga funcionando aunque el endpoint de metadatos no esté disponible momentáneamente.
+  const config = useResource((signal) => getMetadataConfigOrDefault({ signal }), []);
+  const turnoverMinutes = config.data?.screeningTurnoverMinutes ?? TURNOVER_MINUTES;
+
   const resource = useResource<Page<MovieScreeningResponse>>(
     (signal) =>
       listScreenings(
@@ -88,12 +96,12 @@ export default function AdminScreenings() {
   );
 
   const remove = async (screening: MovieScreeningResponse) => {
-    if (!window.confirm(`Delete the ${formatDateTime(screening.startsAt)} screening?`)) return;
+    if (!window.confirm(`¿Eliminar la función de ${formatDateTime(screening.startsAt)}?`)) return;
     setRowError(null);
     try {
       await deleteScreening(screening.uuid);
     } catch (error) {
-      // 409 when reservations already exist for the screening.
+      // 409 cuando ya existen reservas para la función.
       setRowError(error);
     } finally {
       resource.refetch();
@@ -103,33 +111,39 @@ export default function AdminScreenings() {
   const columns: readonly Column<MovieScreeningResponse>[] = [
     {
       key: 'movie',
-      header: 'Movie',
+      header: 'Película',
       sortField: 'movieName',
       cell: (screening) => <span className="font-medium">{screening.movieName}</span>,
     },
-    { key: 'room', header: 'Room', sortField: 'roomName', cell: (s) => s.roomName },
+    { key: 'room', header: 'Sala', sortField: 'roomName', cell: (s) => s.roomName },
     {
       key: 'startsAt',
-      header: 'Starts',
+      header: 'Comienza',
       sortField: 'startsAt',
       cell: (s) => formatDateTime(s.startsAt),
     },
     {
       key: 'endsAt',
-      header: 'Ends',
+      header: 'Termina',
       sortField: 'endsAt',
       cell: (s) => (
-        <span title={`Runtime plus a ${TURNOVER_MINUTES} minute turnover`}>
+        <span title={`Duración más ${turnoverMinutes} minutos de recambio`}>
           {formatDateTime(s.endsAt)}
         </span>
       ),
     },
     {
       key: 'basePrice',
-      header: 'Base price',
+      header: 'Precio base',
       sortField: 'basePrice',
       className: 'tabular-nums',
       cell: (s) => formatMoney(s.basePrice),
+    },
+    {
+      key: 'availability',
+      header: 'Asientos',
+      className: 'tabular-nums',
+      cell: (s) => <ScreeningAvailability screening={s} />,
     },
     {
       key: 'actions',
@@ -141,21 +155,21 @@ export default function AdminScreenings() {
             href={`/screenings/seats?id=${screening.uuid}`}
             className="cine-btn cine-btn-ghost"
           >
-            Seats
+            Asientos
           </a>
           <button
             type="button"
             className="cine-btn cine-btn-ghost"
             onClick={() => setEditing(screening)}
           >
-            Edit
+            Editar
           </button>
           <button
             type="button"
             className="cine-btn cine-btn-danger"
             onClick={() => void remove(screening)}
           >
-            Delete
+            Eliminar
           </button>
         </div>
       ),
@@ -166,22 +180,22 @@ export default function AdminScreenings() {
 
   return (
     <AdminPage
-      title="Screenings"
-      description={`End times are computed as start + runtime + ${TURNOVER_MINUTES} minutes of turnover, and screenings in the same room may not overlap.`}
+      title="Funciones"
+      description={`Las horas de finalización se calculan como inicio + duración + ${turnoverMinutes} minutos de recambio, y las funciones en la misma sala no pueden superponerse.`}
       action={
         <button
           type="button"
           className="cine-btn cine-btn-primary"
           onClick={() => setCreating(true)}
         >
-          New screening
+          Nueva función
         </button>
       }
     >
       <AdminToolbar>
         <div className="min-w-48 flex-1">
           <label htmlFor="filter-movie" className="cine-label">
-            Movie
+            Película
           </label>
           <select
             id="filter-movie"
@@ -192,7 +206,7 @@ export default function AdminScreenings() {
               setPage(0);
             }}
           >
-            <option value="">All movies</option>
+            <option value="">Todas las películas</option>
             {(movies.data?.content ?? []).map((movie) => (
               <option key={movie.uuid} value={movie.uuid}>
                 {movie.movieName}
@@ -203,7 +217,7 @@ export default function AdminScreenings() {
 
         <div className="min-w-48 flex-1">
           <label htmlFor="filter-room" className="cine-label">
-            Room
+            Sala
           </label>
           <select
             id="filter-room"
@@ -214,7 +228,7 @@ export default function AdminScreenings() {
               setPage(0);
             }}
           >
-            <option value="">All rooms</option>
+            <option value="">Todas las salas</option>
             {(rooms.data?.content ?? []).map((room) => (
               <option key={room.uuid} value={room.uuid}>
                 {room.roomName}
@@ -232,7 +246,7 @@ export default function AdminScreenings() {
               setPage(0);
             }}
           />
-          Upcoming only
+          Solo próximas
         </label>
       </AdminToolbar>
 
@@ -245,8 +259,8 @@ export default function AdminScreenings() {
         isLoading={resource.isLoading || resource.isRefreshing}
         error={resource.error}
         onRetry={resource.refetch}
-        emptyTitle="No screenings"
-        emptyDescription="Schedule a screening to open it for booking."
+        emptyTitle="No hay funciones"
+        emptyDescription="Programe una función para habilitar su reserva."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(
@@ -266,6 +280,7 @@ export default function AdminScreenings() {
           screening={editing}
           movies={movies.data?.content ?? []}
           rooms={rooms.data?.content ?? []}
+          turnoverMinutes={turnoverMinutes}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -285,12 +300,14 @@ function ScreeningFormModal({
   screening,
   movies,
   rooms,
+  turnoverMinutes,
   onClose,
   onSaved,
 }: {
   readonly screening: MovieScreeningResponse | null;
   readonly movies: readonly MovieResponse[];
   readonly rooms: readonly ScreenRoomResponse[];
+  readonly turnoverMinutes: number;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
@@ -304,13 +321,13 @@ function ScreeningFormModal({
     [movies, movieId],
   );
 
-  // Local mirror of the server's computation, shown as a preview only.
+  // Reflejo local del cálculo del servidor, mostrado solo como vista previa.
   const endsAtPreview = useMemo(() => {
     if (!startsAt || runtime === null) return null;
     const start = new Date(startsAt);
     if (Number.isNaN(start.getTime())) return null;
-    return new Date(start.getTime() + (runtime + TURNOVER_MINUTES) * 60_000);
-  }, [startsAt, runtime]);
+    return new Date(start.getTime() + (runtime + turnoverMinutes) * 60_000);
+  }, [startsAt, runtime, turnoverMinutes]);
 
   const startsInPast = startsAt !== '' && new Date(startsAt).getTime() <= Date.now();
 
@@ -328,25 +345,25 @@ function ScreeningFormModal({
       onSaved();
       return initialFormState;
     } catch (error) {
-      // 409 means the [startsAt, endsAt) window overlaps another screening in
-      // the room; on PUT the check excludes this screening itself.
+      // 409 significa que la ventana [startsAt, endsAt) se superpone con otra función en
+      // la sala; en PUT la validación excluye a esta misma función.
       return { error, fieldErrors: toFieldErrors(error) };
     }
   }, initialFormState);
 
   return (
-    <Modal open onClose={onClose} title={screening ? 'Edit screening' : 'New screening'}>
+    <Modal open onClose={onClose} title={screening ? 'Editar función' : 'Nueva función'}>
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
         <SelectInput
-          label="Movie"
+          label="Película"
           name="movieId"
           required
           value={movieId}
           onChange={(event) => setMovieId(event.target.value)}
           error={state.fieldErrors['movieId']}
-          {...(runtime !== null ? { hint: `Runtime ${formatRuntime(runtime)}` } : {})}
+          {...(runtime !== null ? { hint: `Duración ${formatRuntime(runtime)}` } : {})}
         >
           {movies.map((movie) => (
             <option key={movie.uuid} value={movie.uuid}>
@@ -356,7 +373,7 @@ function ScreeningFormModal({
         </SelectInput>
 
         <SelectInput
-          label="Room"
+          label="Sala"
           name="screenRoomId"
           required
           defaultValue={screening?.screenRoomId ?? rooms[0]?.uuid ?? ''}
@@ -370,7 +387,7 @@ function ScreeningFormModal({
         </SelectInput>
 
         <TextInput
-          label="Starts at"
+          label="Comienza el"
           name="startsAt"
           type="datetime-local"
           required
@@ -378,35 +395,35 @@ function ScreeningFormModal({
           onChange={(event) => setStartsAt(event.target.value)}
           error={
             state.fieldErrors['startsAt'] ??
-            (startsInPast ? 'The start time must be in the future.' : undefined)
+            (startsInPast ? 'La fecha y hora de inicio deben ser futuras.' : undefined)
           }
         />
 
         {endsAtPreview && (
           <p className="border-ink-800 bg-ink-900 text-ink-300 rounded-lg border px-3 py-2 text-xs">
-            Ends at <strong>{formatDateTime(endsAtPreview.toISOString())}</strong> — runtime plus a{' '}
-            {TURNOVER_MINUTES} minute turnover. The room is blocked for that whole window.
+            Termina a las <strong>{formatDateTime(endsAtPreview.toISOString())}</strong>: duración más{' '}
+            {turnoverMinutes} minutos de recambio. La sala queda bloqueada durante toda esa franja.
           </p>
         )}
 
         <TextInput
-          label="Base price"
+          label="Precio base"
           name="basePrice"
           type="number"
           min={0}
           step="0.01"
           required
           defaultValue={screening?.basePrice ?? ''}
-          hint="Premium seats are charged at 1.5× this price."
+          hint="Los asientos premium se cobran a 1,5× este precio."
           error={state.fieldErrors['basePrice']}
         />
 
         <div className="flex justify-end gap-2">
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
-            Cancel
+            Cancelar
           </button>
-          <SubmitButton pendingLabel="Saving…" disabled={startsInPast}>
-            {screening ? 'Save changes' : 'Schedule'}
+          <SubmitButton pendingLabel="Guardando…" disabled={startsInPast}>
+            {screening ? 'Guardar cambios' : 'Programar'}
           </SubmitButton>
         </div>
       </form>

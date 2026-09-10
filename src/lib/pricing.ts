@@ -1,22 +1,27 @@
-import type { Money } from './types.ts';
+﻿import type { Money } from './types.ts';
 import { SeatType } from './enums.ts';
 
 /**
- * Client-side mirror of the backend's pricing rules (frontend-spec.md §9).
+ * Espejo del lado del cliente de las reglas de precios del backend (frontend-spec.md §9).
  *
- * The server value is always authoritative — this only powers the checkout
- * preview, and it must agree with `totalPrice` to the cent.
+ * El valor del servidor siempre es el autoritativo: esto solo alimenta la vista previa
+ * de compra y debe coincidir con `totalPrice` hasta el último centavo.
  */
 
-/** Premium seats cost 1.5× the screening's base price. */
+/**
+ * Valor por defecto documentado: 1.50×. El valor real se sirve en
+ * `GET /api/metadata/config` como `premiumSeatMultiplier`: pásalo explícitamente
+ * donde esté disponible (ver `lib/api/metadata.ts`); esta constante es solo el
+ * fallback usado antes de que ese valor cargue.
+ */
 export const PREMIUM_MULTIPLIER = 1.5;
 
 /**
- * `HALF_UP` to `decimals` places, matching `BigDecimal.setScale(2, HALF_UP)`.
+ * `HALF_UP` con `decimals` decimales, en línea con `BigDecimal.setScale(2, HALF_UP)`.
  *
- * `Math.round` is already half-up for non-negative values; the `toPrecision`
- * pass first cancels binary representation error (`1.005 * 100` is
- * `100.49999999999999` in IEEE-754, which would otherwise round down).
+ * `Math.round` ya aplica half-up para valores no negativos; el paso previo con `toPrecision`
+ * elimina el error de representación binaria (`1.005 * 100` es
+ * `100.49999999999999` en IEEE-754, lo que de otro modo redondearía hacia abajo).
  */
 export function roundHalfUp(value: number, decimals = 2): number {
   const factor = 10 ** decimals;
@@ -24,13 +29,16 @@ export function roundHalfUp(value: number, decimals = 2): number {
   return Math.round(scaled) / factor;
 }
 
-/** `basePrice × (seatType === PREMIUM ? 1.50 : 1.00)`, HALF_UP to 2 decimals. */
-export function ticketPrice(basePrice: Money, seatType: SeatType): Money {
-  const multiplier = seatType === SeatType.PREMIUM ? PREMIUM_MULTIPLIER : 1;
-  return roundHalfUp(basePrice * multiplier);
+/** `basePrice × (seatType === PREMIUM ? multiplier : 1.00)`, HALF_UP a 2 decimales. */
+export function ticketPrice(
+  basePrice: Money,
+  seatType: SeatType,
+  multiplier: number = PREMIUM_MULTIPLIER,
+): Money {
+  return roundHalfUp(basePrice * (seatType === SeatType.PREMIUM ? multiplier : 1));
 }
 
-/** `inventory.cost × quantity`, HALF_UP to 2 decimals. */
+/** `inventory.cost × quantity`, HALF_UP a 2 decimales. */
 export function lineTotal(unitCost: Money, quantity: number): Money {
   return roundHalfUp(unitCost * quantity);
 }
@@ -51,16 +59,17 @@ export interface PriceEstimate {
 }
 
 /**
- * Sums per-seat ticket prices, then adds concession line totals — in that
- * order, rounding each component exactly as the backend does.
+ * Suma los precios de entradas por asiento y luego agrega los totales de confitería,
+ * en ese orden, redondeando cada componente exactamente como lo hace el backend.
  */
 export function estimateTotal(
   basePrice: Money,
   seats: readonly PricedSeat[],
   products: readonly PricedProduct[] = [],
+  premiumMultiplier: number = PREMIUM_MULTIPLIER,
 ): PriceEstimate {
   const seatsTotal = roundHalfUp(
-    seats.reduce((sum, seat) => sum + ticketPrice(basePrice, seat.seatType), 0),
+    seats.reduce((sum, seat) => sum + ticketPrice(basePrice, seat.seatType, premiumMultiplier), 0),
   );
   const productsTotal = roundHalfUp(
     products.reduce((sum, product) => sum + lineTotal(product.cost, product.quantity), 0),

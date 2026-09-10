@@ -1,8 +1,8 @@
 /**
- * Type-only mirror of the backend DTOs (frontend-spec.md §8).
+ * Espejo solo de tipos de los DTO del backend (frontend-spec.md §8).
  *
- * Nothing in this module emits runtime code, so it disappears entirely under
- * type erasure. Import it with `import type`.
+ * Nada en este módulo emite código de runtime, así que desaparece por completo
+ * con el borrado de tipos. Impórtalo con `import type`.
  */
 
 import type {
@@ -14,20 +14,20 @@ import type {
   SeatType,
 } from './enums.ts';
 
-/** A backend identifier. Always a UUID string on the wire. */
+/** Un identificador del backend. Siempre es una cadena UUID en el wire. */
 export type Uuid = string;
 
-/** ISO-8601 timestamp *with offset* (`OffsetDateTime`), never zone-less. */
+/** Marca de tiempo ISO-8601 *con offset* (`OffsetDateTime`), nunca sin zona. */
 export type OffsetDateTimeString = string;
 
-/** JSON number with 2 decimals. */
+/** Número JSON con 2 decimales. */
 export type Money = number;
 
 // ---------------------------------------------------------------------------
-// Envelopes and errors
+// Contenedores y errores
 // ---------------------------------------------------------------------------
 
-/** The envelope returned by every list endpoint. `page` is zero-based. */
+/** El contenedor que devuelve cada endpoint de lista. `page` es base cero. */
 export interface Page<T> {
   readonly content: readonly T[];
   readonly page: number;
@@ -36,13 +36,13 @@ export interface Page<T> {
   readonly totalPages: number;
   readonly first: boolean;
   readonly last: boolean;
-  /** Spring's `Sort.toString()`, e.g. `"movieName: ASC"`. Display only — never parse. */
+  /** `Sort.toString()` de Spring, p. ej. `"movieName: ASC"`. Solo para mostrar; nunca lo parsees. */
   readonly sort: string;
 }
 
 /**
- * RFC 7807 `application/problem+json`. Every error uses this shape, including
- * 401/403 emitted by the security filter chain.
+ * RFC 7807 `application/problem+json`. Todo error usa esta forma, incluidos
+ * los 401/403 emitidos por la cadena de filtros de seguridad.
  */
 export interface ProblemDetail {
   readonly type?: string;
@@ -51,14 +51,18 @@ export interface ProblemDetail {
   readonly detail?: string;
   readonly instance?: string;
   /**
-   * Present on bean-validation failures: a flat field -> message map. The
-   * messages are server-localised, so key your UI off the field name only.
+   * Presente en fallos de bean validation: un mapa plano campo -> mensaje.
+   * Los mensajes se localizan en el servidor, así que la UI debe guiarse solo por el nombre del campo.
    */
   readonly errors?: Readonly<Record<string, string>>;
+  /** Código de fallo legible por máquina (frontend-spec.md §5): ramifica con esto, nunca con `detail`. */
+  readonly code?: string;
+  /** Datos extra estructurados cuyas claves dependen de `code`; ausentes cuando no hay nada que agregar. */
+  readonly context?: Readonly<Record<string, unknown>>;
 }
 
 // ---------------------------------------------------------------------------
-// Auth & users
+// Auth y usuarios
 // ---------------------------------------------------------------------------
 
 export interface RegisterRequest {
@@ -101,8 +105,29 @@ export interface UserResponse {
   readonly role: Role;
 }
 
+/** `PATCH /api/users/me`: ambos campos son obligatorios. */
+export interface UpdateProfileRequest {
+  readonly firstName: string;
+  readonly lastName: string;
+}
+
+/**
+ * `POST /api/users/me/password`. Omite `refreshToken` para cerrar sesión en todas partes,
+ * incluida la pestaña actual; de lo contrario se revoca cada refresh token de *otras* sesiones.
+ */
+export interface ChangePasswordRequest {
+  readonly currentPassword: string;
+  readonly newPassword: string;
+  readonly refreshToken?: string;
+}
+
+/** `PATCH /api/users/{uuid}/role`. */
+export interface UpdateRoleRequest {
+  readonly role: Role;
+}
+
 // ---------------------------------------------------------------------------
-// Movies
+// Películas
 // ---------------------------------------------------------------------------
 
 export interface CreateMovieRequest {
@@ -112,21 +137,40 @@ export interface CreateMovieRequest {
   readonly description?: string | null;
   readonly director?: string | null;
   readonly mainCast?: readonly string[] | null;
+  /** URL `http(s)` absoluta, máximo 2048 caracteres. */
+  readonly posterUrl?: string | null;
+  /** URL `http(s)` absoluta, máximo 2048 caracteres. */
+  readonly backdropUrl?: string | null;
+  /** `1888` … año actual + 10. */
+  readonly releaseYear?: number | null;
+  /** p. ej. `PG-13`, `ATP`; máximo 16 caracteres. */
+  readonly certification?: string | null;
+  /** Par ISO 639-1 en minúsculas, p. ej. `en`, `es`. */
+  readonly originalLanguage?: string | null;
+  /** URL `http(s)` absoluta, máximo 2048 caracteres. */
+  readonly trailerUrl?: string | null;
 }
 
+/** Todos los campos de presentación son anulables: el backend nunca inventa placeholders. */
 export interface MovieResponse {
   readonly uuid: Uuid;
   readonly movieName: string;
   readonly genres: readonly MovieGenre[];
-  /** Minutes. */
+  /** Minutos. */
   readonly runtime: number;
   readonly description: string | null;
   readonly director: string | null;
   readonly mainCast: readonly string[];
+  readonly posterUrl: string | null;
+  readonly backdropUrl: string | null;
+  readonly releaseYear: number | null;
+  readonly certification: string | null;
+  readonly originalLanguage: string | null;
+  readonly trailerUrl: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// Screen rooms & seats
+// Salas y asientos
 // ---------------------------------------------------------------------------
 
 export interface CreateScreenRoomRequest {
@@ -143,9 +187,9 @@ export interface ScreenRoomResponse {
 
 export interface CreateSeatRequest {
   readonly screenRoomId: Uuid;
-  /** Trimmed and upper-cased server-side: send `"a"`, read back `"A"`. */
+  /** Se recorta y pasa a mayúsculas del lado del servidor: envía `"a"` y recibe `"A"`. */
   readonly row: string;
-  /** Trimmed server-side. */
+  /** Se recorta del lado del servidor. */
   readonly column: string;
   readonly seatType: SeatType;
 }
@@ -158,24 +202,24 @@ export interface SeatResponse {
   readonly seatType: SeatType;
 }
 
-/** The room grid without availability — for the admin room editor. */
+/** La grilla de la sala sin disponibilidad, para el editor de salas de admin. */
 export interface SeatLayoutResponse {
   readonly screenRoomId: Uuid;
   readonly roomName: string;
-  /** Distinct coordinates, already sorted naturally (`A2` precedes `A10`). */
+  /** Coordenadas únicas, ya ordenadas de forma natural (`A2` va antes que `A10`). */
   readonly rows: readonly string[];
   readonly columns: readonly string[];
   readonly seats: readonly SeatResponse[];
 }
 
 // ---------------------------------------------------------------------------
-// Screenings
+// Funciones
 // ---------------------------------------------------------------------------
 
 export interface CreateMovieScreeningRequest {
   readonly movieId: Uuid;
   readonly screenRoomId: Uuid;
-  /** Must be in the future. `endsAt` is computed server-side, never sent. */
+  /** Debe estar en el futuro. `endsAt` se calcula del lado del servidor y nunca se envía. */
   readonly startsAt: OffsetDateTimeString;
   readonly basePrice: Money;
 }
@@ -187,40 +231,102 @@ export interface MovieScreeningResponse {
   readonly screenRoomId: Uuid;
   readonly roomName: string;
   readonly startsAt: OffsetDateTimeString;
-  /** `startsAt + movie.runtime + 15 min` turnover. */
+  /** `startsAt + movie.runtime + 15 min` de margen entre funciones. */
   readonly endsAt: OffsetDateTimeString;
   readonly basePrice: Money;
+  /**
+   * Se incluye por defecto en cada lectura de función; `null` significa "no
+   * calculado" (se pidió `includeAvailability=false`), nunca "cero".
+   */
+  readonly totalSeats: number | null;
+  readonly availableSeats: number | null;
+  readonly soldOut: boolean | null;
 }
 
-/** One cell of the screening seat map. `available: false` means already ticketed. */
+/** Una celda del mapa de asientos de la función. `available: false` significa que ya fue vendida. */
 export interface SeatMapSeat {
   readonly seatId: Uuid;
   readonly row: string;
   readonly column: string;
   readonly seatType: SeatType;
   readonly available: boolean;
+  /**
+   * True cuando otro comprador tiene actualmente este asiento retenido. Las
+   * retenciones del propio llamador nunca se informan como `held`; los
+   * llamadores anónimos ven cada retención activa como `held`.
+   */
+  readonly held: boolean;
 }
 
 export interface SeatMapResponse {
   readonly screeningId: Uuid;
   readonly screenRoomId: Uuid;
   readonly roomName: string;
-  /** Naturally sorted — render in this order, never re-sort lexicographically. */
+  /** Ordenado naturalmente: renderízalo en este orden y nunca lo reordenes lexicográficamente. */
   readonly rows: readonly string[];
   readonly columns: readonly string[];
-  /** Sparse: a (row, column) with no entry is an aisle or gap. */
+  /** Disperso: un (row, column) sin entrada es un pasillo o hueco. */
   readonly seats: readonly SeatMapSeat[];
 }
 
 // ---------------------------------------------------------------------------
-// Inventory (concessions) — admin-only for every method, including GET
+// Retenciones de asientos
+// ---------------------------------------------------------------------------
+
+/** `POST /api/screenings/{id}/holds`. Los ids de asiento duplicados se deduplican. */
+export interface CreateSeatHoldRequest {
+  readonly seatIds: readonly Uuid[];
+}
+
+export interface SeatHoldResponse {
+  readonly uuid: Uuid;
+  readonly screeningId: Uuid;
+  readonly seatIds: readonly Uuid[];
+  /** Instante de expiración autoritativo. */
+  readonly expiresAt: OffsetDateTimeString;
+  /** El mismo instante como cuenta regresiva, para clientes con el reloj desfasado. */
+  readonly ttlSeconds: number;
+}
+
+// ---------------------------------------------------------------------------
+// Creación masiva de asientos
+// ---------------------------------------------------------------------------
+
+export type SeatConflictPolicy = 'FAIL' | 'SKIP' | 'REPLACE';
+
+export interface BulkSeatEntry {
+  readonly row: string;
+  readonly column: string;
+  readonly seatType: SeatType;
+}
+
+/** `POST /api/rooms/{id}/seats:bulk` (alias `…/seats/bulk`). */
+export interface BulkCreateSeatsRequest {
+  readonly seats: readonly BulkSeatEntry[];
+  readonly onConflict?: SeatConflictPolicy;
+}
+
+/** `POST /api/rooms/{id}/seats:generate` (alias `…/seats/generate`). */
+export interface GenerateSeatsRequest {
+  readonly rows: number;
+  readonly columns: number;
+  readonly startRow?: string;
+  /** Filas completas marcadas como `PREMIUM`. */
+  readonly premiumRows?: readonly string[];
+  /** Coordenadas individuales estilo `"E5"` dejadas vacías como pasillos. */
+  readonly skip?: readonly string[];
+  readonly onConflict?: SeatConflictPolicy;
+}
+
+// ---------------------------------------------------------------------------
+// Inventario (confitería): solo admin para todos los métodos, incluido GET
 // ---------------------------------------------------------------------------
 
 export interface CreateInventoryRequest {
   readonly productName: string;
   readonly category: ProductCategory;
   readonly cost: Money;
-  /** Absolute stock level, not a delta. */
+  /** Nivel de stock absoluto, no un delta. */
   readonly quantity: number;
 }
 
@@ -232,8 +338,65 @@ export interface InventoryResponse {
   readonly quantity: number;
 }
 
+/** `POST /api/inventory/{uuid}/adjustments`: atómico, con `delta` distinto de cero. */
+export interface StockAdjustmentRequest {
+  readonly delta: number;
+  readonly reason: string;
+}
+
+export interface InventoryAdjustmentResponse {
+  readonly uuid: Uuid;
+  readonly delta: number;
+  readonly resultingStock: number;
+  readonly reason: string;
+  readonly adjustedBy: string;
+  readonly createdAt: OffsetDateTimeString;
+}
+
 // ---------------------------------------------------------------------------
-// Reservations
+// Productos (proyección pública de confitería)
+// ---------------------------------------------------------------------------
+
+/** La proyección del inventario orientada al cliente: publica el precio y oculta los niveles de stock. */
+export interface ProductResponse {
+  readonly uuid: Uuid;
+  readonly productName: string;
+  readonly category: ProductCategory;
+  /** Snapshot del `cost` del inventario. */
+  readonly price: Money;
+  /** `quantity > 0`. La cantidad real no se expone deliberadamente. */
+  readonly available: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Metadatos
+// ---------------------------------------------------------------------------
+
+export interface EnumOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/** `GET /api/metadata/enums`: público, cacheable y con labels solo en inglés. */
+export interface MetadataEnumsResponse {
+  readonly role: readonly EnumOption[];
+  readonly movieGenre: readonly EnumOption[];
+  readonly screenRoomType: readonly EnumOption[];
+  readonly seatType: readonly EnumOption[];
+  readonly productCategory: readonly EnumOption[];
+  readonly reservationStatus: readonly EnumOption[];
+}
+
+/** `GET /api/metadata/config`: los valores vigentes de constantes de negocio de primera mano. */
+export interface MetadataConfigResponse {
+  readonly premiumSeatMultiplier: number;
+  readonly screeningTurnoverMinutes: number;
+  readonly currency: string;
+  readonly seatHoldTtlSeconds: number;
+}
+
+// ---------------------------------------------------------------------------
+// Reservas
 // ---------------------------------------------------------------------------
 
 export interface ReservationProductRequest {
@@ -243,10 +406,12 @@ export interface ReservationProductRequest {
 
 export interface CreateReservationRequest {
   readonly movieScreeningId: Uuid;
-  /** Duplicates are silently de-duplicated server-side. */
+  /** Los duplicados se deduplican silenciosamente del lado del servidor. */
   readonly seatIds: readonly Uuid[];
-  /** Optional. Repeats are merged by product and quantities summed. */
+  /** Opcional. Las repeticiones se agrupan por producto y las cantidades se suman. */
   readonly products?: readonly ReservationProductRequest[];
+  /** Retención opcional para consumir; se libera al tener éxito. */
+  readonly holdId?: Uuid;
 }
 
 export interface TicketResponse {
@@ -258,7 +423,7 @@ export interface TicketResponse {
   readonly price: Money;
 }
 
-/** `productName` and `unitPrice` are snapshotted — never re-look-up inventory. */
+/** `productName` y `unitPrice` se guardan como snapshot; nunca se vuelve a consultar el inventario. */
 export interface ReservationItemResponse {
   readonly uuid: Uuid;
   readonly inventoryId: Uuid;
@@ -268,13 +433,61 @@ export interface ReservationItemResponse {
   readonly lineTotal: Money;
 }
 
+/** El propietario de la reserva, embebido en cada endpoint de reservas. */
+export interface ReservationOwner {
+  readonly uuid: Uuid;
+  readonly email: string;
+  readonly firstName: string;
+  readonly lastName: string;
+}
+
 export interface ReservationResponse {
   readonly uuid: Uuid;
+  /** Presente en cada endpoint de reservas; no hace falta un segundo fetch. */
+  readonly user: ReservationOwner;
   readonly movieScreeningId: Uuid;
   readonly movieName: string;
+  readonly screeningStartsAt: OffsetDateTimeString;
+  readonly roomName: string;
   readonly status: ReservationStatus;
+  /** "Lo que todavía se adeuda": `0` una vez cancelada. */
   readonly totalPrice: Money;
+  /** Lo que se cobró originalmente; `null` hasta cancelar. */
+  readonly originalTotalPrice: Money | null;
   readonly createdAt: OffsetDateTimeString;
+  /** `null` until cancelled. */
+  readonly cancelledAt: OffsetDateTimeString | null;
+  /** Se conserva (no se elimina) después de una cancelación lógica. */
   readonly tickets: readonly TicketResponse[];
+  /** Se conserva (no se elimina) después de una cancelación lógica. */
   readonly items: readonly ReservationItemResponse[];
+}
+
+// ---------------------------------------------------------------------------
+// Cotización de precio de reserva
+// ---------------------------------------------------------------------------
+
+export interface QuoteTicket {
+  readonly seatId: Uuid;
+  readonly row: string;
+  readonly column: string;
+  readonly seatType: SeatType;
+  readonly price: Money;
+}
+
+export interface QuoteItem {
+  readonly inventoryId: Uuid;
+  readonly productName: string;
+  readonly unitPrice: Money;
+  readonly quantity: number;
+  readonly lineTotal: Money;
+}
+
+/** Respuesta de `POST /api/reservations:quote`: sin efectos secundarios; `totalPrice` es autoritativo. */
+export interface ReservationQuoteResponse {
+  readonly tickets: readonly QuoteTicket[];
+  readonly items: readonly QuoteItem[];
+  readonly ticketsTotal: Money;
+  readonly itemsTotal: Money;
+  readonly totalPrice: Money;
 }

@@ -3,7 +3,7 @@ import { ReservationStatus, reservationStatusLabels } from '../../lib/enums.ts';
 import { formatMoney, seatLabel } from '../../lib/format.ts';
 import type { ReservationResponse } from '../../lib/types.ts';
 
-/** Shared presentation for reservations, used by both customer and admin views. */
+/** Presentación compartida para reservas, usada tanto en vistas de cliente como de admin. */
 
 export function StatusBadge({ status }: { readonly status: ReservationStatus }) {
   const tone =
@@ -15,10 +15,10 @@ export function StatusBadge({ status }: { readonly status: ReservationStatus }) 
   return <Badge tone={tone}>{reservationStatusLabels[status]}</Badge>;
 }
 
-/** Compact seat list; empty after a cancellation, since the tickets are deleted. */
+/** Lista compacta de butacas — se conserva incluso tras cancelar (la cancelación lógica mantiene las entradas). */
 export function TicketSummary({ reservation }: { readonly reservation: ReservationResponse }) {
   if (reservation.tickets.length === 0) {
-    return <span className="text-ink-600 text-sm">No tickets</span>;
+    return <span className="text-ink-600 text-sm">Sin entradas</span>;
   }
   return (
     <span className="text-sm">
@@ -28,8 +28,8 @@ export function TicketSummary({ reservation }: { readonly reservation: Reservati
 }
 
 /**
- * Line items render the **snapshotted** `productName` and `unitPrice` — editing
- * the catalogue later must never rewrite a past purchase.
+ * Las líneas renderizan `productName` y `unitPrice` **capturados en la compra** —
+ * editar el catálogo después nunca debe reescribir una compra pasada.
  */
 export function ItemLines({ reservation }: { readonly reservation: ReservationResponse }) {
   if (reservation.items.length === 0) return null;
@@ -44,7 +44,7 @@ export function ItemLines({ reservation }: { readonly reservation: ReservationRe
           </span>
           <span className="tabular-nums">
             {formatMoney(item.lineTotal)}
-            <span className="text-ink-600"> ({formatMoney(item.unitPrice)} each)</span>
+            <span className="text-ink-600"> ({formatMoney(item.unitPrice)} cada uno)</span>
           </span>
         </li>
       ))}

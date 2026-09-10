@@ -2,12 +2,12 @@ import { useId } from 'react';
 import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from 'react';
 
 /**
- * Form primitives that bind the backend's flat `errors` map to inputs.
+ * Primitivas de formulario que vinculan el mapa plano `errors` del backend con los inputs.
  *
- * Binding is by **field name only**. Bean-validation messages are localised
- * server-side (a Spanish-locale server returns `"no debe estar vacío"`), so the
- * message text is never matched on — we render the server string as supplementary
- * detail beneath our own copy where useful, and rely on the key for placement.
+ * La vinculación se hace **solo por nombre de campo**. Los mensajes de bean validation se localizan
+ * del lado del servidor (un servidor con locale español devuelve `"no debe estar vacío"`), así que
+ * nunca se comparan por texto: mostramos la cadena del servidor como detalle complementario debajo
+ * de nuestro propio texto cuando resulta útil, y usamos la clave para ubicarla.
  */
 
 export interface FieldProps {
@@ -49,7 +49,7 @@ type TextInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> &
   readonly label: string;
   readonly error?: string | undefined;
   readonly hint?: string | undefined;
-  /** React 19: refs are plain props, no `forwardRef` wrapper needed. */
+  /** React 19: las refs son props comunes; no hace falta un wrapper con `forwardRef`. */
   readonly ref?: Ref<HTMLInputElement>;
   readonly fieldClassName?: string;
 };

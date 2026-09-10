@@ -1,14 +1,14 @@
 import { isApiError, toUserMessage } from '../../lib/problem.ts';
 
 /**
- * Status-aware error presentation (frontend-spec.md §5).
+ * Presentación de errores según el estado (frontend-spec.md §5).
  *
- * The mapping is deliberate:
- *  - `422` details are authored for end users, so we render them verbatim;
- *  - `409` is always retryable after a refetch, so we offer the retry action;
- *  - `403` means the control should not have been visible in the first place;
- *  - validation messages are localised server-side, so we never surface the
- *    `errors` map here — it belongs bound to individual fields.
+ * El mapeo es intencional:
+ *  - los detalles `422` están redactados para usuarios finales, así que los mostramos tal cual;
+ *  - `409` siempre permite reintentar tras recargar, por eso ofrecemos la acción de reintento;
+ *  - `403` significa que el control no debería haber sido visible en primer lugar;
+ *  - los mensajes de validación se localizan del lado del servidor, así que nunca mostramos aquí
+ *    el mapa `errors`: pertenece a los campos individuales.
  */
 
 const toneByKind = {
@@ -24,20 +24,20 @@ const toneByKind = {
 } as const;
 
 const headingByKind = {
-  validation: 'Check your details',
-  unauthorized: 'Sign in required',
-  forbidden: 'Not permitted',
-  notFound: 'Not found',
-  conflict: 'Someone got there first',
-  businessRule: 'Cannot continue',
-  server: 'Server error',
-  network: 'Connection problem',
-  unknown: 'Something went wrong',
+  validation: 'Revisa tus datos',
+  unauthorized: 'Inicio de sesi?n requerido',
+  forbidden: 'No permitido',
+  notFound: 'No encontrado',
+  conflict: 'Alguien se adelant?',
+  businessRule: 'No se puede continuar',
+  server: 'Error del servidor',
+  network: 'Problema de conexi?n',
+  unknown: 'Algo sali? mal',
 } as const;
 
 export interface ErrorBannerProps {
   readonly error: unknown;
-  /** Rendered as a retry control; shown automatically for retryable errors. */
+  /** Se renderiza como control de reintento; se muestra autom?ticamente para errores reintentables. */
   readonly onRetry?: (() => void) | undefined;
   readonly retryLabel?: string;
   readonly className?: string;
@@ -46,7 +46,7 @@ export interface ErrorBannerProps {
 export function ErrorBanner({
   error,
   onRetry,
-  retryLabel = 'Try again',
+  retryLabel = 'Reintentar',
   className = '',
 }: ErrorBannerProps) {
   if (!error) return null;
@@ -72,7 +72,7 @@ export function ErrorBanner({
   );
 }
 
-/** Compact single-line variant for inline slots such as table rows. */
+/** Variante compacta de una sola l?nea para espacios inline como filas de tabla. */
 export function InlineError({ error }: { readonly error: unknown }) {
   if (!error) return null;
   return (

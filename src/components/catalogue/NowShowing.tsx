@@ -7,12 +7,12 @@ import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { MovieCard } from './MovieCard.tsx';
 
 /**
- * The now-showing grid: `GET /api/movies` joined client-side with
+ * La cuadrícula de películas en cartel: `GET /api/movies` unido en cliente con
  * `GET /api/screenings?upcomingOnly=true`.
  *
- * Both reads are anonymous, so the whole home page renders without a token.
- * The screening response already carries `movieName`/`movieId`, so grouping is
- * a pure client-side join with no extra fetches.
+ * Ambas lecturas son anónimas, así que toda la página de inicio se renderiza
+ * sin token. La respuesta de sesiones ya incluye `movieName`/`movieId`, por lo
+ * que la agrupación es una unión puramente en cliente, sin peticiones extra.
  */
 export default function NowShowing() {
   const resource = useResource<{
@@ -32,7 +32,7 @@ export default function NowShowing() {
     [],
   );
 
-  if (resource.isLoading) return <LoadingBlock label="Loading the schedule…" />;
+  if (resource.isLoading) return <LoadingBlock label="Cargando la cartelera…" />;
   if (resource.error) return <ErrorBanner error={resource.error} onRetry={resource.refetch} />;
 
   const movies = resource.data?.movies ?? [];
@@ -45,8 +45,8 @@ export default function NowShowing() {
   if (movies.length === 0) {
     return (
       <EmptyState
-        title="No movies yet"
-        description="The catalogue is empty. An administrator needs to add movies and schedule screenings."
+        title="Aún no hay películas"
+        description="El catálogo está vacío. Un administrador debe añadir películas y programar sesiones."
       />
     );
   }
@@ -55,14 +55,14 @@ export default function NowShowing() {
     <div className="flex flex-col gap-12">
       <section>
         <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-xl font-bold">Now showing</h2>
-          <p className="text-ink-500 text-sm">{screenings.length} upcoming screenings</p>
+          <h2 className="text-xl font-bold">En cartel</h2>
+          <p className="text-ink-500 text-sm">{screenings.length} próximas sesiones</p>
         </div>
 
         {showing.length === 0 ? (
           <EmptyState
-            title="Nothing scheduled"
-            description="There are movies in the catalogue, but no upcoming screenings."
+            title="No hay sesiones programadas"
+            description="Hay películas en el catálogo, pero no hay próximas sesiones."
           />
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -75,7 +75,7 @@ export default function NowShowing() {
 
       {rest.length > 0 && (
         <section>
-          <h2 className="mb-4 text-xl font-bold">Also in the catalogue</h2>
+          <h2 className="mb-4 text-xl font-bold">También en el catálogo</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {rest.map((movie) => (
               <MovieCard key={movie.uuid} movie={movie} />

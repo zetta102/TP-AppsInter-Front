@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import { getRoom, getRoomLayout } from '../../lib/api/rooms.ts';
-import { createSeats, deleteSeat, updateSeat, type BulkSeatResult } from '../../lib/api/seats.ts';
+import { generateSeats, getRoom, getRoomLayout } from '../../lib/api/rooms.ts';
+import { deleteSeat, updateSeat } from '../../lib/api/seats.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
-import { toUserMessage } from '../../lib/problem.ts';
+import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import { SeatType, seatTypeLabels } from '../../lib/enums.ts';
 import { seatLabel } from '../../lib/format.ts';
-import type { CreateSeatRequest, SeatLayoutResponse, SeatResponse } from '../../lib/types.ts';
+import type { SeatLayoutResponse, SeatResponse } from '../../lib/types.ts';
 import { AdminPage } from './AdminPage.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { Badge, Modal } from '../ui/Modal.tsx';
 
-/** Row letters A, B, … Z, AA, AB — the same shape a cinema layout normally uses. */
+/** Letras de fila A, B, … Z, AA, AB: el mismo formato que suele usar una sala de cine. */
 function rowName(index: number): string {
   let name = '';
   let n = index;
@@ -26,12 +26,13 @@ function rowName(index: number): string {
 const coord = (row: string, column: string) => `${row}-${column}`;
 
 /**
- * `/admin/rooms/seats?id=<uuid>` — the seat layout builder.
+ * `/admin/rooms/seats?id=<uuid>` — el generador de distribución de asientos.
  *
- * There is no bulk endpoint, so generating a grid issues one `POST /api/seats`
- * per seat. Requests are run with bounded concurrency and every outcome is
- * reported, because a partial failure would otherwise leave a half-built room
- * with no indication of which seats are missing.
+ * Generar una grilla llama a `POST /api/rooms/{id}/seats:generate` en una única
+ * transacción, de modo que o bien existe toda la distribución solicitada o no
+ * cambia nada (frontend-spec.md §8.3 "Creación masiva de asientos"). Se usa
+ * `onConflict: 'SKIP'` para que volver a ejecutar el generador al ampliar una
+ * sala nunca falle por las filas que ya existen.
  */
 export default function AdminRoomSeats() {
   const roomId = useQueryParam('id');
@@ -49,20 +50,20 @@ export default function AdminRoomSeats() {
   );
 
   const [generating, setGenerating] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [result, setResult] = useState<BulkSeatResult | null>(null);
+  const [generateError, setGenerateError] = useState<unknown>(null);
+  const [generateSuccess, setGenerateSuccess] = useState<string | null>(null);
   const [rowError, setRowError] = useState<unknown>(null);
   const [editing, setEditing] = useState<SeatResponse | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
 
   if (!roomId) {
     return (
-      <AdminPage title="Seat layout">
+      <AdminPage title="Plano de asientos">
         <EmptyState
-          title="No room selected"
+          title="No hay ninguna sala seleccionada"
           action={
             <a href="/admin/rooms" className="cine-btn cine-btn-primary">
-              Choose a room
+              Seleccionar sala
             </a>
           }
         />
@@ -78,55 +79,43 @@ export default function AdminRoomSeats() {
     rows: number;
     columns: number;
     startRowIndex: number;
-    premiumRows: ReadonlySet<string>;
+    premiumFrom: number;
   }) => {
     setShowGenerator(false);
-    setResult(null);
-    setRowError(null);
-
-    const requests: CreateSeatRequest[] = [];
-    for (let r = 0; r < spec.rows; r++) {
-      const row = rowName(spec.startRowIndex + r);
-      for (let c = 1; c <= spec.columns; c++) {
-        const column = String(c);
-        // Skip seats that already exist — the server would answer 409 anyway.
-        if (existing.has(coord(row, column))) continue;
-        requests.push({
-          screenRoomId: roomId,
-          row,
-          column,
-          seatType: spec.premiumRows.has(row) ? SeatType.PREMIUM : SeatType.NORMAL,
-        });
-      }
-    }
-
-    if (requests.length === 0) {
-      setRowError(new Error('Every seat in that range already exists.'));
-      return;
-    }
-
+    setGenerateError(null);
+    setGenerateSuccess(null);
     setGenerating(true);
-    setProgress({ done: 0, total: requests.length });
+
+    const startRow = rowName(spec.startRowIndex);
+    const preview = Array.from({ length: spec.rows }, (_, index) =>
+      rowName(spec.startRowIndex + index),
+    );
+    const premiumRows = preview.slice(Math.max(0, preview.length - spec.premiumFrom));
+
     try {
-      const outcome = await createSeats(requests, {
-        concurrency: 4,
-        onProgress: (done, total) => setProgress({ done, total }),
+      const { data } = await generateSeats(roomId, {
+        rows: spec.rows,
+        columns: spec.columns,
+        startRow,
+        ...(premiumRows.length > 0 ? { premiumRows } : {}),
+        onConflict: 'SKIP',
       });
-      setResult(outcome);
+      setGenerateSuccess(`La distribución ahora tiene ${data.seats.length} asientos.`);
+    } catch (error) {
+      setGenerateError(error);
     } finally {
       setGenerating(false);
-      setProgress(null);
       layout.refetch();
     }
   };
 
   const remove = async (seat: SeatResponse) => {
-    if (!window.confirm(`Delete seat ${seatLabel(seat.row, seat.column)}?`)) return;
+    if (!window.confirm(`¿Eliminar el asiento ${seatLabel(seat.row, seat.column)}?`)) return;
     setRowError(null);
     try {
       await deleteSeat(seat.uuid);
     } catch (error) {
-      // 409 when tickets already reference the seat.
+      // 409 cuando los tickets ya referencian el asiento.
       setRowError(error);
     } finally {
       layout.refetch();
@@ -153,12 +142,12 @@ export default function AdminRoomSeats() {
 
   return (
     <AdminPage
-      title={room.data ? `Seats · ${room.data.roomName}` : 'Seat layout'}
-      description="Click a seat to switch between normal and premium. Premium tickets cost 1.5× the base price."
+      title={room.data ? `Asientos · ${room.data.roomName}` : 'Plano de asientos'}
+      description="Seleccione un asiento para alternar entre normal y premium. Los tickets premium cuestan 1,5× el precio base."
       action={
         <div className="flex gap-2">
           <a href="/admin/rooms" className="cine-btn cine-btn-ghost">
-            All rooms
+            Todas las salas
           </a>
           <button
             type="button"
@@ -166,39 +155,47 @@ export default function AdminRoomSeats() {
             disabled={generating}
             onClick={() => setShowGenerator(true)}
           >
-            Generate seats
+            Generar asientos
           </button>
         </div>
       }
     >
       {rowError !== null && <ErrorBanner error={rowError} />}
 
-      {generating && progress && (
-        <div className="cine-card p-4 text-sm">
-          Creating seats… {progress.done} of {progress.total}
-          <div className="bg-ink-800 mt-2 h-1.5 w-full overflow-hidden rounded-full">
-            <div
-              className="bg-brand-500 h-full transition-[width]"
-              style={{ width: `${(progress.done / progress.total) * 100}%` }}
-            />
-          </div>
+      {generating && (
+        <div className="cine-card p-4 text-sm">Generando la distribución…</div>
+      )}
+
+      {generateSuccess && (
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">
+          {generateSuccess}
         </div>
       )}
 
-      {result && <BulkReport result={result} />}
+      {generateError !== null && (
+        <div className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm">
+          {toUserMessage(generateError)}
+          {isApiErrorWithCode(generateError, 'NAME_TAKEN') &&
+            Array.isArray(generateError.context.conflicts) && (
+              <p className="text-ink-300 mt-1">
+                Asientos en conflicto: {(generateError.context.conflicts as string[]).join(', ')}
+              </p>
+            )}
+        </div>
+      )}
 
       {layout.isLoading ? (
-        <LoadingBlock label="Loading layout…" />
+        <LoadingBlock label="Cargando distribución…" />
       ) : layout.error ? (
         <ErrorBanner error={layout.error} onRetry={layout.refetch} />
       ) : !layout.data || layout.data.seats.length === 0 ? (
         <EmptyState
-          title="This room has no seats"
-          description="Generate a grid to get started. You can fine-tune individual seats afterwards."
+          title="Esta sala no tiene asientos"
+          description="Genere una grilla para comenzar. Después podrá ajustar los asientos de forma individual."
         />
       ) : (
         <div className="cine-card overflow-x-auto p-5">
-          <p className="text-ink-600 mb-4 text-center text-xs uppercase tracking-[0.3em]">Screen</p>
+          <p className="text-ink-600 mb-4 text-center text-xs uppercase tracking-[0.3em]">Pantalla</p>
           <div className="mx-auto flex w-fit flex-col gap-1.5">
             {layout.data.rows.map((row) => (
               <div key={row} className="flex items-center gap-1.5">
@@ -228,8 +225,8 @@ export default function AdminRoomSeats() {
             ))}
           </div>
           <p className="text-ink-500 mt-5 text-center text-xs">
-            {layout.data.seats.length} seats · {layout.data.rows.length} rows ×{' '}
-            {layout.data.columns.length} columns
+            {layout.data.seats.length} asientos · {layout.data.rows.length} filas ×{' '}
+            {layout.data.columns.length} columnas
           </p>
         </div>
       )}
@@ -247,11 +244,11 @@ export default function AdminRoomSeats() {
         <Modal
           open
           onClose={() => setEditing(null)}
-          title={`Seat ${seatLabel(editing.row, editing.column)}`}
+          title={`Asiento ${seatLabel(editing.row, editing.column)}`}
         >
           <div className="flex flex-col gap-4 text-sm">
             <p>
-              Currently <Badge tone={editing.seatType === SeatType.PREMIUM ? 'premium' : 'neutral'}>
+              Actualmente <Badge tone={editing.seatType === SeatType.PREMIUM ? 'premium' : 'neutral'}>
                 {seatTypeLabels[editing.seatType]}
               </Badge>
             </p>
@@ -265,7 +262,7 @@ export default function AdminRoomSeats() {
                   void remove(seat);
                 }}
               >
-                Delete seat
+                Eliminar asiento
               </button>
               <button
                 type="button"
@@ -276,7 +273,7 @@ export default function AdminRoomSeats() {
                   void toggleType(seat);
                 }}
               >
-                Make{' '}
+                Convertir en{' '}
                 {editing.seatType === SeatType.PREMIUM
                   ? seatTypeLabels[SeatType.NORMAL]
                   : seatTypeLabels[SeatType.PREMIUM]}
@@ -286,33 +283,6 @@ export default function AdminRoomSeats() {
         </Modal>
       )}
     </AdminPage>
-  );
-}
-
-/** Per-seat outcomes, so a partial failure never passes unnoticed. */
-function BulkReport({ result }: { readonly result: BulkSeatResult }) {
-  const tone =
-    result.failures.length === 0
-      ? 'border-emerald-500/40 bg-emerald-500/10'
-      : 'border-gold-500/40 bg-gold-500/10';
-
-  return (
-    <div className={`rounded-lg border px-4 py-3 text-sm ${tone}`}>
-      <p className="font-medium">
-        Created {result.created.length} seat{result.created.length === 1 ? '' : 's'}
-        {result.failures.length > 0 && `, ${result.failures.length} failed`}.
-      </p>
-      {result.failures.length > 0 && (
-        <ul className="text-ink-300 mt-2 max-h-40 space-y-1 overflow-y-auto text-xs">
-          {result.failures.map((failure) => (
-            <li key={`${failure.request.row}-${failure.request.column}`}>
-              {seatLabel(failure.request.row, failure.request.column)}:{' '}
-              {toUserMessage(failure.error)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 
@@ -329,36 +299,36 @@ function GeneratorModal({
     rows: number;
     columns: number;
     startRowIndex: number;
-    premiumRows: ReadonlySet<string>;
+    premiumFrom: number;
   }) => void;
 }) {
   const [rows, setRows] = useState(8);
   const [columns, setColumns] = useState(12);
   const [premiumFrom, setPremiumFrom] = useState(0);
 
-  // Append after the rows the room already has, so re-running extends the grid.
+  // Se agrega después de las filas que la sala ya tiene, para que volver a ejecutarlo amplíe la grilla.
   const startRowIndex = existingRows.length;
   const preview = Array.from({ length: rows }, (_, index) => rowName(startRowIndex + index));
   const premiumRows = new Set(preview.slice(Math.max(0, preview.length - premiumFrom)));
 
   return (
-    <Modal open={open} onClose={onClose} title="Generate seats">
+    <Modal open={open} onClose={onClose} title="Generar asientos">
       <div className="flex flex-col gap-4">
         <p className="text-ink-500 text-sm">
-          Seats are created one request at a time — there is no bulk endpoint. Existing positions are
-          skipped.
+          Los asientos se crean en una sola transacción: o se genera toda la distribución o no
+          cambia nada. Las posiciones existentes se mantienen intactas.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="gen-rows" className="cine-label">
-              Rows
+              Filas
             </label>
             <input
               id="gen-rows"
               type="number"
               min={1}
-              max={26}
+              max={100}
               className="cine-input"
               value={rows}
               onChange={(event) => setRows(Math.max(1, Number(event.target.value)))}
@@ -366,13 +336,13 @@ function GeneratorModal({
           </div>
           <div>
             <label htmlFor="gen-cols" className="cine-label">
-              Seats per row
+              Asientos por fila
             </label>
             <input
               id="gen-cols"
               type="number"
               min={1}
-              max={40}
+              max={100}
               className="cine-input"
               value={columns}
               onChange={(event) => setColumns(Math.max(1, Number(event.target.value)))}
@@ -382,7 +352,7 @@ function GeneratorModal({
 
         <div>
           <label htmlFor="gen-premium" className="cine-label">
-            Premium back rows
+            Filas traseras premium
           </label>
           <input
             id="gen-premium"
@@ -394,26 +364,26 @@ function GeneratorModal({
             onChange={(event) => setPremiumFrom(Math.max(0, Number(event.target.value)))}
           />
           <p className="text-ink-500 mt-1 text-xs">
-            The last N rows become premium seats at 1.5× the base price.
+            Las últimas N filas se convierten en asientos premium a 1,5× el precio base.
           </p>
         </div>
 
         <p className="text-ink-400 text-xs">
-          Will create up to <strong>{rows * columns}</strong> seats in rows {preview[0]}–
+          Se crearán hasta <strong>{rows * columns}</strong> asientos en las filas {preview[0]}–
           {preview.at(-1)}
           {premiumRows.size > 0 && ` (premium: ${[...premiumRows].join(', ')})`}.
         </p>
 
         <div className="flex justify-end gap-2">
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
-            Cancel
+            Cancelar
           </button>
           <button
             type="button"
             className="cine-btn cine-btn-primary"
-            onClick={() => onGenerate({ rows, columns, startRowIndex, premiumRows })}
+            onClick={() => onGenerate({ rows, columns, startRowIndex, premiumFrom })}
           >
-            Generate
+            Generar
           </button>
         </div>
       </div>

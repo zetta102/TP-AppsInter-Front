@@ -4,16 +4,16 @@ import type { AuthResponse, LoginRequest, RegisterRequest, UserResponse } from '
 import { Role } from './enums.ts';
 
 /**
- * The single owner of both tokens, the refresh mutex and the `/api/users/me`
- * profile (frontend-spec.md §3).
+ * El único propietario de ambos tokens, el mutex de refresh y el perfil de
+ * `/api/users/me` (frontend-spec.md §3).
  *
- * Tokens live in memory with a `localStorage` mirror so a reload survives.
- * There is no cookie or CSRF flow.
+ * Los tokens viven en memoria con un espejo en `localStorage` para sobrevivir a una recarga.
+ * No existe flujo de cookies ni de CSRF.
  *
- * The critical invariant: **refresh is serialized behind one in-flight
- * promise**. Rotation revokes the consumed refresh token, so two parallel
- * refreshes log the user out. This is verified backend behaviour, not a race we
- * may ignore.
+ * La invariante crítica: **el refresh se serializa detrás de una única promesa en vuelo**.
+ * La rotación revoca el refresh token consumido, así que dos refreshes en paralelo cierran
+ * la sesión del usuario. Es un comportamiento verificado del backend, no una carrera que
+ * podamos ignorar.
  */
 
 const STORAGE_KEY = 'cine.auth.tokens';
@@ -29,7 +29,7 @@ export interface AuthTokens {
 export interface AuthState {
   readonly tokens: AuthTokens | null;
   readonly user: UserResponse | null;
-  /** False until the store has read `localStorage` and resolved the profile. */
+  /** Permanece en false hasta que el store lea `localStorage` y resuelva el perfil. */
   readonly ready: boolean;
 }
 
@@ -57,7 +57,7 @@ export function subscribeAuth(listener: Listener): () => void {
 }
 
 // ---------------------------------------------------------------------------
-// Persistence
+// Persistencia
 // ---------------------------------------------------------------------------
 
 function isTokens(value: unknown): value is AuthTokens {
@@ -84,8 +84,8 @@ function writeStoredTokens(tokens: AuthTokens | null): void {
     if (tokens) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
     else window.localStorage.removeItem(STORAGE_KEY);
   } catch {
-    // Private-browsing quota failures must not break sign-in; the in-memory
-    // copy still works for this tab.
+    // Los fallos de cuota en navegación privada no deben romper el inicio de sesión;
+    // la copia en memoria sigue funcionando para esta pestaña.
   }
 }
 
@@ -105,14 +105,14 @@ function applyTokens(tokens: AuthTokens | null): void {
 }
 
 // ---------------------------------------------------------------------------
-// Refresh mutex
+// Mutex de refresh
 // ---------------------------------------------------------------------------
 
 let inFlightRefresh: Promise<boolean> | null = null;
 
 /**
- * Refreshes the token pair at most once at a time. Every concurrent caller
- * awaits the same promise, so the backend only ever sees one rotation.
+ * Refresca el par de tokens como máximo una vez por vez. Cada llamada concurrente
+ * espera la misma promesa, así que el backend solo ve una rotación.
  */
 export function refreshTokens(): Promise<boolean> {
   if (inFlightRefresh) return inFlightRefresh;
@@ -132,14 +132,14 @@ export function refreshTokens(): Promise<boolean> {
         method: 'POST',
         body: { refreshToken: current.refreshToken },
       });
-      // Replace *both* tokens: the consumed refresh token is already revoked.
+      // Reemplaza *ambos* tokens: el refresh token consumido ya quedó revocado.
       applyTokens(fromAuthResponse(next));
       resolve(true);
     } catch {
       resolve(false);
     } finally {
-      // Must always clear, or the mutex latches and every later 401 signs the
-      // user out without ever calling /api/auth/refresh.
+      // Siempre debe limpiarse; si no, el mutex queda trabado y cada 401 posterior
+      // cierra la sesión sin volver a llamar a /api/auth/refresh.
       inFlightRefresh = null;
     }
   })();
@@ -148,10 +148,10 @@ export function refreshTokens(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Session lifecycle
+// Ciclo de vida de la sesión
 // ---------------------------------------------------------------------------
 
-/** Where to send the user after a forced sign-out. */
+/** Adónde enviar al usuario después de un cierre de sesión forzado. */
 function redirectToLogin(): void {
   if (!isBrowser) return;
   const { pathname, search } = window.location;
@@ -160,10 +160,15 @@ function redirectToLogin(): void {
   window.location.assign(`/login?next=${next}`);
 }
 
-/** Clears every trace of the session without calling the API. */
+/** Limpia todo rastro de la sesión sin llamar a la API. */
 export function clearSession(): void {
   applyTokens(null);
   setState({ user: null });
+}
+
+/** Aplica un perfil recién actualizado sin hacer un viaje de ida y vuelta por `fetchProfile`. */
+export function setUser(user: UserResponse): void {
+  setState({ user });
 }
 
 export async function fetchProfile(): Promise<UserResponse | null> {
@@ -187,17 +192,17 @@ export async function login(credentials: LoginRequest): Promise<UserResponse> {
   const user = await fetchProfile();
   if (!user) {
     clearSession();
-    throw new ApiError(401, { title: 'Unauthorized', status: 401, detail: 'Invalid credentials' });
+    throw new ApiError(401, { title: 'No autorizado', status: 401, detail: 'Credenciales inválidas' });
   }
   return user;
 }
 
-/** Registration always creates a `CUSTOMER`; there is no self-service admin signup. */
+/** El registro siempre crea un `CUSTOMER`; no existe alta de admin de autoservicio. */
 export async function register(payload: RegisterRequest): Promise<void> {
   await apiFetch('/api/auth/register', { method: 'POST', body: payload });
 }
 
-/** Revoking an unknown or already-revoked token is a silent no-op server-side. */
+/** Revocar un token desconocido o ya revocado es un no-op silencioso del lado del servidor. */
 export async function logout(): Promise<void> {
   const refreshToken = state.tokens?.refreshToken;
   try {
@@ -205,15 +210,15 @@ export async function logout(): Promise<void> {
       await apiFetch('/api/auth/logout', { method: 'POST', body: { refreshToken } });
     }
   } catch {
-    // A failed revoke must never trap the user in a signed-in shell.
+    // Un revoke fallido nunca debe dejar al usuario atrapado en una interfaz con sesión iniciada.
   } finally {
     clearSession();
   }
 }
 
 /**
- * Restores a session from `localStorage` on first load and resolves the
- * profile. Safe to call repeatedly; only the first call does work.
+ * Restaura una sesión desde `localStorage` en la primera carga y resuelve el
+ * perfil. Es seguro llamarla varias veces; solo la primera hace trabajo real.
  */
 let initialization: Promise<AuthState> | null = null;
 
@@ -238,7 +243,7 @@ export function initAuth(): Promise<AuthState> {
 }
 
 // ---------------------------------------------------------------------------
-// Derived helpers
+// Helpers derivados
 // ---------------------------------------------------------------------------
 
 export function isAuthenticated(): boolean {
@@ -246,12 +251,12 @@ export function isAuthenticated(): boolean {
 }
 
 export function isAdmin(): boolean {
-  // Authorization decisions come from `/api/users/me`, never from decoding the JWT.
+  // Las decisiones de autorización vienen de `/api/users/me`, nunca de decodificar el JWT.
   return state.user?.role === Role.ADMIN;
 }
 
-// Wire the store into the HTTP layer. Registering at module scope means any
-// module that reaches the network has already installed the hooks.
+// Conecta el store con la capa HTTP. Registrarlo en el scope del módulo garantiza que
+// cualquier módulo que llegue a la red ya tenga instalados los hooks.
 registerAuthHooks({
   getAccessToken: () => state.tokens?.token ?? null,
   refresh: refreshTokens,
@@ -261,7 +266,7 @@ registerAuthHooks({
   },
 });
 
-// Keep tabs in sync: a sign-out or refresh in one tab applies to all of them.
+// Mantiene sincronizadas las pestañas: un cierre de sesión o refresh en una pestaña se aplica a todas.
 if (isBrowser) {
   window.addEventListener('storage', (event) => {
     if (event.key !== STORAGE_KEY) return;

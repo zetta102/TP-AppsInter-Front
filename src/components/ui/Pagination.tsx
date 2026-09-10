@@ -1,11 +1,11 @@
 import type { Page } from '../../lib/types.ts';
 
 /**
- * Pager for the shared list envelope (frontend-spec.md §6).
+ * Paginador para el contenedor compartido de listas (frontend-spec.md §6).
  *
- * `page` is zero-based on the wire; we display it one-based. The envelope's
- * `sort` string is Spring's `Sort.toString()` and is display-only, so it is
- * never parsed here.
+ * `page` es base cero en el wire; lo mostramos con base uno. La cadena `sort`
+ * del contenedor es el `Sort.toString()` de Spring y es solo de visualización,
+ * así que nunca se parsea aquí.
  */
 export function Pagination<T>({
   page,
@@ -22,10 +22,10 @@ export function Pagination<T>({
   const windowed = pageWindow(current, page.totalPages);
 
   return (
-    <nav aria-label="Pagination" className={`flex items-center justify-between gap-4 ${className}`}>
+    <nav aria-label="Paginación" className={`flex items-center justify-between gap-4 ${className}`}>
       <p className="text-ink-500 text-xs">
-        {page.totalElements.toLocaleString()} result{page.totalElements === 1 ? '' : 's'} · page{' '}
-        {current + 1} of {page.totalPages}
+        {page.totalElements.toLocaleString()} resultado{page.totalElements === 1 ? '' : 's'} · página{' '}
+        {current + 1} de {page.totalPages}
       </p>
 
       <div className="flex items-center gap-1">
@@ -35,7 +35,7 @@ export function Pagination<T>({
           disabled={page.first}
           onClick={() => onPageChange(current - 1)}
         >
-          Previous
+          Anterior
         </button>
 
         {windowed.map((entry, index) =>
@@ -66,14 +66,14 @@ export function Pagination<T>({
           disabled={page.last}
           onClick={() => onPageChange(current + 1)}
         >
-          Next
+          Siguiente
         </button>
       </div>
     </nav>
   );
 }
 
-/** Page numbers around the current one; `null` marks an elision. */
+/** Números de página alrededor de la actual; `null` marca una omisión. */
 function pageWindow(current: number, total: number): readonly (number | null)[] {
   if (total <= 7) return Array.from({ length: total }, (_, index) => index);
 

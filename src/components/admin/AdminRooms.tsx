@@ -28,7 +28,7 @@ interface FormState {
 
 const initialFormState: FormState = { error: null, fieldErrors: {} };
 
-/** `/admin/rooms` — room CRUD plus the entry point to the seat builder. */
+/** `/admin/rooms` — CRUD de salas más el punto de entrada al constructor de asientos. */
 export default function AdminRooms() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<RoomSortField>>('roomName,asc');
@@ -42,12 +42,12 @@ export default function AdminRooms() {
   );
 
   const remove = async (room: ScreenRoomResponse) => {
-    if (!window.confirm(`Delete “${room.roomName}”? Its seats go with it.`)) return;
+    if (!window.confirm(`¿Eliminar “${room.roomName}”? Sus asientos también se eliminarán.`)) return;
     setRowError(null);
     try {
       await deleteRoom(room.uuid);
     } catch (error) {
-      // 409 when screenings still reference the room.
+      // 409 cuando todavía hay funciones que referencian la sala.
       setRowError(error);
     } finally {
       resource.refetch();
@@ -57,22 +57,22 @@ export default function AdminRooms() {
   const columns: readonly Column<ScreenRoomResponse>[] = [
     {
       key: 'roomName',
-      header: 'Room',
+      header: 'Sala',
       sortField: 'roomName',
       cell: (room) => <span className="font-medium">{room.roomName}</span>,
     },
     {
       key: 'type',
-      header: 'Type',
+      header: 'Tipo',
       sortField: 'screenRoomType',
       cell: (room) => <Badge>{screenRoomTypeLabels[room.screenRoomType]}</Badge>,
     },
     {
       key: 'seats',
-      header: 'Seats',
+      header: 'Asientos',
       cell: (room) => (
         <a href={`/admin/rooms/seats?id=${room.uuid}`} className="text-brand-400 hover:underline">
-          Manage layout
+          Gestionar distribución
         </a>
       ),
     },
@@ -83,14 +83,14 @@ export default function AdminRooms() {
       cell: (room) => (
         <div className="flex justify-end gap-1">
           <button type="button" className="cine-btn cine-btn-ghost" onClick={() => setEditing(room)}>
-            Edit
+            Editar
           </button>
           <button
             type="button"
             className="cine-btn cine-btn-danger"
             onClick={() => void remove(room)}
           >
-            Delete
+            Eliminar
           </button>
         </div>
       ),
@@ -101,15 +101,15 @@ export default function AdminRooms() {
 
   return (
     <AdminPage
-      title="Screen rooms"
-      description="Rooms and their projection format. Seats are managed per room."
+      title="Salas"
+      description="Salas y su formato de proyección. Los asientos se administran por sala."
       action={
         <button
           type="button"
           className="cine-btn cine-btn-primary"
           onClick={() => setCreating(true)}
         >
-          New room
+          Nueva sala
         </button>
       }
     >
@@ -122,8 +122,8 @@ export default function AdminRooms() {
         isLoading={resource.isLoading || resource.isRefreshing}
         error={resource.error}
         onRetry={resource.refetch}
-        emptyTitle="No rooms"
-        emptyDescription="Create a room before scheduling screenings."
+        emptyTitle="No hay salas"
+        emptyDescription="Cree una sala antes de programar funciones."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(
@@ -178,7 +178,7 @@ function RoomFormModal({
       onSaved();
       return initialFormState;
     } catch (error) {
-      // 409 means the name is taken; the check excludes the room itself on PUT.
+      // 409 significa que el nombre ya existe; en PUT la validación excluye a la propia sala.
       return { error, fieldErrors: toFieldErrors(error) };
     }
   }, initialFormState);
@@ -186,22 +186,22 @@ function RoomFormModal({
   if (!open) return null;
 
   return (
-    <Modal open={open} onClose={onClose} title={room ? 'Edit room' : 'New room'}>
+    <Modal open={open} onClose={onClose} title={room ? 'Editar sala' : 'Nueva sala'}>
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
         <TextInput
-          label="Room name"
+          label="Nombre de la sala"
           name="roomName"
           required
           maxLength={50}
           defaultValue={room?.roomName ?? ''}
-          hint="Must be unique, ignoring case."
+          hint="Debe ser único, sin distinguir mayúsculas y minúsculas."
           error={state.fieldErrors['roomName']}
         />
 
         <SelectInput
-          label="Projection type"
+          label="Tipo de proyección"
           name="screenRoomType"
           required
           defaultValue={room?.screenRoomType ?? screenRoomTypeValues[0]}
@@ -216,9 +216,9 @@ function RoomFormModal({
 
         <div className="flex justify-end gap-2">
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
-            Cancel
+            Cancelar
           </button>
-          <SubmitButton pendingLabel="Saving…">{room ? 'Save changes' : 'Create'}</SubmitButton>
+          <SubmitButton pendingLabel="Guardando…">{room ? 'Guardar cambios' : 'Crear'}</SubmitButton>
         </div>
       </form>
     </Modal>

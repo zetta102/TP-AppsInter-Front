@@ -7,6 +7,7 @@ import {
   login as storeLogin,
   logout as storeLogout,
   register as storeRegister,
+  setUser as storeSetUser,
   subscribeAuth,
   type AuthState,
 } from './auth-store.ts';
@@ -29,6 +30,8 @@ export interface AuthContextValue extends AuthState {
   readonly register: (payload: RegisterRequest) => Promise<void>;
   readonly logout: () => Promise<void>;
   readonly clear: () => void;
+  /** Applies a freshly updated profile without a round trip through `/me`. */
+  readonly setUser: (user: UserResponse) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -53,6 +56,7 @@ function useStoreBackedValue(): AuthContextValue {
   const register = useCallback((payload: RegisterRequest) => storeRegister(payload), []);
   const logout = useCallback(() => storeLogout(), []);
   const clear = useCallback(() => clearSession(), []);
+  const setUser = useCallback((user: UserResponse) => storeSetUser(user), []);
 
   return {
     ...snapshot,
@@ -62,6 +66,7 @@ function useStoreBackedValue(): AuthContextValue {
     register,
     logout,
     clear,
+    setUser,
   };
 }
 

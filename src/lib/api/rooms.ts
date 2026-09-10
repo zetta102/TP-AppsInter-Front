@@ -1,7 +1,9 @@
 import { getPage, requestCreated, requestJson, requestVoid, type CallOptions } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type {
+  BulkCreateSeatsRequest,
   CreateScreenRoomRequest,
+  GenerateSeatsRequest,
   Page,
   ScreenRoomResponse,
   SeatLayoutResponse,
@@ -9,7 +11,7 @@ import type {
   Uuid,
 } from '../types.ts';
 
-/** `/api/rooms` — reads are public, writes are ADMIN (frontend-spec.md §8.2). */
+/** `/api/rooms`: las lecturas son públicas y las escrituras son ADMIN (frontend-spec.md §8.2). */
 
 export type RoomSortField = 'roomName' | 'screenRoomType';
 
@@ -26,22 +28,22 @@ export function getRoom(uuid: Uuid, options: CallOptions = {}): Promise<ScreenRo
   return requestJson<ScreenRoomResponse>(`/api/rooms/${uuid}`, options);
 }
 
-/** Returns a **plain array**, not a page envelope. */
+/** Devuelve un **array plano**, no un contenedor paginado. */
 export function getRoomSeats(uuid: Uuid, options: CallOptions = {}): Promise<SeatResponse[]> {
   return requestJson<SeatResponse[]>(`/api/rooms/${uuid}/seats`, options);
 }
 
-/** The grid without availability — for the admin room editor. */
+/** La grilla sin disponibilidad, para el editor de salas de admin. */
 export function getRoomLayout(uuid: Uuid, options: CallOptions = {}): Promise<SeatLayoutResponse> {
   return requestJson<SeatLayoutResponse>(`/api/rooms/${uuid}/layout`, options);
 }
 
-/** `409 "Screen room '…' already exists"` on a case-insensitive name clash. */
+/** `409 "Screen room '…' already exists"` ante un choque de nombre sin distinguir mayúsculas. */
 export function createRoom(body: CreateScreenRoomRequest) {
   return requestCreated<ScreenRoomResponse>('/api/rooms', { body, auth: true });
 }
 
-/** Uniqueness is re-checked excluding itself, so keeping the name succeeds. */
+/** La unicidad se vuelve a verificar excluyéndose a sí misma, así que conservar el nombre funciona. */
 export function updateRoom(
   uuid: Uuid,
   body: CreateScreenRoomRequest,
@@ -55,4 +57,33 @@ export function updateRoom(
 
 export function deleteRoom(uuid: Uuid): Promise<void> {
   return requestVoid(`/api/rooms/${uuid}`, { method: 'DELETE', auth: true });
+}
+
+/**
+ * Construye una sala completa en una sola transacción (frontend-spec.md §8.3 "Bulk seat
+ * creation"). `onConflict` vale `FAIL` por defecto, lo que revierte el lote completo
+ * con `409 NAME_TAKEN` y `context.conflicts` listando las posiciones estilo `"A1"`
+ * en conflicto; `SKIP` deja intactos los asientos existentes; `REPLACE` sobrescribe
+ * el `seatType` del asiento existente.
+ *
+ * Se prefiere la ruta con dos puntos; `…/seats/bulk` es el mismo endpoint publicado
+ * bajo un alias con barra para clientes/proxies que alteran `:` en un segmento de ruta.
+ */
+export function bulkCreateSeats(uuid: Uuid, body: BulkCreateSeatsRequest) {
+  return requestCreated<SeatLayoutResponse>(`/api/rooms/${uuid}/seats:bulk`, {
+    body,
+    auth: true,
+  });
+}
+
+/**
+ * Genera una grilla completa: filas `startRow…` (por defecto `A`), columnas `1…columns`
+ * (ambas limitadas a 100), `premiumRows` marca filas completas como `PREMIUM`, y `skip`
+ * deja vacías coordenadas individuales estilo `"E5"` como pasillos.
+ */
+export function generateSeats(uuid: Uuid, body: GenerateSeatsRequest) {
+  return requestCreated<SeatLayoutResponse>(`/api/rooms/${uuid}/seats:generate`, {
+    body,
+    auth: true,
+  });
 }

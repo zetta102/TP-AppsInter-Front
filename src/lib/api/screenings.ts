@@ -8,18 +8,20 @@ import type {
   Uuid,
 } from '../types.ts';
 
-/** `/api/screenings` — reads are public, writes are ADMIN (frontend-spec.md §8.4). */
+/** `/api/screenings`: las lecturas son públicas y las escrituras son ADMIN (frontend-spec.md §8.4). */
 
 export type ScreeningSortField = 'startsAt' | 'endsAt' | 'basePrice' | 'movieName' | 'roomName';
 
 export type ScreeningFilters = {
   readonly movieId?: Uuid;
   readonly roomId?: Uuid;
-  /** ISO-8601 offset date-times matched against `startsAt`. */
+  /** Fechas y horas ISO-8601 con offset comparadas contra `startsAt`. */
   readonly from?: string;
   readonly to?: string;
-  /** Shorthand for "from now". Never overrides an explicit `from`. */
+  /** Atajo para "desde ahora". Nunca sobrescribe un `from` explícito. */
   readonly upcomingOnly?: boolean;
+  /** En el servidor vale `true` por defecto; usa `false` para omitir la agregación de disponibilidad. */
+  readonly includeAvailability?: boolean;
 };
 
 export type ListScreeningsParams = PageParams<ScreeningSortField> & ScreeningFilters;
@@ -39,8 +41,8 @@ export function getScreening(
 }
 
 /**
- * The seat map is **public** and is a snapshot, not a lock: seats are only held
- * at `POST /api/reservations`, so always be ready for a `409` at checkout.
+ * El mapa de asientos es **público** y es un snapshot, no un bloqueo: los asientos
+ * solo se retienen en `POST /api/reservations`, así que siempre hay que estar listo para un `409` al comprar.
  */
 export function getScreeningSeatMap(
   uuid: Uuid,
@@ -49,12 +51,12 @@ export function getScreeningSeatMap(
   return requestJson<SeatMapResponse>(`/api/screenings/${uuid}/seats`, options);
 }
 
-/** `409` when the `[startsAt, endsAt)` window overlaps another screening in the room. */
+/** `409` cuando la ventana `[startsAt, endsAt)` se superpone con otra función en la sala. */
 export function createScreening(body: CreateMovieScreeningRequest) {
   return requestCreated<MovieScreeningResponse>('/api/screenings', { body, auth: true });
 }
 
-/** Recomputes `endsAt` and re-checks overlap **excluding itself**. */
+/** Recalcula `endsAt` y vuelve a verificar superposición **excluyéndose a sí misma**. */
 export function updateScreening(
   uuid: Uuid,
   body: CreateMovieScreeningRequest,
@@ -70,5 +72,9 @@ export function deleteScreening(uuid: Uuid): Promise<void> {
   return requestVoid(`/api/screenings/${uuid}`, { method: 'DELETE', auth: true });
 }
 
-/** Minutes of turnover the backend adds after the runtime when computing `endsAt`. */
+/**
+ * Valor por defecto documentado: 15 minutos. El valor real se sirve en
+ * `GET /api/metadata/config` como `screeningTurnoverMinutes`: conviene usarlo en
+ * el planificador de admin; esta constante es solo el fallback.
+ */
 export const TURNOVER_MINUTES = 15;

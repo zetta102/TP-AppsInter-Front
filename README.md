@@ -1,66 +1,66 @@
 # Cine — frontend
 
-An Astro + React frontend for the **Cine** cinema-booking backend, implementing
-[`frontend-spec.md`](./frontend-spec.md) in full: the public catalogue, JWT
-authentication, seat selection, checkout with concessions, reservation
-management, and all seven admin consoles.
+Un frontend Astro + React para el backend de reservas de cine **Cine**, que
+implementa por completo [`frontend-spec.md`](./frontend-spec.md): el catálogo
+público, la autenticación JWT, la selección de butacas, el checkout con
+concesiones, la gestión de reservas y las siete consolas de administración.
 
-Gaps discovered in the backend while building this are written up in
-[`backend-spec.md`](./backend-spec.md).
+Las carencias detectadas en el backend al construir este frontend están
+documentadas en [`backend-spec.md`](./backend-spec.md).
 
 ## Stack
 
-| Piece | Choice | Notes |
+| Elemento | Elección | Notas |
 | --- | --- | --- |
-| Framework | Astro 7.2, `output: 'static'` | No adapter, no SSR — every API call is client-side. |
-| Islands | React 19.2 via `@astrojs/react` | Actions (`useActionState`/`useFormStatus`), `useOptimistic`, ref-as-prop. |
-| Styling | Tailwind CSS 4 via `@tailwindcss/vite` | No `tailwind.config.js`; tokens live in `@theme` in `src/styles/global.css`. |
-| Types | TypeScript 7 | `verbatimModuleSyntax` + `erasableSyntaxOnly`, so no `enum` — wire enums are `as const` objects. |
+| Framework | Astro 7.2, `output: 'static'` | Sin adaptador, sin SSR — cada llamada a la API se hace desde el cliente. |
+| Islands | React 19.2 vía `@astrojs/react` | Actions (`useActionState`/`useFormStatus`), `useOptimistic`, ref-as-prop. |
+| Estilos | Tailwind CSS 4 vía `@tailwindcss/vite` | Sin `tailwind.config.js`; los tokens viven en `@theme` en `src/styles/global.css`. |
+| Tipos | TypeScript 7 | `verbatimModuleSyntax` + `erasableSyntaxOnly`, por lo que no hay `enum` — los enums de la API son objetos `as const`. |
 | Runtime | Node 26 | `Promise.withResolvers`, `AbortSignal.any`/`timeout`, `Object.groupBy`, `structuredClone`. |
 
-## Getting started
+## Primeros pasos
 
 ```sh
 npm install
-cp .env.example .env   # adjust PUBLIC_API_BASE_URL if the backend is not on :8080
+cp .env.example .env   # ajusta PUBLIC_API_BASE_URL si el backend no está en :8080
 npm run dev            # http://localhost:5173
 ```
 
-The dev server runs on **5173** deliberately: the backend's observability compose
-stack binds `3000`, and `5173` is already in the backend's default
-`CINE_CORS_ALLOWED_ORIGINS`.
+El servidor de desarrollo corre en el puerto **5173** de forma deliberada: el
+stack de observabilidad compose del backend usa el `3000`, y el `5173` ya está
+incluido en el `CINE_CORS_ALLOWED_ORIGINS` por defecto del backend.
 
-### Commands
+### Comandos
 
-| Command | Action |
+| Comando | Acción |
 | --- | --- |
-| `npm run dev` | Dev server on `localhost:5173` |
-| `npm run build` | Static build to `./dist/` |
-| `npm run preview` | Serve the built output |
+| `npm run dev` | Servidor de desarrollo en `localhost:5173` |
+| `npm run build` | Build estático en `./dist/` |
+| `npm run preview` | Sirve el resultado del build |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run check` | Typecheck, then a full build |
+| `npm run check` | Typecheck y luego un build completo |
 
-> `astro check` is not wired up: `@astrojs/check` still peers on TypeScript
-> `^5 || ^6` and refuses to install against TypeScript 7. `npm run check` covers
-> the same ground with `tsc` plus a build.
+> `astro check` no está integrado: `@astrojs/check` todavía depende de
+> TypeScript `^5 || ^6` y se niega a instalarse con TypeScript 7. `npm run check`
+> cubre lo mismo con `tsc` más un build.
 
-### Environment
+### Entorno
 
-| Variable | Default | Purpose |
+| Variable | Por defecto | Propósito |
 | --- | --- | --- |
-| `PUBLIC_API_BASE_URL` | `http://localhost:8080` | Backend origin. |
-| `PUBLIC_API_TIMEOUT_MS` | `15000` | Per-request timeout. |
+| `PUBLIC_API_BASE_URL` | `http://localhost:8080` | Origen del backend. |
+| `PUBLIC_API_TIMEOUT_MS` | `15000` | Timeout por solicitud. |
 
-Both are declared in the `astro:env` schema in `astro.config.mjs` and read from
-`astro:env/client` — never through `import.meta.env` directly.
+Ambas están declaradas en el esquema `astro:env` en `astro.config.mjs` y se
+leen desde `astro:env/client` — nunca directamente mediante `import.meta.env`.
 
-## Route deviations
+## Desviaciones de rutas
 
-The build is pure SSG, and an unknown UUID cannot be prerendered, so the spec's
-path parameters are carried as query parameters instead. Behaviour is otherwise
-identical.
+El build es SSG puro, y un UUID desconocido no puede prerenderizarse, así que
+los parámetros de ruta de la especificación se llevan como parámetros de
+consulta en su lugar. El comportamiento es idéntico en todo lo demás.
 
-| `frontend-spec.md` §10 | Implemented as |
+| `frontend-spec.md` §10 | Implementado como |
 | --- | --- |
 | `/movies/:id` | `/movies/detail?id=<uuid>` |
 | `/screenings/:id/seats` | `/screenings/seats?id=<uuid>` |
@@ -68,47 +68,52 @@ identical.
 | `/reservations/:id` | `/reservations/detail?id=<uuid>` |
 | `/admin/rooms/:id/seats` | `/admin/rooms/seats?id=<uuid>` |
 
-## Structure
+## Estructura
 
 ```
 src/
   lib/
-    types.ts              type-only DTOs, Page<T>, ProblemDetail
-    enums.ts              wire enums as `as const` unions + label maps
-    problem.ts            ApiError, RFC 7807 parsing, field-error extraction
-    http.ts               the single fetch chokepoint: timeouts, 401 replay
-    auth-store.ts         tokens, profile, the refresh mutex
-    auth-context.tsx      React 19 context + useSyncExternalStore snapshot
-    api/                  one module per resource
-    pricing.ts            HALF_UP ticket and line-total maths
-    query.ts              typed page/size/sort builder
-    format.ts             Intl money and date formatters
-    reservation-snapshots.ts  pre-cancellation snapshots
+    types.ts              DTOs de solo tipos, Page<T>, ProblemDetail
+    enums.ts              enums de la API como uniones `as const` + mapas de etiquetas
+    problem.ts            ApiError, parseo de RFC 7807, extracción de errores de campo
+    http.ts               el único cuello de botella de fetch: timeouts, reintento en 401
+    auth-store.ts         tokens, perfil, el mutex de refresco
+    auth-context.tsx      contexto de React 19 + snapshot con useSyncExternalStore
+    api/                  un módulo por recurso
+    pricing.ts            cálculos HALF_UP de entradas y totales de línea
+    query.ts              constructor tipado de page/size/sort
+    format.ts             formateadores Intl de moneda y fecha
+    reservation-snapshots.ts  snapshots previos a la cancelación
   components/
     ui/                   Field, DataTable, Pagination, Modal, Guards, …
     catalogue/ booking/ reservations/ admin/ auth/
-  layouts/Layout.astro    shell with <ClientRouter /> and a persisted nav
-  pages/                  public, auth, account and /admin routes
+  layouts/Layout.astro    shell con <ClientRouter /> y una navegación persistente
+  pages/                  rutas públicas, de autenticación, cuenta y /admin
 ```
 
-## Behaviours worth knowing
+## Comportamientos a tener en cuenta
 
-These are contract requirements, not preferences — changing them breaks
-correctness.
+Estos son requisitos de contrato, no preferencias — cambiarlos rompe la
+corrección del sistema.
 
-- **One refresh at a time.** Refresh tokens rotate and revoke on use, so two
-  concurrent refreshes log the user out. `auth-store.ts` shares a single
-  in-flight promise via `Promise.withResolvers()`.
-- **Roles come from `GET /api/users/me`**, never from decoding the JWT.
-- **Validation errors bind by field name only.** Bean-validation messages are
-  localised server-side, so message text is never matched on.
-- **The seat map is a snapshot, not a lock.** Seats are only held at
-  `POST /api/reservations`; a `409` means refetch the map and highlight what was
-  lost.
-- **`GET /api/inventory` is admin-only.** The checkout concessions panel hides
-  itself on `403`. This is the largest backend gap — see `backend-spec.md`.
-- **Cancelling returns `200` with an emptied body.** Reservations are
-  `structuredClone`d before the `DELETE` so the UI can still show what was
-  cancelled.
-- **`endsAt` is computed server-side** as `startsAt + runtime + 15 min`. The
-  scheduler previews the same arithmetic but never sends the field.
+- **Un solo refresco a la vez.** Los refresh tokens rotan y se revocan al
+  usarse, así que dos refrescos concurrentes cierran la sesión del usuario.
+  `auth-store.ts` comparte una única promesa en curso mediante
+  `Promise.withResolvers()`.
+- **Los roles provienen de `GET /api/users/me`**, nunca de decodificar el JWT.
+- **Los errores de validación se enlazan solo por nombre de campo.** Los
+  mensajes de bean-validation se localizan en el servidor, así que el texto
+  del mensaje nunca se usa para comparar.
+- **El mapa de butacas es un snapshot, no un bloqueo.** Las butacas solo se
+  reservan en `POST /api/reservations`; un `409` significa que hay que volver
+  a obtener el mapa y resaltar lo que se perdió.
+- **`GET /api/inventory` es solo para administradores.** El panel de
+  concesiones del checkout se oculta ante un `403`. Esta es la carencia más
+  grande del backend — ver `backend-spec.md`.
+- **Cancelar devuelve `200` con un cuerpo vacío.** Las reservas se clonan con
+  `structuredClone` antes del `DELETE` para que la UI pueda seguir mostrando
+  lo que se canceló.
+- **`endsAt` se calcula en el servidor** como `startsAt + runtime + 15 min`. El
+  programador (scheduler) previsualiza la misma aritmética pero nunca envía
+  el campo.
+

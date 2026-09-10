@@ -3,12 +3,12 @@ import { useAuth } from '../../lib/auth-context.tsx';
 import { LoadingBlock } from './SubmitButton.tsx';
 
 /**
- * Client-side route gating.
+ * Protección de rutas del lado del cliente.
  *
- * The backend is the only real gate — these guards exist to avoid rendering
- * doomed requests and to give a sensible signed-out experience. Every screen
- * still handles `403` defensively, because the role check here comes from
- * `GET /api/users/me` and can be stale.
+ * El backend es la única barrera real: estos guards existen para evitar renderizar
+ * solicitudes condenadas al fallo y para ofrecer una experiencia razonable al cerrar sesión.
+ * Cada pantalla sigue manejando `403` de forma defensiva, porque la verificación de rol aquí
+ * viene de `GET /api/users/me` y puede estar desactualizada.
  */
 
 function SignInPrompt({ message }: { readonly message: string }) {
@@ -19,10 +19,10 @@ function SignInPrompt({ message }: { readonly message: string }) {
 
   return (
     <div className="cine-card mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-12 text-center">
-      <p className="text-ink-100 text-lg font-semibold">Sign in to continue</p>
+      <p className="text-ink-100 text-lg font-semibold">Inicia sesi?n para continuar</p>
       <p className="text-ink-500 text-sm">{message}</p>
       <a href={`/login?next=${encodeURIComponent(next)}`} className="cine-btn cine-btn-primary">
-        Sign in
+        Iniciar sesión
       </a>
     </div>
   );
@@ -30,14 +30,14 @@ function SignInPrompt({ message }: { readonly message: string }) {
 
 export function AuthGuard({
   children,
-  message = 'You need an account to view this page.',
+  message = 'Necesitas una cuenta para ver esta p?gina.',
 }: {
   readonly children: ReactNode;
   readonly message?: string;
 }) {
   const { ready, isAuthenticated } = useAuth();
 
-  if (!ready) return <LoadingBlock label="Checking your session…" />;
+  if (!ready) return <LoadingBlock label="Verificando tu sesi?n…" />;
   if (!isAuthenticated) return <SignInPrompt message={message} />;
   return <>{children}</>;
 }
@@ -45,21 +45,21 @@ export function AuthGuard({
 export function AdminGuard({ children }: { readonly children: ReactNode }) {
   const { ready, isAuthenticated, isAdmin } = useAuth();
 
-  if (!ready) return <LoadingBlock label="Checking your session…" />;
+  if (!ready) return <LoadingBlock label="Verificando tu sesi?n…" />;
   if (!isAuthenticated) {
-    return <SignInPrompt message="Administrator access is required for this console." />;
+    return <SignInPrompt message="Se requiere acceso de administrador para esta consola." />;
   }
   if (!isAdmin) {
     return (
       <div className="cine-card mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-12 text-center">
-        <p className="text-ink-100 text-lg font-semibold">Not permitted</p>
+        <p className="text-ink-100 text-lg font-semibold">No permitido</p>
         <p className="text-ink-500 text-sm">
-          This console is restricted to administrators. There is no self-service admin signup — an
-          admin is only created at startup from <code>CINE_ADMIN_EMAIL</code> and{' '}
-          <code>CINE_ADMIN_PASSWORD</code>.
+          Esta consola está restringida a administradores. No existe un alta de administrador de
+          autoservicio: un admin solo se crea al iniciar a partir de{' '}
+          <code>CINE_ADMIN_EMAIL</code> y <code>CINE_ADMIN_PASSWORD</code>.
         </p>
         <a href="/" className="cine-btn cine-btn-secondary">
-          Back to the cinema
+          Volver al cine
         </a>
       </div>
     );

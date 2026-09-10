@@ -5,18 +5,18 @@ import { formatMoney, seatLabel } from '../../lib/format.ts';
 import { ticketPrice } from '../../lib/pricing.ts';
 
 /**
- * Seat-map component contract (frontend-spec.md §8.4).
+ * Contrato del componente de mapa de asientos (frontend-spec.md §8.4).
  *
- * Rendering rules that must not be violated:
- *  - `rows` and `columns` are already sorted naturally (`A2` precedes `A10`),
- *    so the grid is built from those arrays verbatim — never re-sorted here.
- *  - The grid is **sparse**: a `(row, column)` pair with no matching seat is an
- *    aisle or gap and renders as a blank cell.
- *  - `available: false` means a ticket already exists. The map is a snapshot,
- *    not a lock — seats are only held at `POST /api/reservations`.
+ * Reglas de renderizado que no deben violarse:
+ *  - `rows` y `columns` ya están ordenados de forma natural (`A2` va antes que `A10`),
+ *    por lo que la grilla se construye directamente con esos arreglos, sin volver a ordenarlos aquí.
+ *  - La grilla es **dispersa**: un par `(row, column)` sin asiento asociado es un
+ *    pasillo o espacio y se renderiza como una celda vacía.
+ *  - `available: false` significa que ya existe una entrada. El mapa es una instantánea,
+ *    no un bloqueo: los asientos solo se retienen en `POST /api/reservations`.
  */
 
-/** `${row}-${column}` — the coordinate key used to index a sparse grid. */
+/** `${row}-${column}`: clave de coordenada usada para indexar una grilla dispersa. */
 type CoordKey = `${string}-${string}`;
 
 const coordKey = (row: string, column: string): CoordKey => `${row}-${column}`;
@@ -28,12 +28,12 @@ export function indexSeats(seats: readonly SeatMapSeat[]): ReadonlyMap<CoordKey,
 export interface SeatMapProps {
   readonly seatMap: SeatMapResponse;
   readonly basePrice: number;
-  /** Selected seat ids, in selection order. */
+  /** IDs de asientos seleccionados, en el orden de selección. */
   readonly selected: readonly string[];
   readonly onToggle?: (seat: SeatMapSeat) => void;
   /**
-   * Seats lost to another customer since the last render — highlighted after a
-   * `409` so the user can see exactly what changed.
+   * Asientos perdidos a manos de otro cliente desde el último renderizado; se resaltan después de un
+   * `409` para que el usuario vea exactamente qué cambió.
    */
   readonly lostSeatIds?: readonly string[];
   readonly disabled?: boolean;
@@ -54,7 +54,7 @@ export function SeatMap({
   return (
     <div className="flex flex-col gap-5">
       <div className="from-ink-700 mx-auto h-1.5 w-3/4 rounded-full bg-linear-to-b to-transparent" />
-      <p className="text-ink-600 text-center text-xs uppercase tracking-[0.3em]">Screen</p>
+      <p className="text-ink-600 text-center text-xs uppercase tracking-[0.3em]">Pantalla</p>
 
       <div className="overflow-x-auto pb-2">
         <div className="mx-auto flex w-fit flex-col gap-1.5">
@@ -67,13 +67,15 @@ export function SeatMap({
               {seatMap.columns.map((column) => {
                 const seat = byCoord.get(coordKey(row, column));
 
-                // A gap in the sparse grid: an aisle, not a seat.
+                // Un hueco en la grilla dispersa: es un pasillo, no un asiento.
                 if (!seat) return <span key={column} className="size-7 shrink-0" />;
 
                 const isSelected = selectedSet.has(seat.seatId);
                 const isLost = lostSet.has(seat.seatId);
                 const isPremium = seat.seatType === SeatType.PREMIUM;
-                const interactive = Boolean(onToggle) && seat.available && !disabled;
+                // Un asiento retenido por otra persona no está disponible temporalmente, igual que uno
+                // vendido, pero se renderiza de forma distinta para que el usuario sepa que puede intentar más tarde.
+                const interactive = Boolean(onToggle) && seat.available && !seat.held && !disabled;
 
                 return (
                   <button
@@ -82,9 +84,15 @@ export function SeatMap({
                     disabled={!interactive}
                     onClick={() => onToggle?.(seat)}
                     aria-pressed={isSelected}
-                    aria-label={`Seat ${seatLabel(seat.row, seat.column)}, ${
-                      isPremium ? 'premium' : 'normal'
-                    }, ${seat.available ? formatMoney(ticketPrice(basePrice, seat.seatType)) : 'unavailable'}`}
+                    aria-label={`Asiento ${seatLabel(seat.row, seat.column)}, ${
+                      isPremium ? 'premium' : 'estándar'
+                    }, ${
+                      !seat.available
+                        ? 'no disponible'
+                        : seat.held
+                          ? 'retenido por otro cliente'
+                          : formatMoney(ticketPrice(basePrice, seat.seatType))
+                    }`}
                     title={`${seatLabel(seat.row, seat.column)} · ${formatMoney(
                       ticketPrice(basePrice, seat.seatType),
                     )}`}
@@ -123,6 +131,7 @@ function seatClass({
   if (isLost) return `${base} bg-brand-600 text-white ring-2 ring-brand-400 animate-pulse`;
   if (isSelected) return `${base} bg-emerald-500 text-ink-950`;
   if (!seat.available) return `${base} bg-ink-800 text-ink-600 cursor-not-allowed line-through`;
+  if (seat.held) return `${base} bg-gold-900/60 text-gold-600 cursor-not-allowed`;
   if (!interactive) {
     return isPremium
       ? `${base} bg-gold-500/25 text-gold-400`
@@ -138,7 +147,7 @@ export function SeatLegend({ basePrice }: { readonly basePrice: number }) {
     <ul className="text-ink-500 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">
       <li className="flex items-center gap-2">
         <span className="bg-ink-700 size-4 rounded" />
-        Normal · {formatMoney(ticketPrice(basePrice, SeatType.NORMAL))}
+        Estándar · {formatMoney(ticketPrice(basePrice, SeatType.NORMAL))}
       </li>
       <li className="flex items-center gap-2">
         <span className="bg-gold-500/25 size-4 rounded" />
@@ -146,11 +155,15 @@ export function SeatLegend({ basePrice }: { readonly basePrice: number }) {
       </li>
       <li className="flex items-center gap-2">
         <span className="size-4 rounded bg-emerald-500" />
-        Selected
+        Seleccionado
       </li>
       <li className="flex items-center gap-2">
         <span className="bg-ink-800 size-4 rounded" />
-        Taken
+        Ocupado
+      </li>
+      <li className="flex items-center gap-2">
+        <span className="bg-gold-900/60 size-4 rounded" />
+        Retenido por otro cliente
       </li>
     </ul>
   );

@@ -13,9 +13,9 @@ interface FormState {
 const initialState: FormState = { error: null, fieldErrors: {} };
 
 /**
- * Registration always creates a `CUSTOMER` — there is no self-service admin
- * signup. An `ADMIN` only exists if the backend booted with
- * `CINE_ADMIN_EMAIL` and `CINE_ADMIN_PASSWORD`.
+ * El registro siempre crea un `CUSTOMER` — no existe un alta de
+ * administrador en autoservicio. Un `ADMIN` solo existe si el backend arrancó con
+ * `CINE_ADMIN_EMAIL` y `CINE_ADMIN_PASSWORD`.
  */
 export default function RegisterForm() {
   const { register, login } = useAuth();
@@ -31,10 +31,10 @@ export default function RegisterForm() {
     try {
       await register(payload);
     } catch (error) {
-      // 409 means the email is taken; bind it to the email field so the user
-      // sees it where they can fix it, without matching on the message text.
+      // El 409 significa que el correo ya está en uso; vincúlalo al campo de correo
+      // para que el usuario lo vea donde puede corregirlo, sin depender del texto del mensaje.
       if (isApiError(error) && error.status === 409) {
-        return { error, fieldErrors: { email: 'That email is already registered.' } };
+        return { error, fieldErrors: { email: 'Ese correo electrónico ya está registrado.' } };
       }
       return { error, fieldErrors: toFieldErrors(error) };
     }
@@ -44,7 +44,7 @@ export default function RegisterForm() {
       window.location.assign('/reservations');
       return initialState;
     } catch {
-      // The account exists; only the convenience sign-in failed.
+      // La cuenta existe; solo ha fallado el inicio de sesión automático.
       window.location.assign('/login');
       return initialState;
     }
@@ -56,14 +56,14 @@ export default function RegisterForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <TextInput
-          label="First name"
+          label="Nombre"
           name="firstName"
           autoComplete="given-name"
           required
           error={state.fieldErrors['firstName']}
         />
         <TextInput
-          label="Last name"
+          label="Apellidos"
           name="lastName"
           autoComplete="family-name"
           required
@@ -72,7 +72,7 @@ export default function RegisterForm() {
       </div>
 
       <TextInput
-        label="Email"
+        label="Correo electrónico"
         name="email"
         type="email"
         autoComplete="email"
@@ -81,23 +81,23 @@ export default function RegisterForm() {
       />
 
       <TextInput
-        label="Password"
+        label="Contraseña"
         name="password"
         type="password"
         autoComplete="new-password"
         minLength={8}
         maxLength={72}
         required
-        hint="Between 8 and 72 characters."
+        hint="Entre 8 y 72 caracteres."
         error={state.fieldErrors['password']}
       />
 
-      <SubmitButton pendingLabel="Creating account…">Create account</SubmitButton>
+      <SubmitButton pendingLabel="Creando cuenta…">Crear cuenta</SubmitButton>
 
       <p className="text-ink-500 text-center text-sm">
-        Already have an account?{' '}
+        ¿Ya tienes una cuenta?{' '}
         <a href="/login" className="text-brand-400 hover:underline">
-          Sign in
+          Inicia sesión
         </a>
       </p>
     </form>

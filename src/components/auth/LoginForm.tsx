@@ -12,11 +12,11 @@ interface FormState {
 
 const initialState: FormState = { error: null, fieldErrors: {} };
 
-/** Where to return after signing in; defaults to the account area. */
+/** A dónde volver tras iniciar sesión; por defecto, al área de la cuenta. */
 function nextDestination(): string {
   if (typeof window === 'undefined') return '/reservations';
   const next = new URLSearchParams(window.location.search).get('next');
-  // Only same-origin relative paths, so `?next=` cannot become an open redirect.
+  // Solo rutas relativas del mismo origen, para que `?next=` no pueda convertirse en una redirección abierta.
   return next && next.startsWith('/') && !next.startsWith('//') ? next : '/reservations';
 }
 
@@ -32,7 +32,7 @@ export default function LoginForm() {
       window.location.assign(nextDestination());
       return initialState;
     } catch (error) {
-      // 400 binds to fields; 401 "Invalid credentials" surfaces in the banner.
+      // El 400 se vincula a los campos; el 401 "Invalid credentials" aparece en el banner.
       return { error, fieldErrors: toFieldErrors(error) };
     }
   }, initialState);
@@ -42,7 +42,7 @@ export default function LoginForm() {
       <ErrorBanner error={state.error} />
 
       <TextInput
-        label="Email"
+        label="Correo electrónico"
         name="email"
         type="email"
         autoComplete="email"
@@ -51,7 +51,7 @@ export default function LoginForm() {
       />
 
       <TextInput
-        label="Password"
+        label="Contraseña"
         name="password"
         type="password"
         autoComplete="current-password"
@@ -59,12 +59,12 @@ export default function LoginForm() {
         error={state.fieldErrors['password']}
       />
 
-      <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
+      <SubmitButton pendingLabel="Iniciando sesión…">Iniciar sesión</SubmitButton>
 
       <p className="text-ink-500 text-center text-sm">
-        No account?{' '}
+        ¿No tienes cuenta?{' '}
         <a href="/register" className="text-brand-400 hover:underline">
-          Create one
+          Crea una
         </a>
       </p>
     </form>

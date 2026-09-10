@@ -1,13 +1,19 @@
 import { getPage, requestCreated, requestJson, type CallOptions } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type { ReservationStatus } from '../enums.ts';
-import type { CreateReservationRequest, Page, ReservationResponse, Uuid } from '../types.ts';
+import type {
+  CreateReservationRequest,
+  Page,
+  ReservationQuoteResponse,
+  ReservationResponse,
+  Uuid,
+} from '../types.ts';
 
 /**
  * `/api/reservations` (frontend-spec.md §8.6).
  *
- * The owner is taken from the JWT — there is no `userId` in the request or in
- * any query parameter.
+ * El propietario se toma del JWT: no existe `userId` ni en la solicitud ni en
+ * ningún parámetro de query.
  */
 
 export type ReservationSortField = 'createdAt' | 'status' | 'totalPrice';
@@ -20,7 +26,7 @@ export type AdminReservationFilters = {
 
 export type ListAllReservationsParams = PageParams<ReservationSortField> & AdminReservationFilters;
 
-/** Always the caller's own reservations. */
+/** Siempre las reservas del propio llamador. */
 export function listMyReservations(
   params: ListReservationsParams = {},
   options: CallOptions = {},
@@ -28,7 +34,7 @@ export function listMyReservations(
   return getPage<ReservationResponse>('/api/reservations', params, { ...options, auth: true });
 }
 
-/** ADMIN only; `403` for customers. */
+/** Solo ADMIN; `403` para clientes. */
 export function listAllReservations(
   params: ListAllReservationsParams = {},
   options: CallOptions = {},
@@ -36,7 +42,7 @@ export function listAllReservations(
   return getPage<ReservationResponse>('/api/reservations/all', params, { ...options, auth: true });
 }
 
-/** `404` — not `403` — when the reservation belongs to another user. */
+/** `404` —no `403`— cuando la reserva pertenece a otra persona. */
 export function getReservation(
   uuid: Uuid,
   options: CallOptions = {},
@@ -45,19 +51,37 @@ export function getReservation(
 }
 
 /**
- * Creates a reservation. Seat ids are de-duplicated and repeated products are
- * merged server-side. The validation chain is ordered, so a seat error is
- * always reported before a product error.
+ * Crea una reserva. Los ids de asientos se deduplican y los productos repetidos se
+ * combinan del lado del servidor. La cadena de validación está ordenada, así que un
+ * error de asiento siempre se informa antes que un error de producto.
  */
 export function createReservation(body: CreateReservationRequest) {
   return requestCreated<ReservationResponse>('/api/reservations', { body, auth: true });
 }
 
 /**
- * Cancels a reservation. Returns **`200` with the cancelled body**, not `204`:
- * `tickets: []`, `items: []`, `totalPrice: 0.00`. Snapshot the reservation
- * client-side first if you need to show what was cancelled — the server no
- * longer holds it. Cancelling an already-cancelled reservation is `422`.
+ * `POST /api/reservations:quote`: mismo body y misma cadena de validación que create,
+ * pero no escribe nada: no genera reserva, ticket ni movimiento de stock. Conviene
+ * usar esto antes que el espejo de precios del cliente para la vista previa de compra,
+ * porque es exactamente el mismo camino de código que usará el cobro real y nunca puede divergir.
+ */
+export function quoteReservation(
+  body: CreateReservationRequest,
+  options: CallOptions = {},
+): Promise<ReservationQuoteResponse> {
+  return requestJson<ReservationQuoteResponse>('/api/reservations:quote', {
+    ...options,
+    method: 'POST',
+    body,
+    auth: true,
+  });
+}
+
+/**
+ * Cancela una reserva. Devuelve **`200` con el body cancelado**, no `204`:
+ * `tickets: []`, `items: []`, `totalPrice: 0.00`. Si necesitas mostrar qué se canceló,
+ * guarda primero un snapshot en el cliente, porque el servidor ya no lo conserva.
+ * Cancelar una reserva ya cancelada devuelve `422`.
  */
 export function cancelReservation(uuid: Uuid): Promise<ReservationResponse> {
   return requestJson<ReservationResponse>(`/api/reservations/${uuid}`, {

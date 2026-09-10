@@ -1,34 +1,34 @@
-/**
- * Typed query-string construction for the paged list endpoints
+﻿/**
+ * Construcción tipada de query strings para los endpoints de lista paginada
  * (frontend-spec.md §6).
  *
- * `page` is zero-based. `sort` must name an **entity property** (`movieName`,
- * `startsAt`, `createdAt`, `email`, `productName`), not a response field; an
- * unknown property yields `400 "Unknown sort property '…'"`.
+ * `page` es base cero. `sort` debe nombrar una **propiedad de la entidad** (`movieName`,
+ * `startsAt`, `createdAt`, `email`, `productName`), no un campo de respuesta; una
+ * propiedad desconocida devuelve `400 "Unknown sort property '…'"`.
  */
 
 export type SortDirection = 'asc' | 'desc';
 
-/** `field,asc` — the exact shape Spring expects. */
+/** `field,asc`: la forma exacta que espera Spring. */
 export type SortSpec<Field extends string = string> = `${Field},${SortDirection}`;
 
 export type PageParams<Field extends string = string> = {
-  /** Zero-based. */
+  /** Base cero. */
   readonly page?: number;
   readonly size?: number;
-  /** A single spec, or several for multi-key ordering (`sort` is repeated). */
+  /** Una sola especificación, o varias para ordenación por múltiples claves (`sort` se repite). */
   readonly sort?: SortSpec<Field> | readonly SortSpec<Field>[];
 };
 
 /**
- * A value that can appear in a query string. Query-param carrier types must be
- * **type aliases**, not interfaces: only aliases receive the implicit index
- * signature that makes them assignable to `QueryParams`.
+ * Un valor que puede aparecer en una query string. Los tipos portadores de query params deben ser
+ * **aliases de tipo**, no interfaces: solo los aliases reciben la firma de índice implícita
+ * que los hace asignables a `QueryParams`.
  */
 type QueryValue = string | number | boolean | Date | null | undefined;
 export type QueryParams = Readonly<Record<string, QueryValue | readonly QueryValue[]>>;
 
-/** Builds `field,asc` with the field name checked against the caller's union. */
+/** Construye `field,asc` con el nombre de campo validado contra la unión del llamador. */
 export function sortBy<const Field extends string>(
   field: Field,
   direction: SortDirection = 'asc',
@@ -42,9 +42,9 @@ function serialize(value: Exclude<QueryValue, null | undefined>): string {
 }
 
 /**
- * Serialises params into a query string, skipping `null`/`undefined`/`''` and
- * repeating array-valued keys (which is how multi-key `sort` is expressed).
- * Returns `''` when there is nothing to append.
+ * Serializa parámetros en una query string, omitiendo `null`/`undefined`/`''` y
+ * repitiendo las claves con valores de array (que es como se expresa un `sort` de varias claves).
+ * Devuelve `''` cuando no hay nada para anexar.
  */
 export function buildQuery(params: QueryParams | undefined): string {
   if (!params) return '';
@@ -64,14 +64,14 @@ export function buildQuery(params: QueryParams | undefined): string {
   return query ? `?${query}` : '';
 }
 
-/** Merges page/sort params with endpoint-specific filters into a query string. */
+/** Combina parámetros de página/sort con filtros específicos del endpoint en una query string. */
 export function buildPageQuery<Field extends string>(
   params: (PageParams<Field> & QueryParams) | undefined,
 ): string {
   return buildQuery(params);
 }
 
-/** Reads pagination state out of a browser `URLSearchParams`. */
+/** Lee el estado de paginación desde un `URLSearchParams` del navegador. */
 export function readPageParams(
   search: URLSearchParams,
   defaults: { readonly size?: number } = {},

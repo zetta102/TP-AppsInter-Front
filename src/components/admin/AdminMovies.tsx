@@ -8,7 +8,7 @@ import {
 } from '../../lib/api/movies.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { toFieldErrors } from '../../lib/problem.ts';
-import { movieGenreLabels, movieGenreValues, type MovieGenre } from '../../lib/enums.ts';
+import { movieGenreValues, type MovieGenre } from '../../lib/enums.ts';
 import { formatRuntime } from '../../lib/format.ts';
 import type { CreateMovieRequest, MovieResponse, Page } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
@@ -21,6 +21,16 @@ import { SubmitButton } from '../ui/SubmitButton.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
 
 const PAGE_SIZE = 15;
+const movieGenreDisplayLabels: Readonly<Record<MovieGenre, string>> = {
+  ACTION: 'Acción',
+  THRILLER: 'Suspenso',
+  TERROR: 'Terror',
+  ROMANCE: 'Romance',
+  COMEDY: 'Comedia',
+  DRAMA: 'Drama',
+  ANIMATION: 'Animación',
+  SCI_FI: 'Ciencia ficción',
+};
 
 interface FormState {
   readonly error: unknown;
@@ -30,7 +40,7 @@ interface FormState {
 
 const initialFormState: FormState = { error: null, fieldErrors: {}, done: false };
 
-/** `/admin/movies` — full CRUD. `PUT` is a full replacement, so forms send every field. */
+/** `/admin/movies` — CRUD completo. `PUT` es un reemplazo total, por eso los formularios envían todos los campos. */
 export default function AdminMovies() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<MovieSortField>>('movieName,asc');
@@ -49,12 +59,12 @@ export default function AdminMovies() {
   );
 
   const remove = async (movie: MovieResponse) => {
-    if (!window.confirm(`Delete “${movie.movieName}”? This cannot be undone.`)) return;
+    if (!window.confirm(`¿Eliminar “${movie.movieName}”? Esta acción no se puede deshacer.`)) return;
     setRowError(null);
     try {
       await deleteMovie(movie.uuid);
     } catch (error) {
-      // 409 when screenings still reference the movie.
+      // 409 cuando todavía hay funciones que referencian la película.
       setRowError(error);
     } finally {
       resource.refetch();
@@ -64,24 +74,36 @@ export default function AdminMovies() {
   const columns: readonly Column<MovieResponse>[] = [
     {
       key: 'movieName',
-      header: 'Title',
+      header: 'Título',
       sortField: 'movieName',
-      cell: (movie) => <span className="font-medium">{movie.movieName}</span>,
+      cell: (movie) => (
+        <div className="flex items-center gap-3">
+          {movie.posterUrl ? (
+            <img
+              src={movie.posterUrl}
+              alt=""
+              className="h-12 w-8 shrink-0 rounded object-cover"
+              loading="lazy"
+            />
+          ) : null}
+          <span className="font-medium">{movie.movieName}</span>
+        </div>
+      ),
     },
     {
       key: 'genres',
-      header: 'Genres',
+      header: 'Géneros',
       cell: (movie) => (
         <div className="flex flex-wrap gap-1">
           {movie.genres.map((genre) => (
-            <Badge key={genre}>{movieGenreLabels[genre]}</Badge>
+            <Badge key={genre}>{movieGenreDisplayLabels[genre]}</Badge>
           ))}
         </div>
       ),
     },
     {
       key: 'runtime',
-      header: 'Runtime',
+      header: 'Duración',
       sortField: 'runtime',
       cell: (movie) => formatRuntime(movie.runtime),
     },
@@ -102,14 +124,14 @@ export default function AdminMovies() {
             className="cine-btn cine-btn-ghost"
             onClick={() => setEditing(movie)}
           >
-            Edit
+            Editar
           </button>
           <button
             type="button"
             className="cine-btn cine-btn-danger"
             onClick={() => void remove(movie)}
           >
-            Delete
+            Eliminar
           </button>
         </div>
       ),
@@ -120,25 +142,25 @@ export default function AdminMovies() {
 
   return (
     <AdminPage
-      title="Movies"
-      description="Titles, genres and runtimes. Runtime drives the computed end time of every screening."
+      title="Películas"
+      description="Títulos, géneros y duraciones. La duración determina la hora de fin calculada de cada función."
       action={
         <button type="button" className="cine-btn cine-btn-primary" onClick={() => setCreating(true)}>
-          New movie
+          Nueva película
         </button>
       }
     >
       <AdminToolbar>
         <div className="min-w-56 flex-1">
           <label htmlFor="admin-movie-search" className="cine-label">
-            Search
+            Buscar
           </label>
           <input
             id="admin-movie-search"
             type="search"
             className="cine-input"
             value={search}
-            placeholder="Title contains…"
+            placeholder="El título contiene…"
             onChange={(event) => {
               setSearch(event.target.value);
               setPage(0);
@@ -156,8 +178,8 @@ export default function AdminMovies() {
         isLoading={resource.isLoading || resource.isRefreshing}
         error={resource.error}
         onRetry={resource.refetch}
-        emptyTitle="No movies"
-        emptyDescription="Add a title to start scheduling screenings."
+        emptyTitle="No hay películas"
+        emptyDescription="Agregue una película para comenzar a programar funciones."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(
@@ -214,10 +236,19 @@ function MovieFormModal({
       description: String(formData.get('description') ?? '').trim() || null,
       director: String(formData.get('director') ?? '').trim() || null,
       mainCast: cast,
+      posterUrl: String(formData.get('posterUrl') ?? '').trim() || null,
+      backdropUrl: String(formData.get('backdropUrl') ?? '').trim() || null,
+      trailerUrl: String(formData.get('trailerUrl') ?? '').trim() || null,
+      releaseYear: (() => {
+        const raw = String(formData.get('releaseYear') ?? '').trim();
+        return raw ? Number(raw) : null;
+      })(),
+      certification: String(formData.get('certification') ?? '').trim() || null,
+      originalLanguage: String(formData.get('originalLanguage') ?? '').trim() || null,
     };
 
     try {
-      // PUT is a full replacement, so the same complete payload serves both paths.
+      // PUT es un reemplazo total, así que la misma carga completa sirve para ambos casos.
       if (movie) await updateMovie(movie.uuid, body);
       else await createMovie(body);
       onSaved();
@@ -230,12 +261,12 @@ function MovieFormModal({
   if (!open) return null;
 
   return (
-    <Modal open={open} onClose={onClose} title={movie ? 'Edit movie' : 'New movie'} wide>
+    <Modal open={open} onClose={onClose} title={movie ? 'Editar película' : 'Nueva película'} wide>
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
         <TextInput
-          label="Title"
+          label="Título"
           name="movieName"
           required
           defaultValue={movie?.movieName ?? ''}
@@ -243,7 +274,7 @@ function MovieFormModal({
         />
 
         <fieldset>
-          <legend className="cine-label">Genres</legend>
+          <legend className="cine-label">Géneros</legend>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {movieGenreValues.map((genre) => (
               <label key={genre} className="text-ink-300 flex items-center gap-2 text-sm">
@@ -253,26 +284,26 @@ function MovieFormModal({
                   value={genre}
                   defaultChecked={movie?.genres.includes(genre) ?? false}
                 />
-                {movieGenreLabels[genre]}
+                {movieGenreDisplayLabels[genre]}
               </label>
             ))}
           </div>
           {state.fieldErrors['genres'] && (
             <p role="alert" className="text-brand-400 mt-1 text-xs">
-              Select at least one genre.
+              Seleccione al menos un género.
             </p>
           )}
         </fieldset>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <TextInput
-            label="Runtime (minutes)"
+            label="Duración (minutos)"
             name="runtime"
             type="number"
             min={1}
             required
             defaultValue={movie?.runtime ?? ''}
-            hint="Screenings end at start + runtime + 15 min turnover."
+            hint="Las funciones terminan en inicio + duración + 15 min de recambio."
             error={state.fieldErrors['runtime']}
           />
           <TextInput
@@ -284,26 +315,79 @@ function MovieFormModal({
         </div>
 
         <TextInput
-          label="Main cast"
+          label="Reparto principal"
           name="mainCast"
           defaultValue={movie?.mainCast.join(', ') ?? ''}
-          hint="Comma separated."
+          hint="Separado por comas."
           error={state.fieldErrors['mainCast']}
         />
 
         <TextArea
-          label="Description"
+          label="Descripción"
           name="description"
           maxLength={2000}
           defaultValue={movie?.description ?? ''}
           error={state.fieldErrors['description']}
         />
 
+        <div className="grid gap-4 sm:grid-cols-3">
+          <TextInput
+            label="Año de estreno"
+            name="releaseYear"
+            type="number"
+            min={1888}
+            defaultValue={movie?.releaseYear ?? ''}
+            error={state.fieldErrors['releaseYear']}
+          />
+          <TextInput
+            label="Clasificación"
+            name="certification"
+            maxLength={16}
+            placeholder="p. ej. PG-13"
+            defaultValue={movie?.certification ?? ''}
+            error={state.fieldErrors['certification']}
+          />
+          <TextInput
+            label="Idioma original"
+            name="originalLanguage"
+            maxLength={2}
+            placeholder="p. ej. en"
+            defaultValue={movie?.originalLanguage ?? ''}
+            hint="ISO 639-1, p. ej. en, es."
+            error={state.fieldErrors['originalLanguage']}
+          />
+        </div>
+
+        <TextInput
+          label="URL del póster"
+          name="posterUrl"
+          type="url"
+          maxLength={2048}
+          defaultValue={movie?.posterUrl ?? ''}
+          error={state.fieldErrors['posterUrl']}
+        />
+        <TextInput
+          label="URL de la imagen de fondo"
+          name="backdropUrl"
+          type="url"
+          maxLength={2048}
+          defaultValue={movie?.backdropUrl ?? ''}
+          error={state.fieldErrors['backdropUrl']}
+        />
+        <TextInput
+          label="URL del tráiler"
+          name="trailerUrl"
+          type="url"
+          maxLength={2048}
+          defaultValue={movie?.trailerUrl ?? ''}
+          error={state.fieldErrors['trailerUrl']}
+        />
+
         <div className="flex justify-end gap-2">
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
-            Cancel
+            Cancelar
           </button>
-          <SubmitButton pendingLabel="Saving…">{movie ? 'Save changes' : 'Create'}</SubmitButton>
+          <SubmitButton pendingLabel="Guardando…">{movie ? 'Guardar cambios' : 'Crear'}</SubmitButton>
         </div>
       </form>
     </Modal>

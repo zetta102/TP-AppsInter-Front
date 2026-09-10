@@ -6,14 +6,14 @@ import { formatDayHeading, formatRuntime } from '../../lib/format.ts';
 import type { MovieResponse, MovieScreeningResponse } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
-import { GenreList, PosterPlaceholder, ScreeningRow, groupByDay } from './MovieCard.tsx';
+import { GenreList, MovieMeta, Poster, ScreeningRow, groupByDay } from './MovieCard.tsx';
 
 /**
- * Movie detail plus that movie's upcoming screenings
+ * Detalle de la película más sus próximas sesiones
  * (`GET /api/screenings?movieId=…&upcomingOnly=true`).
  *
- * Static output cannot prerender an unknown UUID, so the id arrives as a query
- * parameter rather than as `/movies/:id`.
+ * La salida estática no puede prerenderizar un UUID desconocido, así que el id
+ * llega como parámetro de consulta en lugar de como `/movies/:id`.
  */
 export default function MovieDetail() {
   const movieId = useQueryParam('id');
@@ -39,11 +39,11 @@ export default function MovieDetail() {
   if (!movieId) {
     return (
       <EmptyState
-        title="No movie selected"
-        description="Pick a title from the catalogue."
+        title="No has seleccionado ninguna película"
+        description="Elige un título del catálogo."
         action={
           <a href="/movies" className="cine-btn cine-btn-primary">
-            Browse movies
+            Ver películas
           </a>
         }
       />
@@ -59,14 +59,27 @@ export default function MovieDetail() {
 
   return (
     <article className="flex flex-col gap-10">
+      {movie.backdropUrl && (
+        <div className="border-ink-800 -mx-4 -mt-4 overflow-hidden rounded-b-xl border-b sm:-mx-8 sm:-mt-8">
+          <img
+            src={movie.backdropUrl}
+            alt=""
+            aria-hidden="true"
+            className="aspect-21/9 w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      )}
+
       <header className="grid gap-6 sm:grid-cols-[200px_1fr]">
         <div className="max-w-50">
-          <PosterPlaceholder title={movie.movieName} />
+          <Poster movie={movie} />
         </div>
 
         <div className="flex flex-col gap-3">
           <h1 className="text-3xl font-bold">{movie.movieName}</h1>
           <p className="text-ink-500 text-sm">{formatRuntime(movie.runtime)}</p>
+          <MovieMeta movie={movie} />
           <GenreList genres={movie.genres} />
 
           {movie.description && (
@@ -76,27 +89,38 @@ export default function MovieDetail() {
           <dl className="text-sm">
             {movie.director && (
               <div className="flex gap-2">
-                <dt className="text-ink-500">Director</dt>
+                <dt className="text-ink-500">Dirección</dt>
                 <dd>{movie.director}</dd>
               </div>
             )}
             {movie.mainCast.length > 0 && (
               <div className="flex gap-2">
-                <dt className="text-ink-500">Cast</dt>
+                <dt className="text-ink-500">Reparto</dt>
                 <dd>{movie.mainCast.join(', ')}</dd>
               </div>
             )}
           </dl>
+
+          {movie.trailerUrl && (
+            <a
+              href={movie.trailerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="cine-btn cine-btn-secondary self-start"
+            >
+              Ver tráiler
+            </a>
+          )}
         </div>
       </header>
 
       <section>
-        <h2 className="mb-4 text-xl font-bold">Upcoming screenings</h2>
+        <h2 className="mb-4 text-xl font-bold">Próximas sesiones</h2>
 
         {days.length === 0 ? (
           <EmptyState
-            title="No upcoming screenings"
-            description="This title is in the catalogue but is not currently scheduled."
+            title="No hay próximas sesiones"
+            description="Este título está en el catálogo, pero ahora mismo no está programado."
           />
         ) : (
           <div className="flex flex-col gap-6">

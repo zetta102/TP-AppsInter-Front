@@ -2,25 +2,25 @@ import { useState } from 'react';
 import { useAuth } from '../lib/auth-context.tsx';
 
 /**
- * Site navigation island.
+ * Isla de navegaci`n del sitio.
  *
- * Admin links are hidden unless `/api/users/me` reports `ADMIN`. That is a
- * convenience only: the backend is the real gate and every admin screen still
- * handles `403`.
+ * Los enlaces de administraci`n se ocultan salvo que `/api/users/me` informe `ADMIN`.
+ * Eso es solo una comodidad: el backend es la barrera real y cada pantalla de admin
+ * sigue manejando `403`.
  */
 
 const publicLinks = [
-  { href: '/', label: 'Now showing' },
-  { href: '/movies', label: 'Movies' },
+  { href: '/', label: 'En cartelera' },
+  { href: '/movies', label: 'Pel?culas' },
 ] as const;
 
 const adminLinks = [
-  { href: '/admin/movies', label: 'Movies' },
-  { href: '/admin/rooms', label: 'Rooms' },
-  { href: '/admin/screenings', label: 'Screenings' },
-  { href: '/admin/inventory', label: 'Concessions' },
-  { href: '/admin/reservations', label: 'Reservations' },
-  { href: '/admin/users', label: 'Users' },
+  { href: '/admin/movies', label: 'Pel?culas' },
+  { href: '/admin/rooms', label: 'Salas' },
+  { href: '/admin/screenings', label: 'Funciones' },
+  { href: '/admin/inventory', label: 'Confiter?a' },
+  { href: '/admin/reservations', label: 'Reservas' },
+  { href: '/admin/users', label: 'Usuarios' },
 ] as const;
 
 export default function NavBar({ pathname }: { readonly pathname: string }) {
@@ -45,7 +45,7 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
 
       {isAuthenticated && (
         <a href="/reservations" className={linkClass('/reservations')}>
-          My reservations
+          Mis reservas
         </a>
       )}
 
@@ -57,7 +57,7 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
             aria-expanded={adminOpen}
             className={linkClass('/admin')}
           >
-            Admin ▾
+            Administración ▾
           </button>
           {adminOpen && (
             <div className="cine-card absolute right-0 z-20 mt-1 w-48 p-1 shadow-xl">
@@ -80,9 +80,12 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
           <span className="text-ink-600 text-sm">…</span>
         ) : isAuthenticated ? (
           <>
-            <span className="text-ink-500 hidden text-sm sm:inline">
-              {user?.firstName ?? 'Signed in'}
-            </span>
+            <a
+              href="/account"
+              className="text-ink-500 hover:text-ink-100 hidden text-sm sm:inline"
+            >
+              {user?.firstName ?? 'Cuenta'}
+            </a>
             <button
               type="button"
               className="cine-btn cine-btn-ghost"
@@ -90,16 +93,16 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
                 void logout().then(() => window.location.assign('/'));
               }}
             >
-              Sign out
+              Cerrar sesi?n
             </button>
           </>
         ) : (
           <>
             <a href="/login" className="cine-btn cine-btn-ghost">
-              Sign in
+              Iniciar sesi?n
             </a>
             <a href="/register" className="cine-btn cine-btn-primary">
-              Create account
+              Crear cuenta
             </a>
           </>
         )}

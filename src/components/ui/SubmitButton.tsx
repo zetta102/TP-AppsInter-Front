@@ -2,14 +2,14 @@ import { useFormStatus } from 'react-dom';
 import type { ReactNode } from 'react';
 
 /**
- * Submit control driven by React 19's `useFormStatus`.
+ * Control de envío impulsado por `useFormStatus` de React 19.
  *
- * It must render *inside* the `<form>` it belongs to — that is how the hook
- * discovers the pending state of the enclosing Action.
+ * Debe renderizarse *dentro* del `<form>` al que pertenece: así es como el hook
+ * detecta el estado pendiente de la Action contenedora.
  */
 export function SubmitButton({
   children,
-  pendingLabel = 'Working…',
+  pendingLabel = 'Procesando…',
   variant = 'primary',
   className = '',
   disabled = false,
@@ -44,8 +44,8 @@ export function Spinner({ className = '' }: { readonly className?: string }) {
   );
 }
 
-/** Full-block loading placeholder for resource-backed regions. */
-export function LoadingBlock({ label = 'Loading…' }: { readonly label?: string }) {
+/** Placeholder de carga en bloque completo para regiones respaldadas por recursos. */
+export function LoadingBlock({ label = 'Cargando…' }: { readonly label?: string }) {
   return (
     <div className="text-ink-500 flex items-center justify-center gap-3 py-16 text-sm">
       <Spinner />

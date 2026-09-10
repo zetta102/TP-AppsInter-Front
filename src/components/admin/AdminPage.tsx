@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { AdminGuard } from '../ui/Guards.tsx';
 
 /**
- * Chrome shared by the admin consoles: the role gate, a title block and a
- * primary action slot. Keeping it in one place means every console handles a
- * missing role identically.
+ * Estructura compartida por las consolas de administración: el control de rol,
+ * un bloque de título y un espacio para la acción principal. Mantenerlo en un
+ * solo lugar hace que todas las consolas gestionen igual la falta de permisos.
  */
 export function AdminPage({
   title,
@@ -33,7 +33,7 @@ export function AdminPage({
   );
 }
 
-/** Toolbar row for filters above an admin table. */
+/** Fila de barra de herramientas para los filtros sobre una tabla de administración. */
 export function AdminToolbar({ children }: { readonly children: ReactNode }) {
   return <div className="cine-card flex flex-wrap items-end gap-3 p-4">{children}</div>;
 }

@@ -12,16 +12,17 @@ import { MovieCard } from './MovieCard.tsx';
 const PAGE_SIZE = 12;
 
 const sortOptions = [
-  { value: 'movieName,asc', label: 'Title (A–Z)' },
-  { value: 'movieName,desc', label: 'Title (Z–A)' },
-  { value: 'runtime,asc', label: 'Shortest first' },
-  { value: 'runtime,desc', label: 'Longest first' },
+  { value: 'movieName,asc', label: 'Título (A–Z)' },
+  { value: 'movieName,desc', label: 'Título (Z–A)' },
+  { value: 'runtime,asc', label: 'Más corta primero' },
+  { value: 'runtime,desc', label: 'Más larga primero' },
 ] as const satisfies readonly { value: SortSpec<MovieSortField>; label: string }[];
 
 /**
- * Movie browser: `search` (case-insensitive substring) and `genre` filters over
- * the paged catalogue. Sorting uses **entity property** names — an unknown
- * property is a `400`, so the options are a fixed list.
+ * Explorador de películas: filtros de `search` (subcadena sin distinguir mayúsculas)
+ * y `genre` sobre el catálogo paginado. La ordenación usa nombres de
+ * **propiedades de la entidad** — una propiedad desconocida provoca un `400`,
+ * así que las opciones son una lista fija.
  */
 export default function MovieBrowser() {
   const [search, setSearch] = useState('');
@@ -29,7 +30,7 @@ export default function MovieBrowser() {
   const [sort, setSort] = useState<SortSpec<MovieSortField>>('movieName,asc');
   const [page, setPage] = useState(0);
 
-  // Keeps typing responsive without firing a request per keystroke.
+  // Mantiene la escritura fluida sin lanzar una petición por cada tecla.
   const deferredSearch = useDeferredValue(search);
 
   const resource = useResource<Page<MovieResponse>>(
@@ -57,13 +58,13 @@ export default function MovieBrowser() {
       <div className="cine-card flex flex-wrap items-end gap-3 p-4">
         <div className="min-w-56 flex-1">
           <label htmlFor="movie-search" className="cine-label">
-            Search
+            Buscar
           </label>
           <input
             id="movie-search"
             type="search"
             value={search}
-            placeholder="Title contains…"
+            placeholder="El título contiene…"
             onChange={(event) => resetTo(() => setSearch(event.target.value))}
             className="cine-input"
           />
@@ -71,7 +72,7 @@ export default function MovieBrowser() {
 
         <div className="w-44">
           <label htmlFor="movie-genre" className="cine-label">
-            Genre
+            Género
           </label>
           <select
             id="movie-genre"
@@ -79,7 +80,7 @@ export default function MovieBrowser() {
             onChange={(event) => resetTo(() => setGenre(event.target.value as MovieGenre | ''))}
             className="cine-input"
           >
-            <option value="">All genres</option>
+            <option value="">Todos los géneros</option>
             {movieGenreValues.map((value) => (
               <option key={value} value={value}>
                 {movieGenreLabels[value]}
@@ -90,7 +91,7 @@ export default function MovieBrowser() {
 
         <div className="w-48">
           <label htmlFor="movie-sort" className="cine-label">
-            Sort
+            Ordenar
           </label>
           <select
             id="movie-sort"
@@ -115,8 +116,8 @@ export default function MovieBrowser() {
         <LoadingBlock />
       ) : resource.data && resource.data.content.length === 0 ? (
         <EmptyState
-          title="No movies match"
-          description="Try a different title fragment or clear the genre filter."
+          title="No se han encontrado películas"
+          description="Prueba con otro fragmento del título o borra el filtro de género."
         />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

@@ -1,7 +1,6 @@
 import { useCallback, useOptimistic, useState, useTransition } from 'react';
 import { cancelReservation, listMyReservations } from '../../lib/api/reservations.ts';
 import { useResource } from '../../lib/use-resource.ts';
-import { snapshotReservation } from '../../lib/reservation-snapshots.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
 import { ReservationStatus } from '../../lib/enums.ts';
 import type { Page, ReservationResponse } from '../../lib/types.ts';
@@ -14,12 +13,12 @@ import { ItemLines, StatusBadge, TicketSummary } from './ReservationParts.tsx';
 const PAGE_SIZE = 10;
 
 /**
- * The caller's own reservations. There is no user filter — ownership comes from
- * the JWT, and another user's reservation returns `404`, never `403`.
+ * Las reservas del propio usuario. No hay filtro de usuario — la titularidad
+ * viene del JWT, y la reserva de otro usuario devuelve `404`, nunca `403`.
  */
 export default function MyReservations() {
   return (
-    <AuthGuard message="Your reservations are tied to your account.">
+    <AuthGuard message="Tus reservas están vinculadas a tu cuenta.">
       <ReservationList />
     </AuthGuard>
   );
@@ -37,13 +36,19 @@ function ReservationList() {
 
   const rows = resource.data?.content ?? [];
 
-  // Optimistically flip a row to cancelled while the request is in flight.
+  // Marca optimistamente una fila como cancelada mientras la petición está en curso.
   const [optimisticRows, markCancelling] = useOptimistic(
     rows,
     (current: readonly ReservationResponse[], uuid: string) =>
       current.map((row) =>
         row.uuid === uuid
-          ? { ...row, status: ReservationStatus.CANCELLED, totalPrice: 0 }
+          ? {
+              ...row,
+              status: ReservationStatus.CANCELLED,
+              originalTotalPrice: row.totalPrice,
+              totalPrice: 0,
+              cancelledAt: new Date().toISOString(),
+            }
           : row,
       ),
   );
@@ -51,15 +56,13 @@ function ReservationList() {
   const cancel = useCallback(
     (reservation: ReservationResponse) => {
       setCancelError(null);
-      // Snapshot first: the server drops the tickets and items on cancellation.
-      snapshotReservation(reservation);
 
       startTransition(async () => {
         markCancelling(reservation.uuid);
         try {
           await cancelReservation(reservation.uuid);
         } catch (error) {
-          // 422 when it was already cancelled; anything else is unexpected.
+          // 422 cuando ya estaba cancelada; cualquier otra cosa es inesperada.
           setCancelError(error);
         } finally {
           resource.refetch();
@@ -69,17 +72,17 @@ function ReservationList() {
     [markCancelling, resource],
   );
 
-  if (resource.isLoading) return <LoadingBlock label="Loading your reservations…" />;
+  if (resource.isLoading) return <LoadingBlock label="Cargando tus reservas…" />;
   if (resource.error) return <ErrorBanner error={resource.error} onRetry={resource.refetch} />;
 
   if (optimisticRows.length === 0) {
     return (
       <EmptyState
-        title="No reservations yet"
-        description="Once you book seats they will appear here, with your tickets and any concessions."
+        title="Aún no tienes reservas"
+        description="Cuando reserves butacas aparecerán aquí, con tus entradas y cualquier producto adicional."
         action={
           <a href="/" className="cine-btn cine-btn-primary">
-            Find a screening
+            Buscar una sesión
           </a>
         }
       />
@@ -107,7 +110,7 @@ function ReservationList() {
                     </a>
                   </h2>
                   <p className="text-ink-500 text-xs">
-                    Booked {formatDateTime(reservation.createdAt)}
+                    Reservada el {formatDateTime(reservation.createdAt)}
                   </p>
                 </div>
                 <StatusBadge status={reservation.status} />
@@ -115,7 +118,7 @@ function ReservationList() {
 
               <div className="text-ink-300 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                 <span>
-                  <span className="text-ink-500">Seats: </span>
+                  <span className="text-ink-500">Butacas: </span>
                   <TicketSummary reservation={reservation} />
                 </span>
                 <span>
@@ -131,7 +134,7 @@ function ReservationList() {
                   href={`/reservations/detail?id=${reservation.uuid}`}
                   className="cine-btn cine-btn-ghost"
                 >
-                  Details
+                  Detalle
                 </a>
                 {!cancelled && (
                   <button
@@ -139,7 +142,7 @@ function ReservationList() {
                     className="cine-btn cine-btn-danger"
                     onClick={() => cancel(reservation)}
                   >
-                    Cancel
+                    Cancelar
                   </button>
                 )}
               </div>
@@ -150,7 +153,7 @@ function ReservationList() {
 
       {resource.isRefreshing && (
         <p className="text-ink-600 flex items-center justify-center gap-2 text-xs">
-          <Spinner /> Refreshing…
+          <Spinner /> Actualizando…
         </p>
       )}
 

@@ -5,10 +5,8 @@ import {
   type ReservationSortField,
 } from '../../lib/api/reservations.ts';
 import { useResource } from '../../lib/use-resource.ts';
-import { snapshotReservation } from '../../lib/reservation-snapshots.ts';
 import {
   ReservationStatus,
-  reservationStatusLabels,
   reservationStatusValues,
 } from '../../lib/enums.ts';
 import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
@@ -17,15 +15,20 @@ import type { SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
+import { Badge } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
-import { StatusBadge } from '../reservations/ReservationParts.tsx';
 
 const PAGE_SIZE = 20;
+const reservationStatusDisplayLabels: Readonly<Record<ReservationStatus, string>> = {
+  PENDING: 'Pendiente',
+  CONFIRMED: 'Confirmada',
+  CANCELLED: 'Cancelada',
+};
 
 /**
- * `/admin/reservations` — every reservation in the system via
- * `GET /api/reservations/all`. Admins may cancel any reservation, not just
- * their own.
+ * `/admin/reservations` — todas las reservas del sistema mediante
+ * `GET /api/reservations/all`. Los administradores pueden cancelar cualquier
+ * reserva, no solo las propias.
  */
 export default function AdminReservations() {
   const [page, setPage] = useState(0);
@@ -44,17 +47,15 @@ export default function AdminReservations() {
   );
 
   const cancel = async (reservation: ReservationResponse) => {
-    if (!window.confirm(`Cancel reservation ${reservation.uuid.slice(0, 8)}? Seats will be released.`)) {
+    if (!window.confirm(`¿Cancelar la reserva ${reservation.uuid.slice(0, 8)}? Los asientos se liberarán.`)) {
       return;
     }
     setRowError(null);
     setBusyId(reservation.uuid);
-    // Snapshot first — cancelling deletes the tickets and items.
-    snapshotReservation(reservation);
     try {
       await cancelReservation(reservation.uuid);
     } catch (error) {
-      // 422 when it was already cancelled.
+      // 422 cuando ya estaba cancelada.
       setRowError(error);
     } finally {
       setBusyId(null);
@@ -65,19 +66,20 @@ export default function AdminReservations() {
   const columns: readonly Column<ReservationResponse>[] = [
     {
       key: 'reference',
-      header: 'Reservation',
+      header: 'Reserva',
       cell: (reservation) => (
         <div>
           <div className="font-medium">{reservation.movieName}</div>
-          {/* `ReservationResponse` carries no customer identity, so the
-              reference is the only thing an admin can match on. */}
-          <code className="text-ink-500 text-xs">{reservation.uuid.slice(0, 8)}</code>
+          <div className="text-ink-500 text-xs">
+            {reservation.user.firstName} {reservation.user.lastName} · {reservation.user.email}
+          </div>
+          <code className="text-ink-600 text-xs">{reservation.uuid.slice(0, 8)}</code>
         </div>
       ),
     },
     {
       key: 'seats',
-      header: 'Seats',
+      header: 'Asientos',
       cell: (reservation) =>
         reservation.tickets.length === 0 ? (
           <span className="text-ink-600">—</span>
@@ -87,12 +89,12 @@ export default function AdminReservations() {
     },
     {
       key: 'items',
-      header: 'Concessions',
+      header: 'Confitería',
       cell: (reservation) =>
         reservation.items.length === 0 ? (
           <span className="text-ink-600">—</span>
         ) : (
-          `${reservation.items.length} line${reservation.items.length === 1 ? '' : 's'}`
+          `${reservation.items.length} ítem${reservation.items.length === 1 ? '' : 's'}`
         ),
     },
     {
@@ -104,13 +106,25 @@ export default function AdminReservations() {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: 'Estado',
       sortField: 'status',
-      cell: (reservation) => <StatusBadge status={reservation.status} />,
+      cell: (reservation) => (
+        <Badge
+          tone={
+            reservation.status === ReservationStatus.CONFIRMED
+              ? 'success'
+              : reservation.status === ReservationStatus.CANCELLED
+                ? 'danger'
+                : 'warning'
+          }
+        >
+          {reservationStatusDisplayLabels[reservation.status]}
+        </Badge>
+      ),
     },
     {
       key: 'createdAt',
-      header: 'Booked',
+      header: 'Reservada',
       sortField: 'createdAt',
       cell: (reservation) => formatDateTime(reservation.createdAt),
     },
@@ -126,7 +140,7 @@ export default function AdminReservations() {
             className="cine-btn cine-btn-danger"
             onClick={() => void cancel(reservation)}
           >
-            {busyId === reservation.uuid ? 'Cancelling…' : 'Cancel'}
+            {busyId === reservation.uuid ? 'Cancelando…' : 'Cancelar'}
           </button>
         ),
     },
@@ -136,13 +150,13 @@ export default function AdminReservations() {
 
   return (
     <AdminPage
-      title="Reservations"
-      description="Every reservation in the system. Cancelling releases the seats and returns concession stock."
+      title="Reservas"
+      description="Todas las reservas del sistema. Al cancelar se liberan los asientos y se repone el stock de confitería."
     >
       <AdminToolbar>
         <div className="min-w-48">
           <label htmlFor="res-status" className="cine-label">
-            Status
+            Estado
           </label>
           <select
             id="res-status"
@@ -153,10 +167,10 @@ export default function AdminReservations() {
               setPage(0);
             }}
           >
-            <option value="">All statuses</option>
+            <option value="">Todos los estados</option>
             {reservationStatusValues.map((value) => (
               <option key={value} value={value}>
-                {reservationStatusLabels[value]}
+                {reservationStatusDisplayLabels[value]}
               </option>
             ))}
           </select>
@@ -172,8 +186,8 @@ export default function AdminReservations() {
         isLoading={resource.isLoading || resource.isRefreshing}
         error={resource.error}
         onRetry={resource.refetch}
-        emptyTitle="No reservations"
-        emptyDescription="Nothing has been booked yet for this filter."
+        emptyTitle="No hay reservas"
+        emptyDescription="Todavía no se registraron reservas para este filtro."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(

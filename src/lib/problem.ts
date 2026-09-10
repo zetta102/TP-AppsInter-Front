@@ -1,11 +1,12 @@
-import type { ProblemDetail } from './types.ts';
+﻿import type { ProblemDetail } from './types.ts';
 
 /**
- * The frontend-facing status contract (frontend-spec.md §5).
+ * El contrato de estados de cara al frontend (frontend-spec.md §5).
  *
- * 409 is always retryable after a refetch; 422 never is without changing the
- * request. Never match on `detail` or on `errors` values — bean-validation
- * messages are server-localised. Key off status codes and field names.
+ * 409 siempre permite reintentar después de un refetch; 422 nunca sin cambiar
+ * la solicitud. Nunca hagas matching sobre `detail` ni sobre los valores de
+ * `errors`: los mensajes de bean validation se localizan en el servidor.
+ * Guíate por los códigos de estado y los nombres de campo.
  */
 export type ApiErrorKind =
   | 'validation' // 400
@@ -17,6 +18,36 @@ export type ApiErrorKind =
   | 'server' // 5xx
   | 'network' // fetch rejected / aborted
   | 'unknown';
+
+/**
+ * El registro completo de `code` (frontend-spec.md §5), incluidas las desviaciones
+ * señaladas en §13: `BAD_REQUEST`, `INVALID_SORT_PROPERTY`, `CONFLICT`,
+ * `SEATS_WRONG_ROOM` y `LAST_ADMIN` además de la especificación base.
+ *
+ * Trata cualquier cadena `code` que no esté en esta unión según su estado HTTP:
+ * los códigos nuevos nunca deben romper el cliente.
+ */
+export type ApiErrorCode =
+  | 'VALIDATION_FAILED'
+  | 'BAD_REQUEST'
+  | 'INVALID_SORT_PROPERTY'
+  | 'INVALID_CREDENTIALS'
+  | 'TOKEN_EXPIRED'
+  | 'TOKEN_REVOKED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'EMAIL_TAKEN'
+  | 'NAME_TAKEN'
+  | 'SEATS_UNAVAILABLE'
+  | 'SCREENING_OVERLAP'
+  | 'RESOURCE_IN_USE'
+  | 'OPTIMISTIC_LOCK'
+  | 'CONFLICT'
+  | 'SCREENING_STARTED'
+  | 'SEATS_WRONG_ROOM'
+  | 'INSUFFICIENT_STOCK'
+  | 'ALREADY_CANCELLED'
+  | 'LAST_ADMIN';
 
 function kindFor(status: number): ApiErrorKind {
   switch (status) {
@@ -37,30 +68,38 @@ function kindFor(status: number): ApiErrorKind {
   }
 }
 
-/** Generic, user-safe copy per status. `422` details are user-facing verbatim. */
+/** Texto genérico y seguro para el usuario según el estado. Los detalles `422` se muestran textualmente. */
 const fallbackMessages = {
-  validation: 'Please check the highlighted fields and try again.',
-  unauthorized: 'Your session has expired. Please sign in again.',
-  forbidden: 'You are not permitted to perform this action.',
-  notFound: 'We could not find what you were looking for.',
-  conflict: 'Someone else changed this while you were working. Refresh and try again.',
-  businessRule: 'This action is not allowed right now.',
-  server: 'Something went wrong on our side. Please try again.',
-  network: 'We could not reach the server. Check your connection and try again.',
-  unknown: 'Something went wrong. Please try again.',
+  validation: 'Revisa los campos resaltados e inténtalo de nuevo.',
+  unauthorized: 'Tu sesión expiró. Inicia sesión nuevamente.',
+  forbidden: 'No tienes permiso para realizar esta acción.',
+  notFound: 'No pudimos encontrar lo que buscabas.',
+  conflict: 'Otra persona cambió esto mientras trabajabas. Actualiza e inténtalo de nuevo.',
+  businessRule: 'Esta acción no está permitida en este momento.',
+  server: 'Algo salió mal de nuestro lado. Inténtalo de nuevo.',
+  network: 'No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+  unknown: 'Algo salió mal. Inténtalo de nuevo.',
 } as const satisfies Readonly<Record<ApiErrorKind, string>>;
 
 /**
- * A failed API call. Wraps the RFC 7807 payload and, when the failure came from
- * a rejected `fetch`, chains the original error through `Error.cause`.
+ * Una llamada fallida a la API. Envuelve el payload RFC 7807 y, cuando el fallo
+ * proviene de un `fetch` rechazado, encadena el error original mediante `Error.cause`.
  */
 export class ApiError extends Error {
   readonly status: number;
   readonly kind: ApiErrorKind;
   readonly problem: ProblemDetail | null;
   readonly instance: string | undefined;
-  /** Flat field -> message map from bean validation; empty when absent. */
+  /** Mapa plano campo -> mensaje de bean validation; vacío cuando no existe. */
   readonly fieldErrors: Readonly<Record<string, string>>;
+  /**
+   * Código de fallo legible por máquina (frontend-spec.md §5). Conviene ramificar
+   * sobre esto antes que solo sobre `status`, por ejemplo para distinguir
+   * `409 NAME_TAKEN` de `409 SEATS_UNAVAILABLE`, o `422 LAST_ADMIN` de `422 INSUFFICIENT_STOCK`.
+   */
+  readonly code: ApiErrorCode | (string & {}) | undefined;
+  /** Datos extra estructurados cuyas claves dependen de `code`. */
+  readonly context: Readonly<Record<string, unknown>>;
 
   constructor(
     status: number,
@@ -75,20 +114,27 @@ export class ApiError extends Error {
     this.problem = problem;
     this.instance = problem?.instance;
     this.fieldErrors = problem?.errors ?? {};
+    this.code = problem?.code;
+    this.context = problem?.context ?? {};
   }
 
-  /** True when the server supplied a human-readable, user-facing `detail`. */
+  /** Restringe por el `code` legible por máquina, la forma preferida de clasificar un fallo. */
+  hasCode(...codes: readonly ApiErrorCode[]): boolean {
+    return this.code !== undefined && (codes as readonly string[]).includes(this.code);
+  }
+
+  /** True cuando el servidor proporcionó un `detail` legible y visible para el usuario. */
   get hasServerDetail(): boolean {
     return Boolean(this.problem?.detail?.trim());
   }
 
-  /** Copy safe to render directly to the user. */
+  /** Texto seguro para renderizar directamente al usuario. */
   get userMessage(): string {
-    // 422 `detail` is authored for end users; 400/409 details are useful too.
+    // El `detail` de 422 está redactado para usuarios finales; los detalles 400/409 también son útiles.
     return this.hasServerDetail ? this.message : fallbackMessages[this.kind];
   }
 
-  /** Generic message ignoring any server text, for terse inline slots. */
+  /** Mensaje genérico que ignora el texto del servidor, para espacios inline breves. */
   get genericMessage(): string {
     return fallbackMessages[this.kind];
   }
@@ -101,7 +147,7 @@ export class ApiError extends Error {
     return Object.keys(this.fieldErrors).length > 0;
   }
 
-  /** 409 means "refetch and let the user retry"; nothing else is blind-retryable. */
+  /** 409 significa "refetch y dejar reintentar al usuario"; nada más admite reintento ciego. */
   get isRetryable(): boolean {
     return this.kind === 'conflict' || this.kind === 'network' || this.kind === 'server';
   }
@@ -112,10 +158,10 @@ export class ApiError extends Error {
     return new ApiError(
       0,
       {
-        title: aborted ? 'Request Timed Out' : 'Network Error',
+        title: aborted ? 'Tiempo de espera agotado' : 'Error de red',
         detail: aborted
-          ? 'The request took too long and was cancelled.'
-          : 'The server could not be reached.',
+          ? 'La solicitud tardó demasiado y fue cancelada.'
+          : 'No se pudo contactar al servidor.',
       },
       { cause, kind: 'network' },
     );
@@ -126,7 +172,7 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
-/** Narrows to an `ApiError` with one of the given statuses. */
+/** Restringe a un `ApiError` con uno de los estados indicados. */
 export function isApiErrorWithStatus(
   error: unknown,
   ...statuses: readonly number[]
@@ -134,21 +180,29 @@ export function isApiErrorWithStatus(
   return isApiError(error) && statuses.includes(error.status);
 }
 
-/** Any thrown value rendered as user-safe copy. */
+/** Restringe a un `ApiError` que lleva uno de los `code` indicados. */
+export function isApiErrorWithCode(
+  error: unknown,
+  ...codes: readonly ApiErrorCode[]
+): error is ApiError {
+  return isApiError(error) && error.hasCode(...codes);
+}
+
+/** Cualquier valor lanzado renderizado como texto seguro para el usuario. */
 export function toUserMessage(error: unknown): string {
   if (isApiError(error)) return error.userMessage;
   if (error instanceof Error && error.message) return error.message;
   return fallbackMessages.unknown;
 }
 
-/** Extracts bean-validation field errors from any thrown value. */
+/** Extrae errores de campo de bean validation desde cualquier valor lanzado. */
 export function toFieldErrors(error: unknown): Readonly<Record<string, string>> {
   return isApiError(error) ? error.fieldErrors : {};
 }
 
 /**
- * Parses an `application/problem+json` body. Returns `null` for empty or
- * unparseable bodies rather than throwing — an error path must never throw.
+ * Parsea un body `application/problem+json`. Devuelve `null` para bodies vacíos
+ * o imposibles de parsear en lugar de lanzar: una ruta de error nunca debe fallar de nuevo.
  */
 export async function parseProblem(response: Response): Promise<ProblemDetail | null> {
   try {

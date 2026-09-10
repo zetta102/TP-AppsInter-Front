@@ -1,4 +1,4 @@
-import { PUBLIC_API_BASE_URL, PUBLIC_API_TIMEOUT_MS } from 'astro:env/client';
+﻿import { PUBLIC_API_BASE_URL, PUBLIC_API_TIMEOUT_MS } from 'astro:env/client';
 import { ApiError, parseProblem } from './problem.ts';
 import { buildQuery, type QueryParams } from './query.ts';
 
@@ -7,7 +7,7 @@ import { buildQuery, type QueryParams } from './query.ts';
  *
  * Responsibilities:
  *  - resolve URLs against the validated `astro:env` base URL;
- *  - attach `Authorization: Bearer …` when the call is authenticated;
+ *  - attach `Authorization: Bearer â€¦` when the call is authenticated;
  *  - bound every request with `AbortSignal.timeout()`, composed with any
  *    caller-supplied signal via `AbortSignal.any()`;
  *  - translate non-2xx responses into `ApiError` from the problem+json body;
@@ -20,15 +20,15 @@ import { buildQuery, type QueryParams } from './query.ts';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface AuthHooks {
-  /** Current access token, or `null` when signed out. */
+  /** Token de acceso actual, o `null` cuando no hay sesión. */
   readonly getAccessToken: () => string | null;
   /**
-   * Performs a single, serialized token refresh. Resolves `true` when a new
-   * access token is available. Must be idempotent under concurrency — parallel
-   * refreshes revoke each other server-side.
+   * Realiza un único refresh de token serializado. Resuelve `true` cuando hay
+   * access token is available. Must be idempotent under concurrency â€” parallel
+   * los refreshes paralelos se revocan entre sí del lado del servidor.
    */
   readonly refresh: () => Promise<boolean>;
-  /** Called when an authenticated request is definitively rejected. */
+  /** Se llama cuando una solicitud autenticada queda rechazada de forma definitiva. */
   readonly onAuthFailure: () => void;
 }
 
@@ -42,9 +42,9 @@ export interface RequestOptions {
   readonly method?: HttpMethod;
   readonly query?: QueryParams;
   readonly body?: unknown;
-  /** Send the bearer token and enable the refresh-and-replay dance. */
+  /** Envía el bearer token y habilita el flujo de refrescar y reintentar. */
   readonly auth?: boolean;
-  /** Caller cancellation (component unmount, superseded search, …). */
+  /** Caller cancellation (component unmount, superseded search, â€¦). */
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
   readonly headers?: Readonly<Record<string, string>>;
@@ -57,7 +57,7 @@ export interface RequestOptions {
  * The controller is only fired if the scope exits **before** the attempt
  * settles. `fetch` resolves as soon as the headers arrive, so aborting after a
  * successful response would tear down the body stream the caller has not read
- * yet — the timeout signal remains composed in and still bounds the body read.
+ * yet â€” the timeout signal remains composed in and still bounds the body read.
  */
 function requestSignal(
   callerSignal: AbortSignal | undefined,
@@ -75,7 +75,7 @@ function requestSignal(
       settled = true;
     },
     [Symbol.dispose]() {
-      // Abandoned before the response arrived: cancel the in-flight request.
+      // Se abandonó antes de que llegara la respuesta: cancela la solicitud en vuelo.
       if (!settled && !controller.signal.aborted) controller.abort();
     },
   };
@@ -106,11 +106,11 @@ async function attempt(url: string, options: RequestOptions): Promise<Response> 
       headers: requestHeaders,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: scope.signal,
-      // The API is token-based; cookies are never part of the flow.
+      // La API se basa en tokens; las cookies nunca forman parte del flujo.
       credentials: 'omit',
       mode: 'cors',
     });
-    // The body still has to be read after this function returns.
+    // El body todavía debe leerse después de que esta función retorne.
     scope.settle();
     return response;
   } catch (cause) {
@@ -119,8 +119,8 @@ async function attempt(url: string, options: RequestOptions): Promise<Response> 
 }
 
 /**
- * Executes a request, refreshing and replaying **once** on a 401.
- * Always returns a response with a 2xx status; anything else throws `ApiError`.
+ * Ejecuta una solicitud, refrescando y repitiendo **una sola vez** ante un 401.
+ * Siempre devuelve una respuesta con estado 2xx; cualquier otra cosa lanza `ApiError`.
  */
 export async function apiFetch(path: string, options: RequestOptions = {}): Promise<Response> {
   const url = resolveUrl(path, options.query);
@@ -128,16 +128,16 @@ export async function apiFetch(path: string, options: RequestOptions = {}): Prom
   let response = await attempt(url, options);
 
   if (response.status === 401 && options.auth) {
-    // Drain the body so the connection can be reused before we retry.
+    // Descarta el body para que la conexión pueda reutilizarse antes de reintentar.
     await response.body?.cancel().catch(() => undefined);
 
     const refreshed = (await authHooks?.refresh()) ?? false;
     if (!refreshed) {
       authHooks?.onAuthFailure();
       throw new ApiError(401, {
-        title: 'Unauthorized',
+        title: 'No autorizado',
         status: 401,
-        detail: 'Your session has expired. Please sign in again.',
+        detail: 'Tu sesión expiró. Inicia sesión nuevamente.',
       });
     }
 
@@ -156,13 +156,13 @@ export async function apiFetch(path: string, options: RequestOptions = {}): Prom
   return response;
 }
 
-/** A request whose 2xx body is JSON. */
+/** Una solicitud cuyo body 2xx es JSON. */
 export async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await apiFetch(path, options);
   return (await response.json()) as T;
 }
 
-/** A `204 No Content` request. Any body is discarded. */
+/** Una solicitud `204 No Content`. Cualquier body se descarta. */
 export async function requestVoid(path: string, options: RequestOptions = {}): Promise<void> {
   const response = await apiFetch(path, options);
   await response.body?.cancel().catch(() => undefined);
@@ -171,13 +171,13 @@ export async function requestVoid(path: string, options: RequestOptions = {}): P
 export interface CreatedResource<T> {
   readonly data: T;
   /**
-   * The `Location` header. Readable cross-origin because the backend lists it
-   * in `exposedHeaders`.
+   * El header `Location`. Es legible entre orígenes porque el backend lo incluye
+   * en `exposedHeaders`.
    */
   readonly location: string | null;
 }
 
-/** A `201 Created` request, exposing the `Location` header alongside the body. */
+/** Una solicitud `201 Created` que expone el header `Location` junto al body. */
 export async function requestCreated<T>(
   path: string,
   options: RequestOptions = {},
@@ -190,3 +190,4 @@ export async function requestCreated<T>(
 }
 
 export { PUBLIC_API_BASE_URL as apiBaseUrl };
+

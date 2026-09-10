@@ -3,17 +3,17 @@ import type { PageParams, QueryParams, SortSpec } from '../query.ts';
 import type { Page } from '../types.ts';
 
 /**
- * Shared helpers for the resource clients.
+ * Helpers compartidos para los clientes de recursos.
  *
- * Every list endpoint returns the same `Page<T>` envelope and accepts
- * `page`/`size`/`sort`; only the filters differ, so each client declares its
- * own sortable-property union and filter interface.
+ * Cada endpoint de lista devuelve el mismo contenedor `Page<T>` y acepta
+ * `page`/`size`/`sort`; solo cambian los filtros, así que cada cliente declara
+ * su propia unión de propiedades ordenables y su interfaz de filtros.
  */
 
 export type { CreatedResource, SortSpec };
 export { requestJson, requestVoid, requestCreated };
 
-/** Query params common to every list endpoint, plus endpoint-specific filters. */
+/** Query params comunes a cada endpoint de lista, más filtros específicos del endpoint. */
 export type ListParams<Field extends string, Filters extends QueryParams = QueryParams> =
   PageParams<Field> & Filters;
 
@@ -21,7 +21,7 @@ export interface CallOptions {
   readonly signal?: AbortSignal;
 }
 
-/** Issues a paged `GET`, serialising page/sort/filters into the query string. */
+/** Ejecuta un `GET` paginado y serializa página/sort/filtros en la query string. */
 export function getPage<T>(
   path: string,
   params: QueryParams | undefined,
