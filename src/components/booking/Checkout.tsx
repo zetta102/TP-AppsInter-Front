@@ -31,8 +31,11 @@ import { SeatMap } from './SeatMap.tsx';
  *    que expira con una cuenta regresiva, para que nadie más pueda tomarlos durante el checkout;
  *  - el total del pedido proviene de `POST /api/reservations:quote` —el mismo
  *    flujo de código que usa el cobro final— en lugar de una estimación solo del cliente;
- *  - la disponibilidad de asientos sigue siendo orientativa: un `409` al enviar vuelve a consultar el mapa,
- *    resalta los asientos perdidos y le pide al usuario que vuelva a seleccionar.
+ *  - la retención no es una garantía absoluta (puede expirar o perderse la respuesta ya
+ *    confirmada del lado del servidor), así que se conserva, a propósito, una segunda línea
+ *    de defensa: un `409` al enviar vuelve a consultar el mapa, resalta los asientos
+ *    perdidos y le pide al usuario que vuelva a seleccionar. Esto ya no es el workaround
+ *    previo a la retención — es el manejo de la carrera residual que la retención no cubre.
  */
 
 interface CheckoutData {

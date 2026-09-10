@@ -16,13 +16,24 @@ import type {
  * ningún parámetro de query.
  */
 
-export type ReservationSortField = 'createdAt' | 'status' | 'totalPrice';
+export type ReservationSortField = 'createdAt' | 'status' | 'totalPrice' | 'screening.startsAt';
 
-export type ListReservationsParams = PageParams<ReservationSortField>;
-
-export type AdminReservationFilters = {
+/**
+ * Filtros de tiempo resueltos contra la sesión (`screening.startsAt`), no contra la
+ * reserva, para poder pedir "mis próximas funciones" sin traer todo el historial
+ * y filtrar en memoria (frontend-spec.md §12).
+ */
+export type ReservationFilters = {
   readonly status?: ReservationStatus;
+  readonly upcomingOnly?: boolean;
+  readonly from?: string;
+  readonly to?: string;
+  readonly movieId?: Uuid;
 };
+
+export type ListReservationsParams = PageParams<ReservationSortField> & ReservationFilters;
+
+export type AdminReservationFilters = ReservationFilters;
 
 export type ListAllReservationsParams = PageParams<ReservationSortField> & AdminReservationFilters;
 
@@ -78,10 +89,11 @@ export function quoteReservation(
 }
 
 /**
- * Cancela una reserva. Devuelve **`200` con el body cancelado**, no `204`:
- * `tickets: []`, `items: []`, `totalPrice: 0.00`. Si necesitas mostrar qué se canceló,
- * guarda primero un snapshot en el cliente, porque el servidor ya no lo conserva.
- * Cancelar una reserva ya cancelada devuelve `422`.
+ * Cancela una reserva (cancelación lógica). Devuelve **`200` con el body cancelado**,
+ * no `204`: `tickets` e `items` se conservan tal cual estaban, `totalPrice` pasa a `0`,
+ * `originalTotalPrice` guarda lo que se había cobrado y `cancelledAt` queda seteado.
+ * No hace falta ningún snapshot del lado del cliente. Cancelar una reserva ya
+ * cancelada devuelve `422`.
  */
 export function cancelReservation(uuid: Uuid): Promise<ReservationResponse> {
   return requestJson<ReservationResponse>(`/api/reservations/${uuid}`, {
