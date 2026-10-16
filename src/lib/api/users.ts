@@ -12,10 +12,15 @@ import type {
 
 /** `/api/users`: `me` requiere autenticación; el resto es ADMIN. */
 
-export type UserSortField = 'email' | 'firstName' | 'lastName' | 'role';
+export const userSortFields = ['email', 'firstName', 'lastName', 'role'] as const;
+export type UserSortField = (typeof userSortFields)[number];
 
 export type UserFilters = {
   readonly role?: Role;
+  /** Subcadena del email, sin distinguir mayúsculas. */
+  readonly email?: string;
+  /** Subcadena del nombre, del apellido o del nombre completo (`ada love`), sin distinguir mayúsculas. */
+  readonly name?: string;
 };
 
 export type ListUsersParams = PageParams<UserSortField> & UserFilters;
@@ -31,7 +36,8 @@ export function updateMyProfile(body: UpdateProfileRequest): Promise<UserRespons
 }
 
 /**
- * `401` cuando `currentPassword` es incorrecta. Revoca cada refresh token que
+ * `422 WRONG_PASSWORD` cuando `currentPassword` es incorrecta (la sesión sigue válida: no
+ * hay que cerrarla). Revoca cada refresh token que
  * posee el llamador excepto `refreshToken`: pasa el token de la sesión actual para
  * seguir con sesión iniciada aquí mientras se cierran las demás, u omítelo para
  * cerrar sesión en todas partes, incluida la pestaña actual.

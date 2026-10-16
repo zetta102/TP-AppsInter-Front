@@ -9,7 +9,7 @@ export default defineConfig({
   integrations: [react()],
   prefetch: {
     prefetchAll: true,
-    defaultStrategy: 'viewport',
+    defaultStrategy: 'hover',
   },
   server: {
     // Port 3000 is taken by the backend's observability compose service, and 5173

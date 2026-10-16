@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useEffectEvent, useState, useTransition } from 'react';
 
 /**
- * A small async-resource hook for the read side of the app.
+ * Un hook chico de recursos asíncronos para el lado de lectura de la app.
  *
- * It exists because every list and detail view needs the same three things: an
- * `AbortSignal` tied to the component's lifetime, a refetch handle (the spec
- * demands "refetch and let the user retry" on every `409`), and a state machine
- * that never lands in a stale-success state after an error.
+ * Existe porque cada vista de lista y de detalle necesita las mismas tres cosas: un
+ * `AbortSignal` atado a la vida del componente, un handle de refetch (ante un `409`
+ * siempre hay que "recargar y dejar reintentar"), y una máquina de estados que nunca
+ * queda en un éxito desactualizado después de un error.
  */
 
 export type ResourceStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -16,11 +16,11 @@ export interface Resource<T> {
   readonly error: unknown;
   readonly status: ResourceStatus;
   readonly isLoading: boolean;
-  /** True while a refetch runs over data that is already on screen. */
+  /** `true` mientras corre un refetch sobre datos que ya están en pantalla. */
   readonly isRefreshing: boolean;
-  /** Re-runs the fetcher. Safe to call from event handlers. */
+  /** Vuelve a ejecutar el fetcher. Es seguro llamarlo desde event handlers. */
   readonly refetch: () => void;
-  /** Replaces the cached value without a round-trip (optimistic updates). */
+  /** Reemplaza el valor cacheado sin ir al servidor (actualizaciones optimistas). */
   readonly setData: (updater: T | ((current: T | null) => T | null)) => void;
 }
 
@@ -31,9 +31,9 @@ function isAbort(error: unknown): boolean {
 }
 
 /**
- * @param fetcher stable-by-convention loader; re-runs whenever `deps` change
- * @param deps    values that identify the request (ids, filters, page)
- * @param options `enabled: false` defers the fetch (e.g. until auth is ready)
+ * @param fetcher loader; siempre se usa su versión más reciente, sin re-disparar el efecto
+ * @param deps    valores que identifican la solicitud (ids, filtros, página)
+ * @param options `enabled: false` difiere la carga (p. ej. hasta que la sesión esté lista)
  */
 export function useResource<T>(
   fetcher: Fetcher<T>,
@@ -48,10 +48,13 @@ export function useResource<T>(
   const [nonce, setNonce] = useState(0);
   const [isRefreshing, startRefresh] = useTransition();
 
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
-
-  const hasData = data !== null;
+  // Effect Events (React 19.2+): leen el fetcher y los datos más recientes sin ser
+  // dependencias del efecto, en lugar de escribir una ref durante el render.
+  const runFetcher = useEffectEvent((signal: AbortSignal) => fetcher(signal));
+  const markLoading = useEffectEvent(() => {
+    // Un refetch sobre datos visibles no vuelve a mostrar el spinner de carga completa.
+    if (data === null) setStatus('loading');
+  });
 
   useEffect(() => {
     if (!enabled) {
@@ -62,11 +65,11 @@ export function useResource<T>(
     const controller = new AbortController();
     let cancelled = false;
 
-    if (!hasData) setStatus('loading');
+    markLoading();
 
     void (async () => {
       try {
-        const result = await fetcherRef.current(controller.signal);
+        const result = await runFetcher(controller.signal);
         if (cancelled) return;
         setDataState(result);
         setError(null);
@@ -82,6 +85,7 @@ export function useResource<T>(
       cancelled = true;
       controller.abort();
     };
+    // `deps` es la API del hook: el llamador declara qué identifica a la solicitud.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, nonce, ...deps]);
 

@@ -1,4 +1,11 @@
-import { getPage, requestCreated, requestJson, requestVoid, type CallOptions } from './shared.ts';
+import {
+  getPage,
+  requestCreated,
+  requestJson,
+  requestVoid,
+  setArchived,
+  type CallOptions,
+} from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type {
   BulkCreateSeatsRequest,
@@ -11,11 +18,15 @@ import type {
   Uuid,
 } from '../types.ts';
 
-/** `/api/rooms`: las lecturas son públicas y las escrituras son ADMIN (frontend-spec.md §8.2). */
+/** `/api/rooms`: las lecturas son públicas y las escrituras son ADMIN (backend-status-for-frontend.md §5.6). */
 
-export type RoomSortField = 'roomName' | 'screenRoomType';
+export const roomSortFields = ['roomName', 'screenRoomType'] as const;
+export type RoomSortField = (typeof roomSortFields)[number];
 
-export type ListRoomsParams = PageParams<RoomSortField>;
+export type ListRoomsParams = PageParams<RoomSortField> & {
+  /** Incluye las archivadas (pantallas de admin). */
+  readonly includeArchived?: boolean;
+};
 
 export function listRooms(
   params: ListRoomsParams = {},
@@ -55,13 +66,18 @@ export function updateRoom(
   });
 }
 
+/** `409 RESOURCE_IN_USE` si la sala tiene funciones vigentes que no terminaron. */
+export function setRoomArchived(uuid: Uuid, archived: boolean): Promise<ScreenRoomResponse> {
+  return setArchived<ScreenRoomResponse>(`/api/rooms/${uuid}`, archived);
+}
+
 export function deleteRoom(uuid: Uuid): Promise<void> {
   return requestVoid(`/api/rooms/${uuid}`, { method: 'DELETE', auth: true });
 }
 
 /**
- * Construye una sala completa en una sola transacción (frontend-spec.md §8.3 "Bulk seat
- * creation"). `onConflict` vale `FAIL` por defecto, lo que revierte el lote completo
+ * Construye una sala completa en una sola transacción
+ * (backend-status-for-frontend.md §5.6). `onConflict` vale `FAIL` por defecto, lo que revierte el lote completo
  * con `409 NAME_TAKEN` y `context.conflicts` listando las posiciones estilo `"A1"`
  * en conflicto; `SKIP` deja intactos los asientos existentes; `REPLACE` sobrescribe
  * el `seatType` del asiento existente.

@@ -6,16 +6,18 @@ import {
   getInventoryItem,
   listInventory,
   listInventoryAdjustments,
+  setInventoryArchived,
   updateInventoryItem,
   type InventorySortField,
 } from '../../lib/api/inventory.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { isApiErrorWithCode, isApiErrorWithStatus, toFieldErrors, toUserMessage } from '../../lib/problem.ts';
-import { productCategoryValues, type ProductCategory } from '../../lib/enums.ts';
+import { productCategoryLabels, productCategoryValues, type ProductCategory } from '../../lib/enums.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
 import type { CreateInventoryRequest, InventoryResponse, Page } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { Badge, Modal } from '../ui/Modal.tsx';
@@ -25,13 +27,6 @@ import { Pagination } from '../ui/Pagination.tsx';
 
 const PAGE_SIZE = 15;
 const LOW_STOCK = 10;
-const productCategoryDisplayLabels: Readonly<Record<ProductCategory, string>> = {
-  SNACK: 'Aperitivo',
-  DRINK: 'Bebida',
-  COMBO: 'Combo',
-  MERCHANDISE: 'Merchandising',
-};
-
 interface FormState {
   readonly error: unknown;
   readonly fieldErrors: Readonly<Record<string, string>>;
@@ -57,7 +52,7 @@ export default function AdminInventory() {
   const [editing, setEditing] = useState<InventoryResponse | null>(null);
   const [adjusting, setAdjusting] = useState<InventoryResponse | null>(null);
   const [creating, setCreating] = useState(false);
-  const [rowError, setRowError] = useState<unknown>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const resource = useResource<Page<InventoryResponse>>(
     (signal) =>
@@ -66,39 +61,41 @@ export default function AdminInventory() {
           page,
           size: PAGE_SIZE,
           sort,
+          includeArchived: showArchived,
           ...(category ? { category } : {}),
           ...(search.trim() ? { search: search.trim() } : {}),
         },
         { signal },
       ),
-    [page, sort, category, search],
+    [page, sort, category, search, showArchived],
   );
 
-  const remove = async (item: InventoryResponse) => {
-    if (!window.confirm(`¿Eliminar “${item.productName}”?`)) return;
-    setRowError(null);
-    try {
-      await deleteInventoryItem(item.uuid);
-    } catch (error) {
-      // 409 cuando una línea de una reserva anterior todavía referencia el producto.
-      setRowError(error);
-    } finally {
-      resource.refetch();
-    }
-  };
+  // Un producto ya vendido no se puede borrar (409): se archiva y deja de ofrecerse.
+  const actions = useArchiveActions<InventoryResponse>({
+    remove: deleteInventoryItem,
+    setArchived: setInventoryArchived,
+    refetch: resource.refetch,
+    confirmDelete: (item) => `¿Eliminar “${item.productName}”?`,
+    name: (item) => item.productName,
+  });
 
   const columns: readonly Column<InventoryResponse>[] = [
     {
       key: 'productName',
       header: 'Producto',
       sortField: 'productName',
-      cell: (item) => <span className="font-medium">{item.productName}</span>,
+      cell: (item) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{item.productName}</span>
+          <ArchivedBadge archived={item.archived} />
+        </span>
+      ),
     },
     {
       key: 'category',
       header: 'Categoría',
       sortField: 'category',
-      cell: (item) => <Badge>{productCategoryDisplayLabels[item.category]}</Badge>,
+      cell: (item) => <Badge>{productCategoryLabels[item.category]}</Badge>,
     },
     {
       key: 'cost',
@@ -137,13 +134,7 @@ export default function AdminInventory() {
           <button type="button" className="cine-btn cine-btn-ghost" onClick={() => setEditing(item)}>
             Editar
           </button>
-          <button
-            type="button"
-            className="cine-btn cine-btn-danger"
-            onClick={() => void remove(item)}
-          >
-            Eliminar
-          </button>
+          {actions.buttons(item)}
         </div>
       ),
     },
@@ -198,14 +189,22 @@ export default function AdminInventory() {
             <option value="">Todas las categorías</option>
             {productCategoryValues.map((value) => (
               <option key={value} value={value}>
-                {productCategoryDisplayLabels[value]}
+                {productCategoryLabels[value]}
               </option>
             ))}
           </select>
         </div>
+
+        <ShowArchivedToggle
+          checked={showArchived}
+          onChange={(checked) => {
+            setShowArchived(checked);
+            setPage(0);
+          }}
+        />
       </AdminToolbar>
 
-      {rowError !== null && <ErrorBanner error={rowError} onRetry={resource.refetch} />}
+      {actions.banner}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -215,7 +214,7 @@ export default function AdminInventory() {
         error={resource.error}
         onRetry={resource.refetch}
         emptyTitle="No hay productos"
-        emptyDescription="Agregue snacks y bebidas para que los clientes puedan pedirlos al finalizar la compra."
+        emptyDescription="Agregá snacks y bebidas para que los clientes puedan pedirlos al finalizar la compra."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(
@@ -336,7 +335,7 @@ function InventoryFormModal({
         >
           {productCategoryValues.map((value) => (
             <option key={value} value={value}>
-              {productCategoryDisplayLabels[value]}
+              {productCategoryLabels[value]}
             </option>
           ))}
         </SelectInput>
@@ -425,7 +424,7 @@ function AdjustStockModal({
       <div className="flex flex-col gap-4">
         <p className="text-sm text-neutral-400">
           Actualmente hay <span className="font-medium text-neutral-100">{current.quantity}</span>{' '}
-          unidades en stock. Ingrese una variación positiva para reponer o una negativa para
+          unidades en stock. Ingresá una variación positiva para reponer o una negativa para
           descontar stock; ambas se aplican de forma atómica para que los ajustes concurrentes
           nunca se sobrescriban entre sí.
         </p>
@@ -491,7 +490,7 @@ function AdjustStockModal({
                     </span>{' '}
                     <span className="text-neutral-500">→ Quedan {entry.resultingStock}</span>
                     <span className="block text-xs text-neutral-500">
-                      {entry.reason} · {entry.adjustedBy}
+                      {entry.reason} · {entry.adjustedBy ?? 'sistema'}
                     </span>
                   </span>
                   <span className="whitespace-nowrap text-xs text-neutral-500">

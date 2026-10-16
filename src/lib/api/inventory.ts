@@ -1,4 +1,11 @@
-import { getPage, requestCreated, requestJson, requestVoid, type CallOptions } from './shared.ts';
+import {
+  getPage,
+  requestCreated,
+  requestJson,
+  requestVoid,
+  setArchived,
+  type CallOptions,
+} from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type { ProductCategory } from '../enums.ts';
 import type {
@@ -12,17 +19,22 @@ import type {
 
 /**
  * `/api/inventory`: **solo ADMIN para todos los métodos, incluido `GET`**
- * (frontend-spec.md §8.5).
+ * (backend-status-for-frontend.md §5.11).
  *
- * Un `CUSTOMER` que llama `GET /api/inventory` recibe `403`, así que el panel
- * de confitería de la compra debe degradarse ocultándose. Ver `backend-spec.md`.
+ * El catálogo público de confitería para clientes es `/api/products` (ver `products.ts`).
  */
 
-export type InventorySortField = 'productName' | 'category' | 'cost' | 'quantity';
+export const inventorySortFields = ['productName', 'category', 'cost', 'quantity'] as const;
+export type InventorySortField = (typeof inventorySortFields)[number];
+
+export const adjustmentSortFields = ['createdAt', 'delta', 'resultingStock'] as const;
+export type AdjustmentSortField = (typeof adjustmentSortFields)[number];
 
 export type InventoryFilters = {
   readonly category?: ProductCategory;
   readonly search?: string;
+  /** Incluye los archivados. */
+  readonly includeArchived?: boolean;
 };
 
 export type ListInventoryParams = PageParams<InventorySortField> & InventoryFilters;
@@ -62,7 +74,12 @@ export function updateInventoryItem(
   });
 }
 
-/** `409` cuando una línea de reserva todavía referencia el producto. */
+/** Siempre permitido: las reservas pasadas conservan sus líneas. */
+export function setInventoryArchived(uuid: Uuid, archived: boolean): Promise<InventoryResponse> {
+  return setArchived<InventoryResponse>(`/api/inventory/${uuid}`, archived);
+}
+
+/** `409 RESOURCE_IN_USE` cuando una línea de reserva todavía referencia el producto: archivalo. */
 export function deleteInventoryItem(uuid: Uuid): Promise<void> {
   return requestVoid(`/api/inventory/${uuid}`, { method: 'DELETE', auth: true });
 }
@@ -87,7 +104,7 @@ export function adjustInventory(
 /** El rastro de auditoría paginado detrás de cada ajuste realizado sobre este ítem. */
 export function listInventoryAdjustments(
   uuid: Uuid,
-  params: PageParams<'createdAt'> = {},
+  params: PageParams<AdjustmentSortField> = {},
   options: CallOptions = {},
 ): Promise<Page<InventoryAdjustmentResponse>> {
   return getPage<InventoryAdjustmentResponse>(`/api/inventory/${uuid}/adjustments`, params, {

@@ -16,14 +16,14 @@ import { StatusBadge } from './ReservationParts.tsx';
  * Una reserva que pertenece a otra persona devuelve `404`, no `403`, así que
  * el texto de no encontrado debe cubrir tanto "ya no existe" como "no es tuya".
  *
- * La cancelación es una cancelación lógica (frontend-spec.md §9): se conservan
+ * La cancelación es una cancelación lógica (backend-status-for-frontend.md §7.5): se conservan
  * entradas y productos, `totalPrice` pasa a `0` (lo que queda pendiente) y
  * `originalTotalPrice` registra lo que se cobró — ya no hace falta una
  * instantánea en cliente.
  */
 export default function ReservationDetail() {
   return (
-    <AuthGuard message="Inicia sesión para ver esta reserva.">
+    <AuthGuard message="Iniciá sesión para ver esta reserva.">
       <DetailPanel />
     </AuthGuard>
   );
@@ -43,7 +43,7 @@ function DetailPanel() {
   if (!reservationId) {
     return (
       <EmptyState
-        title="No has seleccionado ninguna reserva"
+        title="No seleccionaste ninguna reserva"
         action={
           <a href="/reservations" className="cine-btn cine-btn-primary">
             Mis reservas

@@ -5,14 +5,15 @@ import type { Page, ProductResponse, Uuid } from '../types.ts';
 
 /**
  * `/api/products`: la proyección **pública** del inventario orientada al cliente
- * (frontend-spec.md §8.6). Publica `price` y `available`; el stock bruto en
+ * (backend-status-for-frontend.md §5.10). Publica `price` y `available`; el stock bruto en
  * `quantity` no se expone deliberadamente.
  *
  * Reemplaza el viejo workaround de llamar al `GET /api/inventory` solo para admin
  * y ocultar el panel de confitería ante un `403`.
  */
 
-export type ProductSortField = 'productName' | 'category' | 'cost';
+export const productSortFields = ['productName', 'category', 'price'] as const;
+export type ProductSortField = (typeof productSortFields)[number];
 
 export type ProductFilters = {
   readonly category?: ProductCategory;

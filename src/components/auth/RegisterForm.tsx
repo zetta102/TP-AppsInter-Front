@@ -1,3 +1,4 @@
+import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { isApiError, toFieldErrors } from '../../lib/problem.ts';
@@ -41,11 +42,11 @@ export default function RegisterForm() {
 
     try {
       await login({ email: payload.email, password: payload.password });
-      window.location.assign('/reservations');
+      void navigate('/reservations');
       return initialState;
     } catch {
       // La cuenta existe; solo ha fallado el inicio de sesión automático.
-      window.location.assign('/login');
+      void navigate('/login');
       return initialState;
     }
   }, initialState);
@@ -95,9 +96,9 @@ export default function RegisterForm() {
       <SubmitButton pendingLabel="Creando cuenta…">Crear cuenta</SubmitButton>
 
       <p className="text-ink-500 text-center text-sm">
-        ¿Ya tienes una cuenta?{' '}
+        ¿Ya tenés una cuenta?{' '}
         <a href="/login" className="text-brand-400 hover:underline">
-          Inicia sesión
+          Iniciá sesión
         </a>
       </p>
     </form>

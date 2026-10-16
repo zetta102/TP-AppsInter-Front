@@ -19,7 +19,7 @@ function SignInPrompt({ message }: { readonly message: string }) {
 
   return (
     <div className="cine-card mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-12 text-center">
-      <p className="text-ink-100 text-lg font-semibold">Inicia sesi?n para continuar</p>
+      <p className="text-ink-100 text-lg font-semibold">Iniciá sesión para continuar</p>
       <p className="text-ink-500 text-sm">{message}</p>
       <a href={`/login?next=${encodeURIComponent(next)}`} className="cine-btn cine-btn-primary">
         Iniciar sesión
@@ -30,14 +30,14 @@ function SignInPrompt({ message }: { readonly message: string }) {
 
 export function AuthGuard({
   children,
-  message = 'Necesitas una cuenta para ver esta p?gina.',
+  message = 'Necesitás una cuenta para ver esta página.',
 }: {
   readonly children: ReactNode;
   readonly message?: string;
 }) {
   const { ready, isAuthenticated } = useAuth();
 
-  if (!ready) return <LoadingBlock label="Verificando tu sesi?n…" />;
+  if (!ready) return <LoadingBlock label="Verificando tu sesión…" />;
   if (!isAuthenticated) return <SignInPrompt message={message} />;
   return <>{children}</>;
 }
@@ -45,7 +45,7 @@ export function AuthGuard({
 export function AdminGuard({ children }: { readonly children: ReactNode }) {
   const { ready, isAuthenticated, isAdmin } = useAuth();
 
-  if (!ready) return <LoadingBlock label="Verificando tu sesi?n…" />;
+  if (!ready) return <LoadingBlock label="Verificando tu sesión…" />;
   if (!isAuthenticated) {
     return <SignInPrompt message="Se requiere acceso de administrador para esta consola." />;
   }

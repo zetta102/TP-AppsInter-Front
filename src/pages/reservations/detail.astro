@@ -3,7 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import ReservationDetail from '../../components/reservations/ReservationDetail.tsx';
 ---
 
-<!-- The spec's `/reservations/:id` becomes `/reservations/detail?id=<uuid>`. -->
-<Layout title="Reservation" description="Ticket and line-item detail.">
+<!-- `/reservations/:id` se implementa como `/reservations/detail?id=<uuid>`. -->
+<Layout title="Reserva" description="Detalle de entradas y confitería.">
   <ReservationDetail client:load />
 </Layout>

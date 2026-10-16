@@ -1,6 +1,6 @@
-﻿/**
+/**
  * Construcción tipada de query strings para los endpoints de lista paginada
- * (frontend-spec.md §6).
+ * (backend-status-for-frontend.md §3.3).
  *
  * `page` es base cero. `sort` debe nombrar una **propiedad de la entidad** (`movieName`,
  * `startsAt`, `createdAt`, `email`, `productName`), no un campo de respuesta; una

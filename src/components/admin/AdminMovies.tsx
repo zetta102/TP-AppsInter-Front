@@ -3,12 +3,13 @@ import {
   createMovie,
   deleteMovie,
   listMovies,
+  setMovieArchived,
   updateMovie,
   type MovieSortField,
 } from '../../lib/api/movies.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { toFieldErrors } from '../../lib/problem.ts';
-import { movieGenreValues, type MovieGenre } from '../../lib/enums.ts';
+import { movieGenreLabels, movieGenreValues, type MovieGenre } from '../../lib/enums.ts';
 import { formatRuntime } from '../../lib/format.ts';
 import type { CreateMovieRequest, MovieResponse, Page } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
@@ -19,19 +20,9 @@ import { Modal, Badge } from '../ui/Modal.tsx';
 import { TextInput, TextArea } from '../ui/Field.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 
 const PAGE_SIZE = 15;
-const movieGenreDisplayLabels: Readonly<Record<MovieGenre, string>> = {
-  ACTION: 'Acción',
-  THRILLER: 'Suspenso',
-  TERROR: 'Terror',
-  ROMANCE: 'Romance',
-  COMEDY: 'Comedia',
-  DRAMA: 'Drama',
-  ANIMATION: 'Animación',
-  SCI_FI: 'Ciencia ficción',
-};
-
 interface FormState {
   readonly error: unknown;
   readonly fieldErrors: Readonly<Record<string, string>>;
@@ -40,36 +31,49 @@ interface FormState {
 
 const initialFormState: FormState = { error: null, fieldErrors: {}, done: false };
 
-/** `/admin/movies` — CRUD completo. `PUT` es un reemplazo total, por eso los formularios envían todos los campos. */
+const URL_FIELDS = ['posterUrl', 'backdropUrl', 'trailerUrl'] as const;
+
+/** Misma regla que el backend (`HttpUrl`): URL absoluta http(s), con host y sin espacios. */
+function isLoadableUrl(value: string): boolean {
+  if (/\s/.test(value) || !URL.canParse(value)) return false;
+  const url = new URL(value);
+  return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== '';
+}
+
+/**
+ * `/admin/movies` — CRUD completo. `PUT` es un reemplazo total, por eso los formularios envían todos
+ * los campos. Una película con funciones no se puede borrar: se archiva.
+ */
 export default function AdminMovies() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<MovieSortField>>('movieName,asc');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<MovieResponse | null>(null);
   const [creating, setCreating] = useState(false);
-  const [rowError, setRowError] = useState<unknown>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const resource = useResource<Page<MovieResponse>>(
     (signal) =>
       listMovies(
-        { page, size: PAGE_SIZE, sort, ...(search.trim() ? { search: search.trim() } : {}) },
+        {
+          page,
+          size: PAGE_SIZE,
+          sort,
+          includeArchived: showArchived,
+          ...(search.trim() ? { search: search.trim() } : {}),
+        },
         { signal },
       ),
-    [page, sort, search],
+    [page, sort, search, showArchived],
   );
 
-  const remove = async (movie: MovieResponse) => {
-    if (!window.confirm(`¿Eliminar “${movie.movieName}”? Esta acción no se puede deshacer.`)) return;
-    setRowError(null);
-    try {
-      await deleteMovie(movie.uuid);
-    } catch (error) {
-      // 409 cuando todavía hay funciones que referencian la película.
-      setRowError(error);
-    } finally {
-      resource.refetch();
-    }
-  };
+  const actions = useArchiveActions<MovieResponse>({
+    remove: deleteMovie,
+    setArchived: setMovieArchived,
+    refetch: resource.refetch,
+    confirmDelete: (movie) => `¿Eliminar “${movie.movieName}”? Esta acción no se puede deshacer.`,
+    name: (movie) => movie.movieName,
+  });
 
   const columns: readonly Column<MovieResponse>[] = [
     {
@@ -87,6 +91,7 @@ export default function AdminMovies() {
             />
           ) : null}
           <span className="font-medium">{movie.movieName}</span>
+          <ArchivedBadge archived={movie.archived} />
         </div>
       ),
     },
@@ -96,7 +101,7 @@ export default function AdminMovies() {
       cell: (movie) => (
         <div className="flex flex-wrap gap-1">
           {movie.genres.map((genre) => (
-            <Badge key={genre}>{movieGenreDisplayLabels[genre]}</Badge>
+            <Badge key={genre}>{movieGenreLabels[genre]}</Badge>
           ))}
         </div>
       ),
@@ -126,13 +131,7 @@ export default function AdminMovies() {
           >
             Editar
           </button>
-          <button
-            type="button"
-            className="cine-btn cine-btn-danger"
-            onClick={() => void remove(movie)}
-          >
-            Eliminar
-          </button>
+          {actions.buttons(movie)}
         </div>
       ),
     },
@@ -167,9 +166,16 @@ export default function AdminMovies() {
             }}
           />
         </div>
+        <ShowArchivedToggle
+          checked={showArchived}
+          onChange={(checked) => {
+            setShowArchived(checked);
+            setPage(0);
+          }}
+        />
       </AdminToolbar>
 
-      {rowError !== null && <ErrorBanner error={rowError} onRetry={resource.refetch} />}
+      {actions.banner}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -179,7 +185,7 @@ export default function AdminMovies() {
         error={resource.error}
         onRetry={resource.refetch}
         emptyTitle="No hay películas"
-        emptyDescription="Agregue una película para comenzar a programar funciones."
+        emptyDescription="Agregá una película para comenzar a programar funciones."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(
@@ -247,6 +253,15 @@ function MovieFormModal({
       originalLanguage: String(formData.get('originalLanguage') ?? '').trim() || null,
     };
 
+    const urlErrors: Record<string, string> = {};
+    for (const field of URL_FIELDS) {
+      const value = body[field];
+      if (value && !isLoadableUrl(value)) {
+        urlErrors[field] = 'Ingresá una URL completa que empiece con http:// o https://.';
+      }
+    }
+    if (Object.keys(urlErrors).length > 0) return { error: null, fieldErrors: urlErrors, done: false };
+
     try {
       // PUT es un reemplazo total, así que la misma carga completa sirve para ambos casos.
       if (movie) await updateMovie(movie.uuid, body);
@@ -284,13 +299,13 @@ function MovieFormModal({
                   value={genre}
                   defaultChecked={movie?.genres.includes(genre) ?? false}
                 />
-                {movieGenreDisplayLabels[genre]}
+                {movieGenreLabels[genre]}
               </label>
             ))}
           </div>
           {state.fieldErrors['genres'] && (
             <p role="alert" className="text-brand-400 mt-1 text-xs">
-              Seleccione al menos un género.
+              Seleccioná al menos un género.
             </p>
           )}
         </fieldset>

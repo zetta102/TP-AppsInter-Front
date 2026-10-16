@@ -1,5 +1,5 @@
 /**
- * Espejo solo de tipos de los DTO del backend (frontend-spec.md §8).
+ * Espejo solo de tipos de los DTO del backend (backend-status-for-frontend.md §6).
  *
  * Nada en este módulo emite código de runtime, así que desaparece por completo
  * con el borrado de tipos. Impórtalo con `import type`.
@@ -41,24 +41,49 @@ export interface Page<T> {
 }
 
 /**
- * RFC 7807 `application/problem+json`. Todo error usa esta forma, incluidos
+ * RFC 7807 `application/problem+json` tal como lo emite el backend
+ * (backend-status-for-frontend.md §3.4, §6). Todo error usa esta forma, incluidos
  * los 401/403 emitidos por la cadena de filtros de seguridad.
  */
 export interface ProblemDetail {
-  readonly type?: string;
-  readonly title?: string;
-  readonly status?: number;
-  readonly detail?: string;
+  /** `https://cine.example/problems/<code-en-kebab>`: un identificador equivalente a `code`, no una página. */
+  readonly type: string;
+  readonly title: string;
+  readonly status: number;
+  readonly detail: string;
   readonly instance?: string;
   /**
    * Presente en fallos de bean validation: un mapa plano campo -> mensaje.
    * Los mensajes se localizan en el servidor, así que la UI debe guiarse solo por el nombre del campo.
    */
   readonly errors?: Readonly<Record<string, string>>;
-  /** Código de fallo legible por máquina (frontend-spec.md §5): ramifica con esto, nunca con `detail`. */
-  readonly code?: string;
+  /** Presente en `VALIDATION_FAILED`: cada restricción violada, legible por máquina, para traducir en el cliente. */
+  readonly violations?: readonly Violation[];
+  /** Código de fallo legible por máquina (backend-status-for-frontend.md §8): ramifica con esto, nunca con `detail`. */
+  readonly code: string;
   /** Datos extra estructurados cuyas claves dependen de `code`; ausentes cuando no hay nada que agregar. */
   readonly context?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Un body de error que no se puede dar por válido: puede venir de un proxy o gateway
+ * (HTML, JSON parcial) o construirse en el cliente (fallos de red). Todo campo es opcional.
+ */
+export type ProblemPayload = Partial<ProblemDetail>;
+
+/**
+ * Una restricción violada (backend-status-for-frontend.md §3.4): `code` es el nombre de la
+ * restricción (`NotBlank`, `Size`, `HttpUrl`…) y `params` sus atributos (`{ min: 8, max: 72 }`).
+ */
+export interface Violation {
+  readonly field: string;
+  readonly code: string;
+  readonly params: Readonly<Record<string, unknown>>;
+}
+
+/** `PATCH /api/{movies|rooms|screenings|inventory}/{id}`: archivar (`true`) o restaurar (`false`). */
+export interface ArchiveRequest {
+  readonly archived: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +116,7 @@ export interface RefreshRequest {
 
 export interface AuthResponse {
   readonly token: string;
-  readonly tokenType: string;
+  readonly tokenType: 'Bearer';
   readonly expiresAt: OffsetDateTimeString;
   readonly refreshToken: string;
   readonly refreshExpiresAt: OffsetDateTimeString;
@@ -136,7 +161,7 @@ export interface CreateMovieRequest {
   readonly runtime: number;
   readonly description?: string | null;
   readonly director?: string | null;
-  readonly mainCast?: readonly string[] | null;
+  readonly mainCast?: readonly string[];
   /** URL `http(s)` absoluta, máximo 2048 caracteres. */
   readonly posterUrl?: string | null;
   /** URL `http(s)` absoluta, máximo 2048 caracteres. */
@@ -167,6 +192,14 @@ export interface MovieResponse {
   readonly certification: string | null;
   readonly originalLanguage: string | null;
   readonly trailerUrl: string | null;
+  /** Archivada: oculta de los listados por defecto, pero se sigue pudiendo leer por id. */
+  readonly archived: boolean;
+}
+
+/** `GET /api/movies/now-showing`: una película con sus funciones de la ventana, por `startsAt`. */
+export interface NowShowingResponse {
+  readonly movie: MovieResponse;
+  readonly screenings: readonly MovieScreeningResponse[];
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +216,7 @@ export interface ScreenRoomResponse {
   readonly roomName: string;
   readonly screenRoomType: ScreenRoomType;
   readonly seatCount: number;
+  readonly archived: boolean;
 }
 
 export interface CreateSeatRequest {
@@ -239,11 +273,22 @@ export interface MovieScreeningResponse {
    * calculado" (se pidió `includeAvailability=false`), nunca "cero".
    */
   readonly totalSeats: number | null;
+  /** Total − vendidos − retenidos por **otros** clientes (con token, las retenciones propias no se descuentan). */
   readonly availableSeats: number | null;
+  /** Asientos sin vender retenidos ahora por otros clientes; se liberan al vencer la retención. */
+  readonly heldSeats: number | null;
+  /** `true` solo cuando **todos** los asientos están vendidos. */
   readonly soldOut: boolean | null;
+  /** Una función archivada no acepta retenciones, cotizaciones ni compras (`422 RESOURCE_ARCHIVED`). */
+  readonly archived: boolean;
+  /** Solo con `GET /api/screenings/{id}?include=seatMap`; en otro caso está ausente. */
+  readonly seatMap?: SeatMapResponse;
 }
 
-/** Una celda del mapa de asientos de la función. `available: false` significa que ya fue vendida. */
+/**
+ * Una celda del mapa de asientos de la función. `available: false` significa vendido
+ * (`held: false`) o retenido por otro cliente (`held: true`).
+ */
 export interface SeatMapSeat {
   readonly seatId: Uuid;
   readonly row: string;
@@ -267,6 +312,13 @@ export interface SeatMapResponse {
   readonly columns: readonly string[];
   /** Disperso: un (row, column) sin entrada es un pasillo o hueco. */
   readonly seats: readonly SeatMapSeat[];
+}
+
+/** El `data` de un evento `seats` del stream SSE: solo los asientos que cambiaron (§7.6). */
+export interface SeatState {
+  readonly seatId: Uuid;
+  readonly available: boolean;
+  readonly held: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -336,6 +388,8 @@ export interface InventoryResponse {
   readonly category: ProductCategory;
   readonly cost: Money;
   readonly quantity: number;
+  /** Archivado: no se puede pedir y no figura en `/api/products`. */
+  readonly archived: boolean;
 }
 
 /** `POST /api/inventory/{uuid}/adjustments`: atómico, con `delta` distinto de cero. */
@@ -349,7 +403,8 @@ export interface InventoryAdjustmentResponse {
   readonly delta: number;
   readonly resultingStock: number;
   readonly reason: string;
-  readonly adjustedBy: string;
+  /** `null` cuando el ajuste lo originó el sistema o el usuario ya no existe. */
+  readonly adjustedBy: string | null;
   readonly createdAt: OffsetDateTimeString;
 }
 
@@ -364,7 +419,7 @@ export interface ProductResponse {
   readonly category: ProductCategory;
   /** Snapshot del `cost` del inventario. */
   readonly price: Money;
-  /** `quantity > 0`. La cantidad real no se expone deliberadamente. */
+  /** `quantity > 0` y no archivado. La cantidad real no se expone deliberadamente. */
   readonly available: boolean;
 }
 

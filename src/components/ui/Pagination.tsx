@@ -1,7 +1,7 @@
 import type { Page } from '../../lib/types.ts';
 
 /**
- * Paginador para el contenedor compartido de listas (frontend-spec.md §6).
+ * Paginador para el contenedor compartido de listas (backend-status-for-frontend.md §3.3).
  *
  * `page` es base cero en el wire; lo mostramos con base uno. La cadena `sort`
  * del contenedor es el `Sort.toString()` de Spring y es solo de visualización,
@@ -81,7 +81,7 @@ function pageWindow(current: number, total: number): readonly (number | null)[] 
   if (current - 1 > 0) pages.add(current - 1);
   if (current + 1 < total - 1) pages.add(current + 1);
 
-  const sorted = [...pages].sort((a, b) => a - b);
+  const sorted = [...pages].toSorted((a, b) => a - b);
   const result: (number | null)[] = [];
   let previous = -1;
 

@@ -4,9 +4,9 @@ import Checkout from '../components/booking/Checkout.tsx';
 ---
 
 <!--
-  The spec's `/checkout/:screeningId` becomes `/checkout?screening=<uuid>`,
-  with the seat selection carried in `&seats=<uuid,uuid>`.
+  `/checkout/:screeningId` se implementa como `/checkout?screening=<uuid>`,
+  con la selección de asientos en `&seats=<uuid,uuid>`.
 -->
-<Layout title="Checkout" description="Confirm your seats and concessions." wide>
+<Layout title="Confirmar reserva" description="Confirmá tus asientos y tu confitería." wide>
   <Checkout client:load />
 </Layout>

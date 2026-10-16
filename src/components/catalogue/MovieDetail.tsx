@@ -9,7 +9,7 @@ import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { GenreList, MovieMeta, Poster, ScreeningRow, groupByDay } from './MovieCard.tsx';
 
 /**
- * Detalle de la película más sus próximas sesiones
+ * Detalle de la película más sus próximas funciones
  * (`GET /api/screenings?movieId=…&upcomingOnly=true`).
  *
  * La salida estática no puede prerenderizar un UUID desconocido, así que el id
@@ -39,8 +39,8 @@ export default function MovieDetail() {
   if (!movieId) {
     return (
       <EmptyState
-        title="No has seleccionado ninguna película"
-        description="Elige un título del catálogo."
+        title="No seleccionaste ninguna película"
+        description="Elegí un título del catálogo."
         action={
           <a href="/movies" className="cine-btn cine-btn-primary">
             Ver películas
@@ -115,11 +115,11 @@ export default function MovieDetail() {
       </header>
 
       <section>
-        <h2 className="mb-4 text-xl font-bold">Próximas sesiones</h2>
+        <h2 className="mb-4 text-xl font-bold">Próximas funciones</h2>
 
         {days.length === 0 ? (
           <EmptyState
-            title="No hay próximas sesiones"
+            title="No hay próximas funciones"
             description="Este título está en el catálogo, pero ahora mismo no está programado."
           />
         ) : (

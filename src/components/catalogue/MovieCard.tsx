@@ -7,7 +7,7 @@ import { Badge } from '../ui/Modal.tsx';
  * Piezas de presentación del catálogo compartidas por la cuadrícula de inicio,
  * el explorador de películas y la página de detalle.
  *
- * Las respuestas de sesiones desnormalizan `movieName` y `roomName`, así que
+ * Las respuestas de funciones desnormalizan `movieName` y `roomName`, así que
  * un listado nunca necesita una segunda petición.
  */
 
@@ -144,6 +144,16 @@ export function ScreeningAvailability({
   if (screening.soldOut) {
     return <Badge tone="danger">Agotado</Badge>;
   }
+  if (screening.availableSeats === 0) {
+    // Quedan asientos sin vender, pero otros clientes los tienen retenidos (§5.8).
+    return (
+      <Badge tone="warning">
+        <span title="Otros clientes están comprando estos asientos. Volvé a mirar en unos minutos.">
+          En compra
+        </span>
+      </Badge>
+    );
+  }
   return (
     <span>
       {screening.availableSeats} / {screening.totalSeats}
@@ -151,7 +161,7 @@ export function ScreeningAvailability({
   );
 }
 
-/** Una única fila de sesión, usada en la página de detalle de la película. */
+/** Una única fila de función, usada en la página de detalle de la película. */
 export function ScreeningRow({ screening }: { readonly screening: MovieScreeningResponse }) {
   const Tag = screening.soldOut ? 'div' : 'a';
   return (
@@ -175,12 +185,12 @@ export function ScreeningRow({ screening }: { readonly screening: MovieScreening
   );
 }
 
-/** Agrupa las sesiones por día local del calendario, conservando el orden del servidor. */
+/** Agrupa las funciones por día local del calendario, conservando el orden del servidor. */
 export function groupByDay(
   screenings: readonly MovieScreeningResponse[],
 ): readonly (readonly [string, readonly MovieScreeningResponse[]])[] {
   const grouped = Object.groupBy(screenings, (screening) => dayKey(screening.startsAt));
   return Object.entries(grouped)
     .filter((entry): entry is [string, MovieScreeningResponse[]] => Boolean(entry[1]?.length))
-    .sort(([a], [b]) => a.localeCompare(b));
+    .toSorted(([a], [b]) => a.localeCompare(b));
 }

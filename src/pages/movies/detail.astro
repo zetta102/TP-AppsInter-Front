@@ -4,9 +4,9 @@ import MovieDetail from '../../components/catalogue/MovieDetail.tsx';
 ---
 
 <!--
-  Static output cannot prerender an unknown UUID, so the spec's `/movies/:id`
-  is implemented as `/movies/detail?id=<uuid>` and resolved client-side.
+  La salida estática no puede prerenderizar un UUID desconocido, así que `/movies/:id`
+  se implementa como `/movies/detail?id=<uuid>` y se resuelve en el cliente.
 -->
-<Layout title="Movie" description="Movie details and upcoming screenings.">
+<Layout title="Película" description="Detalle de la película y próximas funciones.">
   <MovieDetail client:load />
 </Layout>

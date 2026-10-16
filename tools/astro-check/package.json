@@ -1,0 +1,10 @@
+{
+  "name": "astro-check-tool",
+  "private": true,
+  "description": "@astrojs/check aislado con TypeScript 6: todavía no soporta TypeScript 7 (el del proyecto). Resuelve `typescript` desde esta carpeta.",
+  "type": "module",
+  "dependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "6.0.3"
+  }
+}

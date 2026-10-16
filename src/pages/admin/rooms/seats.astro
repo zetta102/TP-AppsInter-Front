@@ -3,7 +3,7 @@ import Layout from '../../../layouts/Layout.astro';
 import AdminRoomSeats from '../../../components/admin/AdminRoomSeats.tsx';
 ---
 
-<!-- The spec's `/admin/rooms/:id/seats` becomes `/admin/rooms/seats?id=<uuid>`. -->
-<Layout title="Seat layout · Admin" description="Build the seat grid for a room." wide>
+<!-- `/admin/rooms/:id/seats` se implementa como `/admin/rooms/seats?id=<uuid>`. -->
+<Layout title="Distribución de asientos · Admin" description="Armá la grilla de asientos de una sala." wide>
   <AdminRoomSeats client:load />
 </Layout>

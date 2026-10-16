@@ -3,7 +3,7 @@ import type { CallOptions } from './shared.ts';
 import type { CreateSeatRequest, SeatResponse, Uuid } from '../types.ts';
 
 /**
- * `/api/seats`: las lecturas son públicas y las escrituras son ADMIN (frontend-spec.md §8.3).
+ * `/api/seats`: las lecturas son públicas y las escrituras son ADMIN (backend-status-for-frontend.md §5.7).
  *
  * Normalización: `row` se recorta y se convierte a mayúsculas, `column` se recorta. Envía
  * `"a"` y recibe `"A"`. Los valores vacíos se rechazan con `400`.

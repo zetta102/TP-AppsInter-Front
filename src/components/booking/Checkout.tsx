@@ -1,12 +1,17 @@
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getScreening, getScreeningSeatMap } from '../../lib/api/screenings.ts';
+import { navigate } from 'astro:transitions/client';
+import { useActionState, useCallback, useEffect, useMemo, useState } from 'react';
+import { getScreeningSeatMap, getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
 import { listProducts } from '../../lib/api/products.ts';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { createReservation, quoteReservation } from '../../lib/api/reservations.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { useQueryParams } from '../../lib/use-query-param.ts';
 import { useSeatHold } from '../../lib/use-seat-hold.ts';
-import { isApiError } from '../../lib/problem.ts';
+import { useNow } from '../../lib/use-now.ts';
+import { usePolling } from '../../lib/use-polling.ts';
+import { patchSeatMap, useSeatStream } from '../../lib/use-seat-stream.ts';
+import { useAuth } from '../../lib/auth-context.tsx';
+import { isApiError, isApiErrorWithCode } from '../../lib/problem.ts';
 import { estimateTotal } from '../../lib/pricing.ts';
 import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import { productCategoryLabels } from '../../lib/enums.ts';
@@ -24,11 +29,13 @@ import { AuthGuard } from '../ui/Guards.tsx';
 import { SeatMap } from './SeatMap.tsx';
 
 /**
- * Pantalla de checkout (frontend-spec.md §8.4 "Retención de asientos", §8.6, §8.8 "Cotización de precio", §9).
+ * Pantalla de checkout (backend-status-for-frontend.md §7.2–§7.4).
  *
  * Tres comportamientos sostienen el diseño:
  *  - al seleccionar asientos se crea una **retención** (`POST /api/screenings/{id}/holds`)
  *    que expira con una cuenta regresiva, para que nadie más pueda tomarlos durante el checkout;
+ *    cada cambio de selección la reemplaza de forma atómica (`PUT /api/holds/{id}`) y el mapa
+ *    se mantiene al día con el stream SSE de la función;
  *  - el total del pedido proviene de `POST /api/reservations:quote` —el mismo
  *    flujo de código que usa el cobro final— en lugar de una estimación solo del cliente;
  *  - la retención no es una garantía absoluta (puede expirar o perderse la respuesta ya
@@ -52,6 +59,8 @@ interface SubmitState {
 
 const initialSubmitState: SubmitState = { error: null, lostSeatIds: [] };
 const QUOTE_DEBOUNCE_MS = 400;
+const SEAT_MAP_POLL_MS = 15_000;
+const SEAT_MAP_SAFETY_POLL_MS = 60_000;
 
 export default function Checkout() {
   return (
@@ -64,6 +73,8 @@ export default function Checkout() {
 function CheckoutPanel() {
   const params = useQueryParams(['screening', 'seats'] as const);
   const screeningId = params.screening;
+  const now = useNow();
+  const { user } = useAuth();
 
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [initialised, setInitialised] = useState(false);
@@ -71,9 +82,9 @@ function CheckoutPanel() {
 
   const resource = useResource<CheckoutData>(
     async (signal) => {
-      const [screening, seatMap, products, config] = await Promise.all([
-        getScreening(screeningId!, { signal }),
-        getScreeningSeatMap(screeningId!, { signal }),
+      const [screening, products, config] = await Promise.all([
+        // Función + mapa en una sola llamada (`include=seatMap`).
+        getScreeningWithSeatMap(screeningId!, { signal }),
         // Público y solo de precios: ya no se oculta este panel ante un 403.
         listProducts({ size: 100, sort: 'productName,asc' }, { signal }),
         // Ante un error, vuelve a los valores predeterminados documentados, para que
@@ -81,7 +92,7 @@ function CheckoutPanel() {
         getMetadataConfigOrDefault({ signal }),
       ]);
 
-      return { screening, seatMap, products: products.content, config };
+      return { screening, seatMap: screening.seatMap, products: products.content, config };
     },
     [screeningId],
     { enabled: Boolean(screeningId) },
@@ -102,7 +113,7 @@ function CheckoutPanel() {
   }
 
   // Retiene la selección actual durante unos minutos para que nadie más pueda tomarla
-  // durante el checkout. Se recrea cada vez que cambia la selección.
+  // durante el checkout. Cada cambio de selección la reemplaza sin soltar los asientos que siguen.
   const seatHold = useSeatHold(screeningId ?? undefined, selected);
 
   const toggle = useCallback((seat: SeatMapSeat) => {
@@ -122,15 +133,20 @@ function CheckoutPanel() {
     });
   }, []);
 
+  const { refetch, setData } = resource;
+  // Ventas y retenciones de otros clientes, en vivo; el polling queda como red de seguridad.
+  const live = useSeatStream(screeningId ?? undefined, {
+    viewer: user?.uuid ?? null,
+    onReconnect: refetch,
+    onSeats: (states) =>
+      setData((current) => current && { ...current, seatMap: patchSeatMap(current.seatMap, states) }),
+  });
+  usePolling(refetch, live ? SEAT_MAP_SAFETY_POLL_MS : SEAT_MAP_POLL_MS, Boolean(screeningId));
   // Cuando la cuenta regresiva llega a cero, la retención se pierde: vuelve a consultar el mapa
   // para que una selección desactualizada no sorprenda al usuario al enviar.
-  const wasExpired = useRef(false);
-  if (seatHold.expired && !wasExpired.current) {
-    wasExpired.current = true;
-    resource.refetch();
-  } else if (!seatHold.expired) {
-    wasExpired.current = false;
-  }
+  useEffect(() => {
+    if (seatHold.expired) refetch();
+  }, [seatHold.expired, refetch]);
 
   const productsRequest = quantities.size > 0
     ? [...quantities].map(([inventoryId, quantity]) => ({ inventoryId, quantity }))
@@ -139,7 +155,13 @@ function CheckoutPanel() {
   // Vista previa autorizada del precio: mismo cuerpo y misma validación que
   // create, sin efectos secundarios. Tiene debounce para que no se dispare una petición en cada clic.
   const [quote, setQuote] = useState<ReservationQuoteResponse | null>(null);
-  const quoteKey = `${selected.join(',')}|${[...quantities].map((e) => e.join(':')).join(',')}`;
+  // Solo se envía la retención si cubre toda la selección actual; si no, el servidor
+  // respondería `404`/`409` mientras se recrea la retención para la nueva selección.
+  const holdId =
+    seatHold.hold && selected.every((id) => seatHold.hold?.seatIds.includes(id))
+      ? seatHold.hold.uuid
+      : undefined;
+  const quoteKey = `${selected.join(',')}|${[...quantities].map((e) => e.join(':')).join(',')}|${holdId ?? ''}`;
   useEffect(() => {
     if (!screeningId || selected.length === 0) {
       setQuote(null);
@@ -152,6 +174,7 @@ function CheckoutPanel() {
           movieScreeningId: screeningId,
           seatIds: selected,
           ...(productsRequest ? { products: productsRequest } : {}),
+          ...(holdId ? { holdId } : {}),
         },
         { signal: controller.signal },
       )
@@ -175,7 +198,7 @@ function CheckoutPanel() {
       });
       // La retención se consume del lado del servidor al completar con éxito; no la liberes también aquí.
       seatHold.markConsumed();
-      window.location.assign(`/reservations/detail?id=${data.uuid}`);
+      void navigate(`/reservations/detail?id=${data.uuid}`);
       return initialSubmitState;
     } catch (error) {
       // 409: otra persona reservó uno de estos asientos antes. Volvé a consultar y mostrá cuáles.
@@ -190,6 +213,8 @@ function CheckoutPanel() {
         setSelected((current) => current.filter((id) => !lost.includes(id)));
         return { error, lostSeatIds: lost };
       }
+      // La función se archivó o empezó mientras tanto: se recarga para reflejarlo.
+      if (isApiErrorWithCode(error, 'RESOURCE_ARCHIVED', 'SCREENING_STARTED')) resource.refetch();
       return { error, lostSeatIds: [] };
     }
   }, initialSubmitState);
@@ -237,8 +262,9 @@ function CheckoutPanel() {
   );
   const total = quote?.totalPrice ?? localEstimate.total;
 
-  const hasStarted = new Date(screening.startsAt).getTime() <= Date.now();
-  const canSubmit = chosenSeats.length > 0 && !hasStarted && !seatHold.expired;
+  const hasStarted = new Date(screening.startsAt).getTime() <= now;
+  const closed = hasStarted || screening.archived;
+  const canSubmit = chosenSeats.length > 0 && !closed && !seatHold.expired;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
@@ -263,12 +289,35 @@ function CheckoutPanel() {
           </div>
         )}
 
-        {seatHold.expired && (
+        {closed && (
           <div
             role="alert"
             className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm"
           >
-            Tu retención venció. El mapa de asientos se actualizó; volvé a seleccionar.
+            {screening.archived
+              ? 'Esta función ya no está disponible.'
+              : 'Esta función ya comenzó, por lo que ya no puede reservarse.'}
+          </div>
+        )}
+
+        {seatHold.expired && !closed && (
+          <div
+            role="alert"
+            className="border-gold-500/40 bg-gold-500/10 text-gold-400 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm"
+          >
+            <span>Tu retención venció. Renovala para seguir con estos asientos.</span>
+            <button type="button" className="cine-btn cine-btn-ghost" onClick={seatHold.renew}>
+              Renovar retención
+            </button>
+          </div>
+        )}
+
+        {seatHold.error && !closed && (
+          <div
+            role="alert"
+            className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm"
+          >
+            No pudimos retener tus asientos: {seatHold.error}
           </div>
         )}
 
@@ -300,10 +349,11 @@ function CheckoutPanel() {
           <SeatMap
             seatMap={seatMap}
             basePrice={screening.basePrice}
+            premiumMultiplier={config.premiumSeatMultiplier}
             selected={selected}
             onToggle={toggle}
             lostSeatIds={submitState.lostSeatIds}
-            disabled={hasStarted}
+            disabled={closed}
           />
         </section>
 

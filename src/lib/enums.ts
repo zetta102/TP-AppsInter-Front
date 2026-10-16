@@ -1,13 +1,13 @@
 /**
- * Wire-level enums from the backend contract (frontend-spec.md §7).
+ * Enums del contrato del backend (backend-status-for-frontend.md §6).
  *
- * Modelled as `as const` objects plus derived union types: `erasableSyntaxOnly`
- * forbids the `enum` keyword, and unions give us exhaustive `switch` checking
- * without emitting runtime constructs TypeScript cannot erase.
+ * Se modelan como objetos `as const` más uniones derivadas: `erasableSyntaxOnly`
+ * prohíbe la palabra clave `enum`, y las uniones dan chequeo exhaustivo en `switch`
+ * sin emitir construcciones que TypeScript no pueda borrar.
  *
- * ALWAYS send and compare the constant name. The label is the backend's display
- * name — reuse it so the UI and the API agree. Note `THREED`/`FOURD`: the wire
- * value is NOT `3D`/`4D`.
+ * SIEMPRE enviá y compará el nombre de la constante. Las etiquetas del backend están
+ * en inglés (§9), así que las de abajo son la traducción del cliente. Ojo con
+ * `THREED`/`FOURD`: el valor en el cable NO es `3D`/`4D`.
  */
 
 export const Role = {
@@ -57,23 +57,23 @@ export const ProductCategory = {
 } as const;
 export type ProductCategory = (typeof ProductCategory)[keyof typeof ProductCategory];
 
-/** Maps every member of an enum-like union to a display string. */
+/** Asocia cada miembro de una unión tipo enum con su texto visible. */
 type LabelMap<T extends string> = Readonly<Record<T, string>>;
 
 export const roleLabels = {
-  CUSTOMER: 'Customer',
-  ADMIN: 'Admin',
+  CUSTOMER: 'Cliente',
+  ADMIN: 'Administrador',
 } as const satisfies LabelMap<Role>;
 
 export const movieGenreLabels = {
-  ACTION: 'Action',
-  THRILLER: 'Thriller',
+  ACTION: 'Acción',
+  THRILLER: 'Suspenso',
   TERROR: 'Terror',
   ROMANCE: 'Romance',
-  COMEDY: 'Comedy',
+  COMEDY: 'Comedia',
   DRAMA: 'Drama',
-  ANIMATION: 'Animation',
-  SCI_FI: 'Sci-Fi',
+  ANIMATION: 'Animación',
+  SCI_FI: 'Ciencia ficción',
 } as const satisfies LabelMap<MovieGenre>;
 
 export const screenRoomTypeLabels = {
@@ -89,19 +89,19 @@ export const seatTypeLabels = {
 } as const satisfies LabelMap<SeatType>;
 
 export const reservationStatusLabels = {
-  PENDING: 'Pending',
-  CONFIRMED: 'Confirmed',
-  CANCELLED: 'Cancelled',
+  PENDING: 'Pendiente',
+  CONFIRMED: 'Confirmada',
+  CANCELLED: 'Cancelada',
 } as const satisfies LabelMap<ReservationStatus>;
 
 export const productCategoryLabels = {
   SNACK: 'Snack',
-  DRINK: 'Drink',
+  DRINK: 'Bebida',
   COMBO: 'Combo',
-  MERCHANDISE: 'Merchandise',
+  MERCHANDISE: 'Merchandising',
 } as const satisfies LabelMap<ProductCategory>;
 
-/** Ordered value lists, handy for `<select>` options and filter chips. */
+/** Listas ordenadas de valores, para opciones de `<select>` y chips de filtro. */
 export const movieGenreValues = Object.keys(movieGenreLabels) as readonly MovieGenre[];
 export const screenRoomTypeValues = Object.keys(screenRoomTypeLabels) as readonly ScreenRoomType[];
 export const seatTypeValues = Object.keys(seatTypeLabels) as readonly SeatType[];

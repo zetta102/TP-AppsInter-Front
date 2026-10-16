@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# credenciales locales (p. ej. QA_ADMIN_* para las pruebas de integración)
+*.local

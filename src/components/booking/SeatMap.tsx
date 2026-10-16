@@ -2,10 +2,10 @@ import { useMemo } from 'react';
 import type { SeatMapResponse, SeatMapSeat } from '../../lib/types.ts';
 import { SeatType } from '../../lib/enums.ts';
 import { formatMoney, seatLabel } from '../../lib/format.ts';
-import { ticketPrice } from '../../lib/pricing.ts';
+import { PREMIUM_MULTIPLIER, ticketPrice } from '../../lib/pricing.ts';
 
 /**
- * Contrato del componente de mapa de asientos (frontend-spec.md §8.4).
+ * Contrato del componente de mapa de asientos (backend-status-for-frontend.md §7.3).
  *
  * Reglas de renderizado que no deben violarse:
  *  - `rows` y `columns` ya están ordenados de forma natural (`A2` va antes que `A10`),
@@ -28,6 +28,8 @@ export function indexSeats(seats: readonly SeatMapSeat[]): ReadonlyMap<CoordKey,
 export interface SeatMapProps {
   readonly seatMap: SeatMapResponse;
   readonly basePrice: number;
+  /** `premiumSeatMultiplier` de `GET /api/metadata/config`; el valor documentado es solo el fallback. */
+  readonly premiumMultiplier?: number;
   /** IDs de asientos seleccionados, en el orden de selección. */
   readonly selected: readonly string[];
   readonly onToggle?: (seat: SeatMapSeat) => void;
@@ -42,6 +44,7 @@ export interface SeatMapProps {
 export function SeatMap({
   seatMap,
   basePrice,
+  premiumMultiplier = PREMIUM_MULTIPLIER,
   selected,
   onToggle,
   lostSeatIds = [],
@@ -87,14 +90,14 @@ export function SeatMap({
                     aria-label={`Asiento ${seatLabel(seat.row, seat.column)}, ${
                       isPremium ? 'premium' : 'estándar'
                     }, ${
-                      !seat.available
-                        ? 'no disponible'
-                        : seat.held
-                          ? 'retenido por otro cliente'
-                          : formatMoney(ticketPrice(basePrice, seat.seatType))
+                      seat.held
+                        ? 'retenido por otro cliente'
+                        : !seat.available
+                          ? 'vendido'
+                          : formatMoney(ticketPrice(basePrice, seat.seatType, premiumMultiplier))
                     }`}
                     title={`${seatLabel(seat.row, seat.column)} · ${formatMoney(
-                      ticketPrice(basePrice, seat.seatType),
+                      ticketPrice(basePrice, seat.seatType, premiumMultiplier),
                     )}`}
                     className={seatClass({ isSelected, isLost, isPremium, seat, interactive })}
                   >
@@ -107,7 +110,7 @@ export function SeatMap({
         </div>
       </div>
 
-      <SeatLegend basePrice={basePrice} />
+      <SeatLegend basePrice={basePrice} premiumMultiplier={premiumMultiplier} />
     </div>
   );
 }
@@ -142,16 +145,22 @@ function seatClass({
     : `${base} bg-ink-700 text-ink-100 hover:bg-ink-600`;
 }
 
-export function SeatLegend({ basePrice }: { readonly basePrice: number }) {
+export function SeatLegend({
+  basePrice,
+  premiumMultiplier = PREMIUM_MULTIPLIER,
+}: {
+  readonly basePrice: number;
+  readonly premiumMultiplier?: number;
+}) {
   return (
     <ul className="text-ink-500 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">
       <li className="flex items-center gap-2">
         <span className="bg-ink-700 size-4 rounded" />
-        Estándar · {formatMoney(ticketPrice(basePrice, SeatType.NORMAL))}
+        Estándar · {formatMoney(ticketPrice(basePrice, SeatType.NORMAL, premiumMultiplier))}
       </li>
       <li className="flex items-center gap-2">
         <span className="bg-gold-500/25 size-4 rounded" />
-        Premium · {formatMoney(ticketPrice(basePrice, SeatType.PREMIUM))}
+        Premium · {formatMoney(ticketPrice(basePrice, SeatType.PREMIUM, premiumMultiplier))}
       </li>
       <li className="flex items-center gap-2">
         <span className="size-4 rounded bg-emerald-500" />

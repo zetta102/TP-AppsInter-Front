@@ -2,7 +2,7 @@ import { requestCreated, requestJson, requestVoid, type CallOptions } from './sh
 import type { CreateSeatHoldRequest, SeatHoldResponse, Uuid } from '../types.ts';
 
 /**
- * Retenciones de asientos (frontend-spec.md §8.4 "Seat holds").
+ * Retenciones de asientos (backend-status-for-frontend.md §5.9, §7.3).
  *
  * Una retención reserva asientos por algunos minutos mientras se completa la compra. El TTL es
  * `CINE_SEAT_HOLD_TTL_SECONDS` (300 s por defecto, publicado en
@@ -10,6 +10,7 @@ import type { CreateSeatHoldRequest, SeatHoldResponse, Uuid } from '../types.ts'
  * el mismo instante como cuenta regresiva para un cliente con el reloj desfasado.
  *
  * Flujo recomendado: seleccionar asientos -> `createHold` -> mostrar la cuenta regresiva ->
+ * `replaceHold` en cada cambio posterior de la selección ->
  * `quoteReservation` para el total -> `createReservation` con `holdId`.
  * Si se abandona, llama a `releaseHold` o simplemente deja que expire.
  */
@@ -21,6 +22,16 @@ export function createHold(screeningId: Uuid, body: CreateSeatHoldRequest) {
     body,
     auth: true,
   });
+}
+
+/**
+ * `PUT /api/holds/{uuid}`: reemplaza los asientos retenidos de forma atómica (los que siguen
+ * seleccionados nunca se liberan en el medio). Conserva el `uuid` y el `expiresAt`: no extiende
+ * la retención. `404` si venció, se liberó o se consumió; si no, los mismos errores que al crearla.
+ * Ante un fallo, la retención conserva sus asientos anteriores.
+ */
+export function replaceHold(uuid: Uuid, body: CreateSeatHoldRequest): Promise<SeatHoldResponse> {
+  return requestJson<SeatHoldResponse>(`/api/holds/${uuid}`, { method: 'PUT', body, auth: true });
 }
 
 /** Una retención vencida o liberada es `404`: ya no reserva nada. */

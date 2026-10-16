@@ -2,6 +2,7 @@ import { useActionState, useMemo, useState } from 'react';
 import {
   createScreening,
   deleteScreening,
+  setScreeningArchived,
   listScreenings,
   updateScreening,
   TURNOVER_MINUTES,
@@ -28,6 +29,7 @@ import type {
 } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { Modal } from '../ui/Modal.tsx';
@@ -36,9 +38,11 @@ import { SubmitButton } from '../ui/SubmitButton.tsx';
 import { ScreeningAvailability } from '../catalogue/MovieCard.tsx';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { Pagination } from '../ui/Pagination.tsx';
+import { useNow } from '../../lib/use-now.ts';
+import { MAX_PAGE_SIZE } from '../../lib/api/shared.ts';
 
 const PAGE_SIZE = 15;
-const OPTIONS_PAGE_SIZE = 200;
+const OPTIONS_PAGE_SIZE = MAX_PAGE_SIZE;
 
 interface FormState {
   readonly error: unknown;
@@ -54,6 +58,10 @@ const initialFormState: FormState = { error: null, fieldErrors: {} };
  * de recambio y nunca debe enviarse. Reflejamos la misma cuenta solo como
  * vista previa para que el administrador vea el bloque que ocupará una función
  * antes de guardar.
+ *
+ * Una función con entradas (aunque estén canceladas) no se puede borrar: se archiva, lo que
+ * libera su horario en la sala. Restaurarla puede fallar con `409 SCREENING_OVERLAP` (el horario
+ * se ocupó) o `422 RESOURCE_ARCHIVED` (la película o la sala están archivadas).
  */
 export default function AdminScreenings() {
   const [page, setPage] = useState(0);
@@ -63,7 +71,7 @@ export default function AdminScreenings() {
   const [upcomingOnly, setUpcomingOnly] = useState(true);
   const [editing, setEditing] = useState<MovieScreeningResponse | null>(null);
   const [creating, setCreating] = useState(false);
-  const [rowError, setRowError] = useState<unknown>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const movies = useResource<Page<MovieResponse>>(
     (signal) => listMovies({ size: OPTIONS_PAGE_SIZE, sort: 'movieName,asc' }, { signal }),
@@ -87,35 +95,35 @@ export default function AdminScreenings() {
           size: PAGE_SIZE,
           sort,
           upcomingOnly,
+          includeArchived: showArchived,
           ...(movieId ? { movieId } : {}),
           ...(roomId ? { roomId } : {}),
         },
         { signal },
       ),
-    [page, sort, movieId, roomId, upcomingOnly],
+    [page, sort, movieId, roomId, upcomingOnly, showArchived],
   );
 
-  const remove = async (screening: MovieScreeningResponse) => {
-    if (!window.confirm(`¿Eliminar la función de ${formatDateTime(screening.startsAt)}?`)) return;
-    setRowError(null);
-    try {
-      await deleteScreening(screening.uuid);
-    } catch (error) {
-      // 409 cuando ya existen reservas para la función.
-      setRowError(error);
-    } finally {
-      resource.refetch();
-    }
-  };
+  const actions = useArchiveActions<MovieScreeningResponse>({
+    remove: deleteScreening,
+    setArchived: setScreeningArchived,
+    refetch: resource.refetch,
+    confirmDelete: (screening) => `¿Eliminar la función de ${formatDateTime(screening.startsAt)}?`,
+    name: (screening) => `${screening.movieName} · ${formatDateTime(screening.startsAt)}`,
+  });
 
   const columns: readonly Column<MovieScreeningResponse>[] = [
     {
       key: 'movie',
       header: 'Película',
-      sortField: 'movieName',
-      cell: (screening) => <span className="font-medium">{screening.movieName}</span>,
+      cell: (screening) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{screening.movieName}</span>
+          <ArchivedBadge archived={screening.archived} />
+        </span>
+      ),
     },
-    { key: 'room', header: 'Sala', sortField: 'roomName', cell: (s) => s.roomName },
+    { key: 'room', header: 'Sala', cell: (s) => s.roomName },
     {
       key: 'startsAt',
       header: 'Comienza',
@@ -164,13 +172,7 @@ export default function AdminScreenings() {
           >
             Editar
           </button>
-          <button
-            type="button"
-            className="cine-btn cine-btn-danger"
-            onClick={() => void remove(screening)}
-          >
-            Eliminar
-          </button>
+          {actions.buttons(screening)}
         </div>
       ),
     },
@@ -248,9 +250,17 @@ export default function AdminScreenings() {
           />
           Solo próximas
         </label>
+
+        <ShowArchivedToggle
+          checked={showArchived}
+          onChange={(checked) => {
+            setShowArchived(checked);
+            setPage(0);
+          }}
+        />
       </AdminToolbar>
 
-      {rowError !== null && <ErrorBanner error={rowError} onRetry={resource.refetch} />}
+      {actions.banner}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -260,7 +270,7 @@ export default function AdminScreenings() {
         error={resource.error}
         onRetry={resource.refetch}
         emptyTitle="No hay funciones"
-        emptyDescription="Programe una función para habilitar su reserva."
+        emptyDescription="Programá una función para habilitar sus reservas."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(
@@ -329,7 +339,8 @@ function ScreeningFormModal({
     return new Date(start.getTime() + (runtime + turnoverMinutes) * 60_000);
   }, [startsAt, runtime, turnoverMinutes]);
 
-  const startsInPast = startsAt !== '' && new Date(startsAt).getTime() <= Date.now();
+  const now = useNow();
+  const startsInPast = startsAt !== '' && new Date(startsAt).getTime() <= now;
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
     const body: CreateMovieScreeningRequest = {

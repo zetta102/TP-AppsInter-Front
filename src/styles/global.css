@@ -7,13 +7,18 @@
   --color-ink-700: oklch(0.35 0.03 275);
   --color-ink-600: oklch(0.46 0.025 275);
   --color-ink-500: oklch(0.58 0.02 275);
+  --color-ink-400: oklch(0.68 0.018 275);
   --color-ink-300: oklch(0.78 0.015 275);
+  --color-ink-200: oklch(0.86 0.012 275);
   --color-ink-100: oklch(0.93 0.008 275);
 
   --color-brand-600: oklch(0.55 0.19 12);
   --color-brand-500: oklch(0.63 0.2 12);
   --color-brand-400: oklch(0.72 0.17 12);
+  --color-brand-300: oklch(0.8 0.13 12);
 
+  --color-gold-900: oklch(0.32 0.07 85);
+  --color-gold-600: oklch(0.64 0.15 85);
   --color-gold-500: oklch(0.74 0.16 85);
   --color-gold-400: oklch(0.82 0.15 85);
 

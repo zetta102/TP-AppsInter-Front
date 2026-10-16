@@ -1,3 +1,4 @@
+import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { toFieldErrors } from '../../lib/problem.ts';
@@ -29,7 +30,7 @@ export default function LoginForm() {
 
     try {
       await login({ email, password });
-      window.location.assign(nextDestination());
+      void navigate(nextDestination());
       return initialState;
     } catch (error) {
       // El 400 se vincula a los campos; el 401 "Invalid credentials" aparece en el banner.
@@ -62,9 +63,9 @@ export default function LoginForm() {
       <SubmitButton pendingLabel="Iniciando sesión…">Iniciar sesión</SubmitButton>
 
       <p className="text-ink-500 text-center text-sm">
-        ¿No tienes cuenta?{' '}
+        ¿No tenés cuenta?{' '}
         <a href="/register" className="text-brand-400 hover:underline">
-          Crea una
+          Creá una
         </a>
       </p>
     </form>

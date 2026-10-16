@@ -2,20 +2,24 @@ import { requestJson, type CallOptions } from './shared.ts';
 import type { MetadataConfigResponse, MetadataEnumsResponse } from '../types.ts';
 
 /**
- * `/api/metadata`: público y cacheable (frontend-spec.md §8.7).
+ * `/api/metadata`: público y cacheable (backend-status-for-frontend.md §5.4).
  *
  * Ambas respuestas llevan un `ETag` derivado del contenido y `Cache-Control:
  * max-age=86400, public`; la caché HTTP del navegador ya respeta esto en un
  * `fetch` común, así que este módulo solo necesita memoizar la promesa en vuelo
  * por carga de página para evitar solicitudes duplicadas de llamadores independientes.
+ *
+ * La promesa compartida **no** usa el `AbortSignal` del llamador: si el primer componente
+ * se desmontara, abortaría la solicitud para todos los demás que la esperan. Es una
+ * respuesta chica y cacheable, así que se deja completar siempre.
  */
 
 let enumsPromise: Promise<MetadataEnumsResponse> | null = null;
 let configPromise: Promise<MetadataConfigResponse> | null = null;
 
 /** Los seis enums como listas `{ value, label }`. Las etiquetas son solo en inglés. */
-export function getMetadataEnums(options: CallOptions = {}): Promise<MetadataEnumsResponse> {
-  enumsPromise ??= requestJson<MetadataEnumsResponse>('/api/metadata/enums', options).catch(
+export function getMetadataEnums(_options: CallOptions = {}): Promise<MetadataEnumsResponse> {
+  enumsPromise ??= requestJson<MetadataEnumsResponse>('/api/metadata/enums').catch(
     (error: unknown) => {
       enumsPromise = null;
       throw error;
@@ -25,8 +29,8 @@ export function getMetadataEnums(options: CallOptions = {}): Promise<MetadataEnu
 }
 
 /** `premiumSeatMultiplier`, `screeningTurnoverMinutes`, `currency`, `seatHoldTtlSeconds`. */
-export function getMetadataConfig(options: CallOptions = {}): Promise<MetadataConfigResponse> {
-  configPromise ??= requestJson<MetadataConfigResponse>('/api/metadata/config', options).catch(
+export function getMetadataConfig(_options: CallOptions = {}): Promise<MetadataConfigResponse> {
+  configPromise ??= requestJson<MetadataConfigResponse>('/api/metadata/config').catch(
     (error: unknown) => {
       configPromise = null;
       throw error;

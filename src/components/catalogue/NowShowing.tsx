@@ -1,52 +1,50 @@
-import { listMovies } from '../../lib/api/movies.ts';
-import { listScreenings } from '../../lib/api/screenings.ts';
+import { listMovies, listNowShowing } from '../../lib/api/movies.ts';
+import { collectAllPages } from '../../lib/api/shared.ts';
 import { useResource } from '../../lib/use-resource.ts';
-import type { MovieResponse, MovieScreeningResponse } from '../../lib/types.ts';
+import type { MovieResponse, NowShowingResponse } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { MovieCard } from './MovieCard.tsx';
 
 /**
- * La cuadrícula de películas en cartel: `GET /api/movies` unido en cliente con
- * `GET /api/screenings?upcomingOnly=true`.
+ * La cuadrícula de películas en cartel.
  *
- * Ambas lecturas son anónimas, así que toda la página de inicio se renderiza
- * sin token. La respuesta de sesiones ya incluye `movieName`/`movieId`, por lo
- * que la agrupación es una unión puramente en cliente, sin peticiones extra.
+ * "En cartel" sale del agregado `GET /api/movies/now-showing`: cada película con sus próximas
+ * funciones (ordenadas y con disponibilidad) en una sola lista, sin traer todas las funciones
+ * para unirlas en el cliente. "También en el catálogo" son las películas restantes de
+ * `GET /api/movies`. Ambas lecturas recorren todas las páginas porque el backend limita `size`
+ * a 100; la cartelera envía el token si hay sesión.
  */
 export default function NowShowing() {
   const resource = useResource<{
+    readonly showing: readonly NowShowingResponse[];
     readonly movies: readonly MovieResponse[];
-    readonly screenings: readonly MovieScreeningResponse[];
-  }>(
-    async (signal) => {
-      const [movies, screenings] = await Promise.all([
-        listMovies({ size: 100, sort: 'movieName,asc' }, { signal }),
-        listScreenings(
-          { upcomingOnly: true, size: 200, sort: 'startsAt,asc' },
-          { signal },
-        ),
-      ]);
-      return { movies: movies.content, screenings: screenings.content };
-    },
-    [],
-  );
+  }>(async (signal) => {
+    const [showing, movies] = await Promise.all([
+      collectAllPages((page, size) =>
+        listNowShowing({ page, size, sort: 'movieName,asc' }, { signal }),
+      ),
+      collectAllPages((page, size) =>
+        listMovies({ page, size, sort: 'movieName,asc' }, { signal }),
+      ),
+    ]);
+    return { showing, movies };
+  }, []);
 
   if (resource.isLoading) return <LoadingBlock label="Cargando la cartelera…" />;
   if (resource.error) return <ErrorBanner error={resource.error} onRetry={resource.refetch} />;
 
+  const showing = resource.data?.showing ?? [];
   const movies = resource.data?.movies ?? [];
-  const screenings = resource.data?.screenings ?? [];
-  const byMovie = Object.groupBy(screenings, (screening) => screening.movieId);
+  const showingIds = new Set(showing.map((entry) => entry.movie.uuid));
+  const rest = movies.filter((movie) => !showingIds.has(movie.uuid));
+  const screeningCount = showing.reduce((sum, entry) => sum + entry.screenings.length, 0);
 
-  const showing = movies.filter((movie) => (byMovie[movie.uuid]?.length ?? 0) > 0);
-  const rest = movies.filter((movie) => (byMovie[movie.uuid]?.length ?? 0) === 0);
-
-  if (movies.length === 0) {
+  if (showing.length === 0 && rest.length === 0) {
     return (
       <EmptyState
         title="Aún no hay películas"
-        description="El catálogo está vacío. Un administrador debe añadir películas y programar sesiones."
+        description="El catálogo está vacío. Un administrador debe agregar películas y programar funciones."
       />
     );
   }
@@ -56,18 +54,18 @@ export default function NowShowing() {
       <section>
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="text-xl font-bold">En cartel</h2>
-          <p className="text-ink-500 text-sm">{screenings.length} próximas sesiones</p>
+          <p className="text-sm text-ink-500">{screeningCount} próximas funciones</p>
         </div>
 
         {showing.length === 0 ? (
           <EmptyState
-            title="No hay sesiones programadas"
-            description="Hay películas en el catálogo, pero no hay próximas sesiones."
+            title="No hay funciones programadas"
+            description="Hay películas en el catálogo, pero no hay próximas funciones."
           />
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {showing.map((movie) => (
-              <MovieCard key={movie.uuid} movie={movie} screenings={byMovie[movie.uuid] ?? []} />
+            {showing.map(({ movie, screenings }) => (
+              <MovieCard key={movie.uuid} movie={movie} screenings={screenings} />
             ))}
           </div>
         )}

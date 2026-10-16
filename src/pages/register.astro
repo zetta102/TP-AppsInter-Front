@@ -3,11 +3,11 @@ import Layout from '../layouts/Layout.astro';
 import RegisterForm from '../components/auth/RegisterForm.tsx';
 ---
 
-<Layout title="Create account" description="Create a Cine account to reserve seats.">
+<Layout title="Crear cuenta" description="Creá una cuenta de Cine para reservar asientos.">
   <div class="mx-auto max-w-md">
-    <h1 class="mb-1 text-2xl font-bold">Create your account</h1>
+    <h1 class="mb-1 text-2xl font-bold">Creá tu cuenta</h1>
     <p class="text-ink-500 mb-6 text-sm">
-      New accounts are always customers. Administrator access is provisioned server-side.
+      Las cuentas nuevas siempre son de cliente. El acceso de administrador se otorga desde el servidor.
     </p>
     <RegisterForm client:load />
   </div>

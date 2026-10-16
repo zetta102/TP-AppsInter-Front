@@ -2,6 +2,7 @@ import { useActionState, useState } from 'react';
 import {
   createRoom,
   deleteRoom,
+  setRoomArchived,
   listRooms,
   updateRoom,
   type RoomSortField,
@@ -11,7 +12,8 @@ import { toFieldErrors } from '../../lib/problem.ts';
 import { screenRoomTypeLabels, screenRoomTypeValues } from '../../lib/enums.ts';
 import type { CreateScreenRoomRequest, Page, ScreenRoomResponse } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
-import { AdminPage } from './AdminPage.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { Badge, Modal } from '../ui/Modal.tsx';
@@ -34,32 +36,34 @@ export default function AdminRooms() {
   const [sort, setSort] = useState<SortSpec<RoomSortField>>('roomName,asc');
   const [editing, setEditing] = useState<ScreenRoomResponse | null>(null);
   const [creating, setCreating] = useState(false);
-  const [rowError, setRowError] = useState<unknown>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const resource = useResource<Page<ScreenRoomResponse>>(
-    (signal) => listRooms({ page, size: PAGE_SIZE, sort }, { signal }),
-    [page, sort],
+    (signal) =>
+      listRooms({ page, size: PAGE_SIZE, sort, includeArchived: showArchived }, { signal }),
+    [page, sort, showArchived],
   );
 
-  const remove = async (room: ScreenRoomResponse) => {
-    if (!window.confirm(`¿Eliminar “${room.roomName}”? Sus asientos también se eliminarán.`)) return;
-    setRowError(null);
-    try {
-      await deleteRoom(room.uuid);
-    } catch (error) {
-      // 409 cuando todavía hay funciones que referencian la sala.
-      setRowError(error);
-    } finally {
-      resource.refetch();
-    }
-  };
+  // Una sala con funciones o entradas vendidas no se puede borrar (409): se archiva.
+  const actions = useArchiveActions<ScreenRoomResponse>({
+    remove: deleteRoom,
+    setArchived: setRoomArchived,
+    refetch: resource.refetch,
+    confirmDelete: (room) => `¿Eliminar “${room.roomName}”? Sus asientos también se eliminarán.`,
+    name: (room) => room.roomName,
+  });
 
   const columns: readonly Column<ScreenRoomResponse>[] = [
     {
       key: 'roomName',
       header: 'Sala',
       sortField: 'roomName',
-      cell: (room) => <span className="font-medium">{room.roomName}</span>,
+      cell: (room) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{room.roomName}</span>
+          <ArchivedBadge archived={room.archived} />
+        </span>
+      ),
     },
     {
       key: 'type',
@@ -85,13 +89,7 @@ export default function AdminRooms() {
           <button type="button" className="cine-btn cine-btn-ghost" onClick={() => setEditing(room)}>
             Editar
           </button>
-          <button
-            type="button"
-            className="cine-btn cine-btn-danger"
-            onClick={() => void remove(room)}
-          >
-            Eliminar
-          </button>
+          {actions.buttons(room)}
         </div>
       ),
     },
@@ -113,7 +111,17 @@ export default function AdminRooms() {
         </button>
       }
     >
-      {rowError !== null && <ErrorBanner error={rowError} onRetry={resource.refetch} />}
+      <AdminToolbar>
+        <ShowArchivedToggle
+          checked={showArchived}
+          onChange={(checked) => {
+            setShowArchived(checked);
+            setPage(0);
+          }}
+        />
+      </AdminToolbar>
+
+      {actions.banner}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -123,7 +131,7 @@ export default function AdminRooms() {
         error={resource.error}
         onRetry={resource.refetch}
         emptyTitle="No hay salas"
-        emptyDescription="Cree una sala antes de programar funciones."
+        emptyDescription="Creá una sala antes de programar funciones."
         activeSort={{ field: sortField, direction: sortDirection }}
         onSort={(field) => {
           setSort(

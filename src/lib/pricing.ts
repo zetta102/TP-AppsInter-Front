@@ -1,8 +1,8 @@
-﻿import type { Money } from './types.ts';
+import type { Money } from './types.ts';
 import { SeatType } from './enums.ts';
 
 /**
- * Espejo del lado del cliente de las reglas de precios del backend (frontend-spec.md §9).
+ * Espejo del lado del cliente de las reglas de precios del backend (backend-status-for-frontend.md §7.2).
  *
  * El valor del servidor siempre es el autoritativo: esto solo alimenta la vista previa
  * de compra y debe coincidir con `totalPrice` hasta el último centavo.

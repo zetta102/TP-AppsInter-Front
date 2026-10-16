@@ -1,10 +1,10 @@
 import { isApiError, toUserMessage } from '../../lib/problem.ts';
 
 /**
- * Presentación de errores según el estado (frontend-spec.md §5).
+ * Presentación de errores según el estado (backend-status-for-frontend.md §8).
  *
  * El mapeo es intencional:
- *  - los detalles `422` están redactados para usuarios finales, así que los mostramos tal cual;
+ *  - el texto viene de `ApiError.userMessage`, traducido por `code` (el backend solo habla inglés);
  *  - `409` siempre permite reintentar tras recargar, por eso ofrecemos la acción de reintento;
  *  - `403` significa que el control no debería haber sido visible en primer lugar;
  *  - los mensajes de validación se localizan del lado del servidor, así que nunca mostramos aquí
@@ -18,26 +18,28 @@ const toneByKind = {
   notFound: 'border-ink-700 bg-ink-800/60 text-ink-300',
   conflict: 'border-gold-500/40 bg-gold-500/10 text-gold-400',
   businessRule: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
+  request: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
   server: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
   network: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
   unknown: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
 } as const;
 
 const headingByKind = {
-  validation: 'Revisa tus datos',
-  unauthorized: 'Inicio de sesi?n requerido',
+  validation: 'Revisá tus datos',
+  unauthorized: 'Inicio de sesión requerido',
   forbidden: 'No permitido',
   notFound: 'No encontrado',
-  conflict: 'Alguien se adelant?',
+  conflict: 'Alguien se adelantó',
   businessRule: 'No se puede continuar',
+  request: 'Solicitud no válida',
   server: 'Error del servidor',
-  network: 'Problema de conexi?n',
-  unknown: 'Algo sali? mal',
+  network: 'Problema de conexión',
+  unknown: 'Algo salió mal',
 } as const;
 
 export interface ErrorBannerProps {
   readonly error: unknown;
-  /** Se renderiza como control de reintento; se muestra autom?ticamente para errores reintentables. */
+  /** Se renderiza como control de reintento; se muestra automáticamente para errores reintentables. */
   readonly onRetry?: (() => void) | undefined;
   readonly retryLabel?: string;
   readonly className?: string;
@@ -72,7 +74,7 @@ export function ErrorBanner({
   );
 }
 
-/** Variante compacta de una sola l?nea para espacios inline como filas de tabla. */
+/** Variante compacta de una sola línea para espacios inline como filas de tabla. */
 export function InlineError({ error }: { readonly error: unknown }) {
   if (!error) return null;
   return (

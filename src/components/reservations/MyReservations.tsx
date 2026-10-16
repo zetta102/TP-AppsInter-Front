@@ -3,7 +3,7 @@ import { cancelReservation, listMyReservations } from '../../lib/api/reservation
 import { listMovies } from '../../lib/api/movies.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
-import { ReservationStatus, reservationStatusValues } from '../../lib/enums.ts';
+import { ReservationStatus, reservationStatusLabels, reservationStatusValues } from '../../lib/enums.ts';
 import type { MovieResponse, Page, ReservationResponse } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock, Spinner } from '../ui/SubmitButton.tsx';
@@ -12,11 +12,6 @@ import { AuthGuard } from '../ui/Guards.tsx';
 import { ItemLines, StatusBadge, TicketSummary } from './ReservationParts.tsx';
 
 const PAGE_SIZE = 10;
-const reservationStatusFilterLabels: Readonly<Record<ReservationStatus, string>> = {
-  PENDING: 'Pendiente',
-  CONFIRMED: 'Confirmada',
-  CANCELLED: 'Cancelada',
-};
 
 /**
  * Las reservas del propio usuario. No hay filtro de usuario — la titularidad
@@ -70,6 +65,7 @@ function ReservationList() {
   };
 
   const rows = resource.data?.content ?? [];
+  const { refetch } = resource;
 
   // Marca optimistamente una fila como cancelada mientras la petición está en curso.
   const [optimisticRows, markCancelling] = useOptimistic(
@@ -100,11 +96,11 @@ function ReservationList() {
           // 422 cuando ya estaba cancelada; cualquier otra cosa es inesperada.
           setCancelError(error);
         } finally {
-          resource.refetch();
+          refetch();
         }
       });
     },
-    [markCancelling, resource],
+    [markCancelling, refetch],
   );
 
   const hasActiveFilters = Boolean(status || upcomingOnly || from || to || movieId);
@@ -126,7 +122,7 @@ function ReservationList() {
           <option value="">Todos los estados</option>
           {reservationStatusValues.map((value) => (
             <option key={value} value={value}>
-              {reservationStatusFilterLabels[value]}
+              {reservationStatusLabels[value]}
             </option>
           ))}
         </select>
@@ -227,7 +223,7 @@ function ReservationList() {
       <div className="flex flex-col gap-4">
         {filterBar}
         <EmptyState
-          title={hasActiveFilters ? 'Ninguna reserva coincide con estos filtros' : 'Aún no tienes reservas'}
+          title={hasActiveFilters ? 'Ninguna reserva coincide con estos filtros' : 'Todavía no tenés reservas'}
           description={
             hasActiveFilters
               ? 'Probá ajustar o limpiar los filtros para ver más resultados.'

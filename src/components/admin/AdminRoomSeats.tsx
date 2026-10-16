@@ -5,7 +5,9 @@ import { useResource } from '../../lib/use-resource.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import { SeatType, seatTypeLabels } from '../../lib/enums.ts';
-import { seatLabel } from '../../lib/format.ts';
+import { formatMultiplier, seatLabel } from '../../lib/format.ts';
+import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
+import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
 import type { SeatLayoutResponse, SeatResponse } from '../../lib/types.ts';
 import { AdminPage } from './AdminPage.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
@@ -30,7 +32,7 @@ const coord = (row: string, column: string) => `${row}-${column}`;
  *
  * Generar una grilla llama a `POST /api/rooms/{id}/seats:generate` en una única
  * transacción, de modo que o bien existe toda la distribución solicitada o no
- * cambia nada (frontend-spec.md §8.3 "Creación masiva de asientos"). Se usa
+ * cambia nada (backend-status-for-frontend.md §5.6). Se usa
  * `onConflict: 'SKIP'` para que volver a ejecutar el generador al ampliar una
  * sala nunca falle por las filas que ya existen.
  */
@@ -47,6 +49,12 @@ export default function AdminRoomSeats() {
     (signal) => getRoomLayout(roomId!, { signal }),
     [roomId],
     { enabled: Boolean(roomId) },
+  );
+
+  // Si falla, vuelve al valor documentado: el texto de ayuda nunca bloquea la pantalla.
+  const config = useResource((signal) => getMetadataConfigOrDefault({ signal }), []);
+  const premiumMultiplier = formatMultiplier(
+    config.data?.premiumSeatMultiplier ?? PREMIUM_MULTIPLIER,
   );
 
   const [generating, setGenerating] = useState(false);
@@ -143,7 +151,7 @@ export default function AdminRoomSeats() {
   return (
     <AdminPage
       title={room.data ? `Asientos · ${room.data.roomName}` : 'Plano de asientos'}
-      description="Seleccione un asiento para alternar entre normal y premium. Los tickets premium cuestan 1,5× el precio base."
+      description={`Seleccioná un asiento para alternar entre normal y premium. Las entradas premium cuestan ${premiumMultiplier} el precio base.`}
       action={
         <div className="flex gap-2">
           <a href="/admin/rooms" className="cine-btn cine-btn-ghost">
@@ -235,6 +243,7 @@ export default function AdminRoomSeats() {
         <GeneratorModal
           open={showGenerator}
           existingRows={layout.data?.rows ?? []}
+          premiumMultiplier={premiumMultiplier}
           onClose={() => setShowGenerator(false)}
           onGenerate={(spec) => void generate(spec)}
         />
@@ -289,11 +298,14 @@ export default function AdminRoomSeats() {
 function GeneratorModal({
   open,
   existingRows,
+  premiumMultiplier,
   onClose,
   onGenerate,
 }: {
   readonly open: boolean;
   readonly existingRows: readonly string[];
+  /** Multiplicador ya formateado, p. ej. `"1,5×"`. */
+  readonly premiumMultiplier: string;
   readonly onClose: () => void;
   readonly onGenerate: (spec: {
     rows: number;
@@ -364,7 +376,8 @@ function GeneratorModal({
             onChange={(event) => setPremiumFrom(Math.max(0, Number(event.target.value)))}
           />
           <p className="text-ink-500 mt-1 text-xs">
-            Las últimas N filas se convierten en asientos premium a 1,5× el precio base.
+            Las últimas N filas se convierten en asientos premium a {premiumMultiplier} el precio
+            base.
           </p>
         </div>
 

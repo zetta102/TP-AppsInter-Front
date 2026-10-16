@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { deleteUser, listUsers, updateUserRole, type UserSortField } from '../../lib/api/users.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
-import { Role, roleValues } from '../../lib/enums.ts';
+import { Role, roleLabels, roleValues } from '../../lib/enums.ts';
 import type { Page, UserResponse } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
@@ -12,37 +12,51 @@ import { Badge } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
 
 const PAGE_SIZE = 20;
-const roleDisplayLabels: Readonly<Record<Role, string>> = {
-  CUSTOMER: 'Cliente',
-  ADMIN: 'Administrador',
-};
-
 /**
- * `/admin/users` — cambios de rol y bajas lógicas (frontend-spec.md §8.9).
+ * `/admin/users` — cambios de rol y bajas lógicas (backend-status-for-frontend.md §5.3).
  *
  * Degradarse a uno mismo o al último administrador restante, y eliminarse a sí
  * mismo o al último administrador restante, devuelve `422 LAST_ADMIN`;
  * eliminar a un usuario que todavía tiene reservas futuras devuelve
  * `409 RESOURCE_IN_USE`. Ambos casos se muestran en línea en lugar de un
  * banner genérico de error.
+ *
+ * La búsqueda filtra en el servidor por subcadena de email y de nombre (nombre, apellido o
+ * nombre completo), sin distinguir mayúsculas.
  */
 export default function AdminUsers() {
   const { user: me } = useAuth();
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<UserSortField>>('email,asc');
   const [role, setRole] = useState<Role | ''>('');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  // Se difieren para no disparar una petición por cada tecla mientras se escribe.
+  const deferredEmail = useDeferredValue(email.trim());
+  const deferredName = useDeferredValue(name.trim());
   const [rowError, setRowError] = useState<unknown>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const resource = useResource<Page<UserResponse>>(
-    (signal) => listUsers({ page, size: PAGE_SIZE, sort, ...(role ? { role } : {}) }, { signal }),
-    [page, sort, role],
+    (signal) =>
+      listUsers(
+        {
+          page,
+          size: PAGE_SIZE,
+          sort,
+          ...(role ? { role } : {}),
+          ...(deferredEmail ? { email: deferredEmail } : {}),
+          ...(deferredName ? { name: deferredName } : {}),
+        },
+        { signal },
+      ),
+    [page, sort, role, deferredEmail, deferredName],
   );
 
   const toggleRole = async (target: UserResponse) => {
     const next = target.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN;
     if (
-      !window.confirm(`¿Cambiar el rol de ${target.email} a ${roleDisplayLabels[next]}?`)
+      !window.confirm(`¿Cambiar el rol de ${target.email} a ${roleLabels[next]}?`)
     ) {
       return;
     }
@@ -91,7 +105,7 @@ export default function AdminUsers() {
       header: 'Rol',
       sortField: 'role',
       cell: (user) => (
-        <Badge tone={user.role === Role.ADMIN ? 'premium' : 'neutral'}>{roleDisplayLabels[user.role]}</Badge>
+        <Badge tone={user.role === Role.ADMIN ? 'premium' : 'neutral'}>{roleLabels[user.role]}</Badge>
       ),
     },
     {
@@ -106,16 +120,16 @@ export default function AdminUsers() {
               type="button"
               className="cine-btn cine-btn-ghost px-2 py-1 text-xs"
               disabled={busyId === user.uuid || isSelf}
-              title={isSelf ? 'No puede cambiar su propio rol.' : undefined}
+              title={isSelf ? 'No podés cambiar tu propio rol.' : undefined}
               onClick={() => void toggleRole(user)}
             >
-              Asignar rol de {user.role === Role.ADMIN ? roleDisplayLabels[Role.CUSTOMER] : roleDisplayLabels[Role.ADMIN]}
+              Asignar rol de {user.role === Role.ADMIN ? roleLabels[Role.CUSTOMER] : roleLabels[Role.ADMIN]}
             </button>
             <button
               type="button"
               className="cine-btn cine-btn-danger px-2 py-1 text-xs"
               disabled={busyId === user.uuid || isSelf}
-              title={isSelf ? 'No puede eliminar su propia cuenta.' : undefined}
+              title={isSelf ? 'No podés eliminar tu propia cuenta.' : undefined}
               onClick={() => void remove(user)}
             >
               Eliminar
@@ -131,9 +145,43 @@ export default function AdminUsers() {
   return (
     <AdminPage
       title="Usuarios"
-      description="Cuentas registradas. Cambie el rol para otorgar o revocar acceso de administrador; eliminar realiza una baja lógica."
+      description="Cuentas registradas. Cambiá el rol para otorgar o revocar acceso de administrador; eliminar realiza una baja lógica."
     >
       <AdminToolbar>
+        <div className="min-w-48 flex-1">
+          <label htmlFor="user-email" className="cine-label">
+            Email
+          </label>
+          <input
+            id="user-email"
+            type="search"
+            className="cine-input"
+            value={email}
+            placeholder="El email contiene…"
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setPage(0);
+            }}
+          />
+        </div>
+
+        <div className="min-w-48 flex-1">
+          <label htmlFor="user-name" className="cine-label">
+            Nombre
+          </label>
+          <input
+            id="user-name"
+            type="search"
+            className="cine-input"
+            value={name}
+            placeholder="Nombre o apellido…"
+            onChange={(event) => {
+              setName(event.target.value);
+              setPage(0);
+            }}
+          />
+        </div>
+
         <div className="min-w-48">
           <label htmlFor="user-role" className="cine-label">
             Rol
@@ -150,7 +198,7 @@ export default function AdminUsers() {
             <option value="">Todos los roles</option>
             {roleValues.map((value) => (
               <option key={value} value={value}>
-                {roleDisplayLabels[value]}
+                {roleLabels[value]}
               </option>
             ))}
           </select>
@@ -160,7 +208,7 @@ export default function AdminUsers() {
       {rowError !== null && (
         <div className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm">
           {isApiErrorWithCode(rowError, 'LAST_ADMIN')
-            ? 'Siempre debe existir al menos un administrador; no puede degradarse ni eliminarse a sí mismo, ni tampoco al último administrador restante.'
+            ? 'Siempre debe existir al menos un administrador; no podés degradarte ni eliminarte a vos mismo, ni tampoco al último administrador restante.'
             : isApiErrorWithCode(rowError, 'RESOURCE_IN_USE')
               ? 'Este usuario todavía tiene reservas para una función próxima y aún no puede eliminarse.'
               : toUserMessage(rowError)}

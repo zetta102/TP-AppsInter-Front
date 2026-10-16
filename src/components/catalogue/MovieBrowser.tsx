@@ -116,8 +116,8 @@ export default function MovieBrowser() {
         <LoadingBlock />
       ) : resource.data && resource.data.content.length === 0 ? (
         <EmptyState
-          title="No se han encontrado películas"
-          description="Prueba con otro fragmento del título o borra el filtro de género."
+          title="No encontramos películas"
+          description="Probá con otro fragmento del título o borrá el filtro de género."
         />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

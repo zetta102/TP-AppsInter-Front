@@ -10,18 +10,26 @@ import type {
 } from '../types.ts';
 
 /**
- * `/api/reservations` (frontend-spec.md §8.6).
+ * `/api/reservations` (backend-status-for-frontend.md §5.12).
  *
  * El propietario se toma del JWT: no existe `userId` ni en la solicitud ni en
  * ningún parámetro de query.
  */
 
-export type ReservationSortField = 'createdAt' | 'status' | 'totalPrice' | 'screening.startsAt';
+export const reservationSortFields = [
+  'createdAt',
+  'status',
+  'totalPrice',
+  'cancelledAt',
+  'screening.startsAt',
+  'userEmail',
+] as const;
+export type ReservationSortField = (typeof reservationSortFields)[number];
 
 /**
- * Filtros de tiempo resueltos contra la sesión (`screening.startsAt`), no contra la
- * reserva, para poder pedir "mis próximas funciones" sin traer todo el historial
- * y filtrar en memoria (frontend-spec.md §12).
+ * Filtros de las reservas propias. `from`/`to` se comparan contra el **inicio de la
+ * función** (`screening.startsAt`), para poder pedir "mis próximas funciones" sin traer
+ * todo el historial y filtrar en memoria.
  */
 export type ReservationFilters = {
   readonly status?: ReservationStatus;
@@ -29,11 +37,17 @@ export type ReservationFilters = {
   readonly from?: string;
   readonly to?: string;
   readonly movieId?: Uuid;
+  readonly screeningId?: Uuid;
 };
 
 export type ListReservationsParams = PageParams<ReservationSortField> & ReservationFilters;
 
-export type AdminReservationFilters = ReservationFilters;
+/** Filtros de admin. Ojo: aquí `from`/`to` se comparan contra la **fecha de compra**. */
+export type AdminReservationFilters = ReservationFilters & {
+  readonly userId?: Uuid;
+  /** Coincidencia parcial sobre el email del cliente. */
+  readonly email?: string;
+};
 
 export type ListAllReservationsParams = PageParams<ReservationSortField> & AdminReservationFilters;
 
@@ -93,11 +107,12 @@ export function quoteReservation(
  * no `204`: `tickets` e `items` se conservan tal cual estaban, `totalPrice` pasa a `0`,
  * `originalTotalPrice` guarda lo que se había cobrado y `cancelledAt` queda seteado.
  * No hace falta ningún snapshot del lado del cliente. Cancelar una reserva ya
- * cancelada devuelve `422`.
+ * cancelada devuelve `422 ALREADY_CANCELLED`; un cliente que cancela después del inicio
+ * recibe `422 SCREENING_STARTED` (los admins pueden cancelar en cualquier momento).
  */
 export function cancelReservation(uuid: Uuid): Promise<ReservationResponse> {
-  return requestJson<ReservationResponse>(`/api/reservations/${uuid}`, {
-    method: 'DELETE',
+  return requestJson<ReservationResponse>(`/api/reservations/${uuid}/cancellation`, {
+    method: 'POST',
     auth: true,
   });
 }

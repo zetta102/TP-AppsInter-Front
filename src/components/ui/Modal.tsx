@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 /**
- * Dialog built on the native `<dialog>` element, so focus trapping, the top
- * layer and Escape handling come from the platform rather than from us.
+ * Diálogo sobre el elemento nativo `<dialog>`: el foco atrapado, la capa superior
+ * y el manejo de Escape los resuelve la plataforma.
  */
 export function Modal({
   open,
@@ -46,7 +46,7 @@ export function Modal({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label="Cerrar"
           className="cine-btn cine-btn-ghost px-2 py-1"
         >
           ✕
@@ -60,7 +60,7 @@ export function Modal({
   );
 }
 
-/** Small coloured chip for enum values and statuses. */
+/** Etiqueta de color para valores de enums y estados. */
 export function Badge({
   children,
   tone = 'neutral',

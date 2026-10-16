@@ -1,3 +1,4 @@
+import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { changeMyPassword, updateMyProfile } from '../../lib/api/users.ts';
@@ -9,7 +10,7 @@ import { SubmitButton } from '../ui/SubmitButton.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
 
 /**
- * `/account` (frontend-spec.md §8.9) — perfil y contraseña en autoservicio.
+ * `/account` (backend-status-for-frontend.md §5.2) — perfil y contraseña en autoservicio.
  *
  * No forma parte de la tabla de rutas sugerida en §10; se añadió por decisión
  * de producto para dar a cada usuario autenticado una forma de editar su nombre
@@ -17,7 +18,7 @@ import { AuthGuard } from '../ui/Guards.tsx';
  */
 export default function Account() {
   return (
-    <AuthGuard message="Inicia sesión para gestionar tu cuenta.">
+    <AuthGuard message="Iniciá sesión para gestionar tu cuenta.">
       <AccountPanel />
     </AuthGuard>
   );
@@ -86,14 +87,15 @@ function AccountPanel() {
 
         if (signOutEverywhere) {
           await logout();
-          window.location.assign('/login');
+          void navigate('/login');
           return { error: null, fieldErrors: {}, success: true };
         }
 
         return { error: null, fieldErrors: {}, success: true };
       } catch (error) {
-        // El 401 significa que currentPassword es incorrecta; vincúlalo a ese campo.
-        if (isApiErrorWithCode(error, 'INVALID_CREDENTIALS')) {
+        // `422 WRONG_PASSWORD`: la contraseña actual es incorrecta, pero la sesión sigue
+        // siendo válida. Se vincula a ese campo y no se cierra la sesión.
+        if (isApiErrorWithCode(error, 'WRONG_PASSWORD')) {
           return {
             error: null,
             fieldErrors: { currentPassword: toUserMessage(error) },
@@ -122,7 +124,7 @@ function AccountPanel() {
         )}
 
         <p className="text-ink-500 text-sm">
-          Has iniciado sesión como <span className="text-ink-200">{user?.email}</span>
+          Iniciaste sesión como <span className="text-ink-200">{user?.email}</span>
         </p>
 
         <form action={profileAction} className="flex flex-col gap-4" noValidate>

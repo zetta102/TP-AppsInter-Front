@@ -4,10 +4,10 @@ import SeatPicker from '../../components/booking/SeatPicker.tsx';
 ---
 
 <!--
-  The spec's `/screenings/:id/seats` becomes `/screenings/seats?id=<uuid>`:
-  static output cannot prerender an unknown UUID. The seat map itself is a
-  public endpoint, so this page renders without a token.
+  `/screenings/:id/seats` se implementa como `/screenings/seats?id=<uuid>`: la salida
+  estática no puede prerenderizar un UUID desconocido. El mapa de asientos es público;
+  con sesión se envía el token para que las retenciones propias figuren como disponibles.
 -->
-<Layout title="Choose your seats" description="Pick your seats for this screening." wide>
+<Layout title="Elegí tus asientos" description="Elegí tus asientos para esta función." wide>
   <SeatPicker client:load />
 </Layout>

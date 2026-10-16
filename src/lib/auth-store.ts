@@ -1,3 +1,4 @@
+import { navigate } from 'astro:transitions/client';
 import { ApiError } from './problem.ts';
 import { apiFetch, registerAuthHooks, requestJson } from './http.ts';
 import type { AuthResponse, LoginRequest, RegisterRequest, UserResponse } from './types.ts';
@@ -5,7 +6,7 @@ import { Role } from './enums.ts';
 
 /**
  * El único propietario de ambos tokens, el mutex de refresh y el perfil de
- * `/api/users/me` (frontend-spec.md §3).
+ * `/api/users/me` (backend-status-for-frontend.md §7.1).
  *
  * Los tokens viven en memoria con un espejo en `localStorage` para sobrevivir a una recarga.
  * No existe flujo de cookies ni de CSRF.
@@ -157,7 +158,7 @@ function redirectToLogin(): void {
   const { pathname, search } = window.location;
   if (pathname === '/login' || pathname === '/register') return;
   const next = encodeURIComponent(`${pathname}${search}`);
-  window.location.assign(`/login?next=${next}`);
+  void navigate(`/login?next=${next}`);
 }
 
 /** Limpia todo rastro de la sesión sin llamar a la API. */
@@ -192,7 +193,12 @@ export async function login(credentials: LoginRequest): Promise<UserResponse> {
   const user = await fetchProfile();
   if (!user) {
     clearSession();
-    throw new ApiError(401, { title: 'No autorizado', status: 401, detail: 'Credenciales inválidas' });
+    throw new ApiError(401, {
+      title: 'No autorizado',
+      status: 401,
+      detail: 'No se pudo cargar el perfil tras iniciar sesión.',
+      code: 'INVALID_CREDENTIALS',
+    });
   }
   return user;
 }

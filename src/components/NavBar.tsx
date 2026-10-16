@@ -1,24 +1,25 @@
-import { useState } from 'react';
+import { navigate } from 'astro:transitions/client';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../lib/auth-context.tsx';
 
 /**
- * Isla de navegaci`n del sitio.
+ * Isla de navegación del sitio.
  *
- * Los enlaces de administraci`n se ocultan salvo que `/api/users/me` informe `ADMIN`.
+ * Los enlaces de administración se ocultan salvo que `/api/users/me` informe `ADMIN`.
  * Eso es solo una comodidad: el backend es la barrera real y cada pantalla de admin
  * sigue manejando `403`.
  */
 
 const publicLinks = [
   { href: '/', label: 'En cartelera' },
-  { href: '/movies', label: 'Pel?culas' },
+  { href: '/movies', label: 'Películas' },
 ] as const;
 
 const adminLinks = [
-  { href: '/admin/movies', label: 'Pel?culas' },
+  { href: '/admin/movies', label: 'Películas' },
   { href: '/admin/rooms', label: 'Salas' },
   { href: '/admin/screenings', label: 'Funciones' },
-  { href: '/admin/inventory', label: 'Confiter?a' },
+  { href: '/admin/inventory', label: 'Confitería' },
   { href: '/admin/reservations', label: 'Reservas' },
   { href: '/admin/users', label: 'Usuarios' },
 ] as const;
@@ -26,6 +27,28 @@ const adminLinks = [
 export default function NavBar({ pathname }: { readonly pathname: string }) {
   const { ready, isAuthenticated, isAdmin, user, logout } = useAuth();
   const [adminOpen, setAdminOpen] = useState(false);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
+
+  // La isla persiste entre transiciones: el menú se cierra al navegar, con Escape o al hacer
+  // clic afuera, en lugar de quedar abierto sobre la página nueva.
+  useEffect(() => {
+    if (!adminOpen) return;
+    const close = () => setAdminOpen(false);
+    const onPointerDown = (event: PointerEvent) => {
+      if (!adminMenuRef.current?.contains(event.target as Node)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    document.addEventListener('astro:before-swap', close);
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('astro:before-swap', close);
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [adminOpen]);
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -50,7 +73,7 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
       )}
 
       {isAdmin && (
-        <div className="relative">
+        <div ref={adminMenuRef} className="relative">
           <button
             type="button"
             onClick={() => setAdminOpen((open) => !open)}
@@ -90,16 +113,16 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
               type="button"
               className="cine-btn cine-btn-ghost"
               onClick={() => {
-                void logout().then(() => window.location.assign('/'));
+                void logout().then(() => navigate('/'));
               }}
             >
-              Cerrar sesi?n
+              Cerrar sesión
             </button>
           </>
         ) : (
           <>
             <a href="/login" className="cine-btn cine-btn-ghost">
-              Iniciar sesi?n
+              Iniciar sesión
             </a>
             <a href="/register" className="cine-btn cine-btn-primary">
               Crear cuenta

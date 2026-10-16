@@ -1,22 +1,26 @@
 # Cine — frontend
 
-Un frontend Astro + React para el backend de reservas de cine **Cine**, que
-implementa por completo [`frontend-spec.md`](./frontend-spec.md): el catálogo
-público, la autenticación JWT, la selección de butacas, el checkout con
-concesiones, la gestión de reservas y las siete consolas de administración.
+Un frontend Astro + React para el backend de reservas de cine **Cine**: el
+catálogo público, la autenticación JWT, la selección de butacas con retención,
+el checkout con confitería, la gestión de reservas y las consolas de administración.
 
-Las carencias detectadas en el backend al construir este frontend están
-documentadas en [`backend-spec.md`](./backend-spec.md).
+El contrato del backend (endpoints, tipos, flujos y códigos de error) está en
+[`backend-status-for-frontend.md`](./backend-status-for-frontend.md): es la
+fuente de verdad para cualquier cambio en `src/lib/api` y `src/lib/types.ts`.
+
+El documento inverso, [`frontend-status-for-backend.md`](./frontend-status-for-backend.md), describe
+cómo usa la API este frontend, qué comportamientos del backend da por sentados y las mejoras
+pedidas al backend.
 
 ## Stack
 
 | Elemento | Elección | Notas |
 | --- | --- | --- |
-| Framework | Astro 7.2, `output: 'static'` | Sin adaptador, sin SSR — cada llamada a la API se hace desde el cliente. |
-| Islands | React 19.2 vía `@astrojs/react` | Actions (`useActionState`/`useFormStatus`), `useOptimistic`, ref-as-prop. |
-| Estilos | Tailwind CSS 4 vía `@tailwindcss/vite` | Sin `tailwind.config.js`; los tokens viven en `@theme` en `src/styles/global.css`. |
+| Framework | Astro 7.4, `output: 'static'` | Sin adaptador, sin SSR — cada llamada a la API se hace desde el cliente. |
+| Islands | React 19.3 vía `@astrojs/react` | Actions (`useActionState`/`useFormStatus`), `useOptimistic`, ref-as-prop. |
+| Estilos | Tailwind CSS 4.3 vía `@tailwindcss/vite` | Sin `tailwind.config.js`; los tokens viven en `@theme` en `src/styles/global.css`. |
 | Tipos | TypeScript 7 | `verbatimModuleSyntax` + `erasableSyntaxOnly`, por lo que no hay `enum` — los enums de la API son objetos `as const`. |
-| Runtime | Node 26 | `Promise.withResolvers`, `AbortSignal.any`/`timeout`, `Object.groupBy`, `structuredClone`. |
+| Runtime | Node ≥ 22.22 (desarrollo en Node 26) | `Promise.withResolvers`, `AbortSignal.any`/`timeout`, `Object.groupBy`, `structuredClone`. |
 
 ## Primeros pasos
 
@@ -37,12 +41,19 @@ incluido en el `CINE_CORS_ALLOWED_ORIGINS` por defecto del backend.
 | `npm run dev` | Servidor de desarrollo en `localhost:5173` |
 | `npm run build` | Build estático en `./dist/` |
 | `npm run preview` | Sirve el resultado del build |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run check` | Typecheck y luego un build completo |
+| `npm run typecheck` | `astro sync` (genera los tipos de `astro:env`) + `tsc --noEmit` |
+| `npm run lint` | `oxlint` (reglas de React Hooks, a11y y correctness) |
+| `npm run format` / `format:check` | Prettier con los plugins de Astro y Tailwind (orden de clases) |
+| `npm run check:astro` | `astro check` sobre los `.astro` con TypeScript 6 aislado en `tools/astro-check` |
+| `npm test` | Pruebas unitarias (Vitest) de `src/lib` |
+| `npm run test:integration` | Pruebas contra el backend real; el flujo de admin necesita `QA_ADMIN_EMAIL`/`QA_ADMIN_PASSWORD` en `.env.test.local` (ver `.env.test.local.example`) |
+| `npm run check` | Typecheck (TS + `.astro`), lint, pruebas unitarias y build completo |
 
-> `astro check` no está integrado: `@astrojs/check` todavía depende de
-> TypeScript `^5 || ^6` y se niega a instalarse con TypeScript 7. `npm run check`
-> cubre lo mismo con `tsc` más un build.
+> ESLint no se usa porque `typescript-eslint` todavía no soporta TypeScript 7; `oxlint` no depende
+> de la API de TypeScript.
+>
+> `@astrojs/check` todavía no soporta TypeScript 7, así que `check:astro` lo ejecuta desde
+> `tools/astro-check`, con su propio TypeScript 6 fijado. El proyecto sigue usando TypeScript 7.
 
 ### Entorno
 
@@ -60,7 +71,7 @@ El build es SSG puro, y un UUID desconocido no puede prerenderizarse, así que
 los parámetros de ruta de la especificación se llevan como parámetros de
 consulta en su lugar. El comportamiento es idéntico en todo lo demás.
 
-| `frontend-spec.md` §10 | Implementado como |
+| Ruta conceptual | Implementado como |
 | --- | --- |
 | `/movies/:id` | `/movies/detail?id=<uuid>` |
 | `/screenings/:id/seats` | `/screenings/seats?id=<uuid>` |
@@ -83,7 +94,10 @@ src/
     pricing.ts            cálculos HALF_UP de entradas y totales de línea
     query.ts              constructor tipado de page/size/sort
     format.ts             formateadores Intl de moneda y fecha
-    reservation-snapshots.ts  snapshots previos a la cancelación
+    use-resource.ts       hook de lectura con AbortSignal y refetch
+    use-seat-hold.ts      ciclo de vida de la retención de asientos (crear, reemplazar, renovar)
+    use-seat-stream.ts    disponibilidad de asientos en vivo por SSE
+    sse.ts                parser de Server-Sent Events sobre fetch
   components/
     ui/                   Field, DataTable, Pagination, Modal, Guards, …
     catalogue/ booking/ reservations/ admin/ auth/
@@ -101,18 +115,35 @@ corrección del sistema.
   `auth-store.ts` comparte una única promesa en curso mediante
   `Promise.withResolvers()`.
 - **Los roles provienen de `GET /api/users/me`**, nunca de decodificar el JWT.
-- **Los errores de validación se enlazan solo por nombre de campo.** Los
-  mensajes de bean-validation se localizan en el servidor, así que el texto
-  del mensaje nunca se usa para comparar.
-- **El mapa de butacas es un snapshot, no un bloqueo.** Las butacas solo se
-  reservan en `POST /api/reservations`; un `409` significa que hay que volver
-  a obtener el mapa y resaltar lo que se perdió.
-- **`GET /api/inventory` es solo para administradores.** El panel de
-  concesiones del checkout se oculta ante un `403`. Esta es la carencia más
-  grande del backend — ver `backend-spec.md`.
-- **Cancelar devuelve `200` con un cuerpo vacío.** Las reservas se clonan con
-  `structuredClone` antes del `DELETE` para que la UI pueda seguir mostrando
-  lo que se canceló.
+- **Los errores de validación se traducen desde `violations`.** Cada
+  restricción llega como `{ field, code, params }` y `problem.ts` arma el texto
+  en español; el texto de `errors` depende del idioma del servidor y solo se usa
+  como respaldo.
+- **Refresco solo ante `401 TOKEN_EXPIRED`.** Cualquier otro `401` cierra la
+  sesión sin reintentar.
+- **Las lecturas de funciones envían el token si hay sesión** (`auth: 'optional'`):
+  así la disponibilidad no descuenta las retenciones propias del usuario.
+- **El mapa de butacas se actualiza en vivo.** Se carga con
+  `GET /api/screenings/{id}?include=seatMap` y se parchea con los eventos del stream
+  SSE `/seats/stream` (con `fetch`, para poder enviar el token); tras cada reconexión
+  se vuelve a pedir completo y un polling lento queda como red de seguridad.
+- **El checkout retiene los asientos.** La primera selección crea la retención
+  (`POST /api/screenings/{id}/holds`) y cada cambio la reemplaza de forma atómica
+  (`PUT /api/holds/{id}`, sin extenderla); el `holdId` viaja en la cotización y en la
+  compra. Un `409` igual significa que hay que volver a obtener el mapa y resaltar lo
+  que se perdió.
+- **Archivar, no borrar.** Películas, salas, funciones y productos con historial no
+  se pueden eliminar (`409 RESOURCE_IN_USE`): admin los archiva y los listados los
+  ocultan salvo con "Mostrar archivados".
+- **La confitería del checkout usa `GET /api/products`** (público); `/api/inventory`
+  es solo para administradores.
+- **Cancelar es `POST /api/reservations/{id}/cancellation`** y devuelve `200` con la
+  reserva cancelada (`totalPrice = 0`, `originalTotalPrice` con el monto anterior).
+- **`size` máximo 100.** El backend lo recorta en silencio; para listas completas
+  se usa `collectAllPages` (`src/lib/api/shared.ts`).
+- **Textos en español rioplatense (voseo).** El texto del backend nunca se muestra:
+  los mensajes de error se traducen en el cliente a partir de `code`
+  (`src/lib/problem.ts`).
 - **`endsAt` se calcula en el servidor** como `startsAt + runtime + 15 min`. El
   programador (scheduler) previsualiza la misma aritmética pero nunca envía
   el campo.

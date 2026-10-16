@@ -3,10 +3,10 @@ import { LoadingBlock, EmptyState } from './SubmitButton.tsx';
 import { ErrorBanner } from './ErrorBanner.tsx';
 
 /**
- * Table shell shared by the admin consoles.
+ * Contenedor de tabla compartido por las consolas de admin.
  *
- * Columns are declared as data so every console gets identical loading, empty
- * and error affordances without repeating markup.
+ * Las columnas se declaran como datos, así cada consola obtiene los mismos estados
+ * de carga, vacío y error sin repetir markup.
  */
 
 export interface Column<T> {

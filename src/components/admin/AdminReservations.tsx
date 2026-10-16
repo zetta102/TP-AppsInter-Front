@@ -7,6 +7,7 @@ import {
 import { useResource } from '../../lib/use-resource.ts';
 import {
   ReservationStatus,
+  reservationStatusLabels,
   reservationStatusValues,
 } from '../../lib/enums.ts';
 import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
@@ -19,12 +20,6 @@ import { Badge } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
 
 const PAGE_SIZE = 20;
-const reservationStatusDisplayLabels: Readonly<Record<ReservationStatus, string>> = {
-  PENDING: 'Pendiente',
-  CONFIRMED: 'Confirmada',
-  CANCELLED: 'Cancelada',
-};
-
 /**
  * `/admin/reservations` — todas las reservas del sistema mediante
  * `GET /api/reservations/all`. Los administradores pueden cancelar cualquier
@@ -118,7 +113,7 @@ export default function AdminReservations() {
                 : 'warning'
           }
         >
-          {reservationStatusDisplayLabels[reservation.status]}
+          {reservationStatusLabels[reservation.status]}
         </Badge>
       ),
     },
@@ -170,7 +165,7 @@ export default function AdminReservations() {
             <option value="">Todos los estados</option>
             {reservationStatusValues.map((value) => (
               <option key={value} value={value}>
-                {reservationStatusDisplayLabels[value]}
+                {reservationStatusLabels[value]}
               </option>
             ))}
           </select>
