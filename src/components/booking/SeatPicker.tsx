@@ -149,7 +149,8 @@ export default function SeatPicker() {
       </div>
 
       <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-4 cine-card p-4">
-        <div className="min-w-0">
+        {/* Región viva: cada cambio de selección se anuncia sin mover el foco del mapa. */}
+        <div className="min-w-0" aria-live="polite">
           <p className="text-sm font-semibold">
             {chosen.length === 0
               ? 'No hay asientos seleccionados'
@@ -173,7 +174,7 @@ export default function SeatPicker() {
           )}
 
           {!ready ? (
-            <span className="text-sm text-ink-600">…</span>
+            <span className="text-sm text-ink-500">…</span>
           ) : isAuthenticated ? (
             // Un enlace no se puede deshabilitar (sigue activo con el teclado): sin selección se
             // renderiza un botón deshabilitado de verdad.
@@ -197,7 +198,7 @@ export default function SeatPicker() {
         </div>
       </div>
 
-      <p className="text-center text-xs text-ink-600">
+      <p className="text-center text-xs text-ink-500">
         {live
           ? 'La disponibilidad se actualiza en vivo.'
           : 'La disponibilidad se actualiza cada pocos segundos.'}{' '}

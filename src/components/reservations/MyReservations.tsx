@@ -262,7 +262,7 @@ function ReservationList() {
                     Función el {formatDateTime(reservation.screeningStartsAt)} ·{' '}
                     {reservation.roomName}
                   </p>
-                  <p className="text-xs text-ink-600">
+                  <p className="text-xs text-ink-500">
                     Reservada el {formatDateTime(reservation.createdAt)}
                   </p>
                 </div>
@@ -307,7 +307,7 @@ function ReservationList() {
       </ul>
 
       {resource.isRefreshing && (
-        <p className="flex items-center justify-center gap-2 text-xs text-ink-600">
+        <p className="flex items-center justify-center gap-2 text-xs text-ink-500">
           <Spinner /> Actualizando…
         </p>
       )}

@@ -62,6 +62,8 @@ const initialSubmitState: SubmitState = { error: null, lostSeatIds: [] };
 const QUOTE_DEBOUNCE_MS = 400;
 const SEAT_MAP_POLL_MS = 15_000;
 const SEAT_MAP_SAFETY_POLL_MS = 60_000;
+/** Umbral del aviso previo al vencimiento de la retención (las retenciones no se extienden). */
+const HOLD_WARNING_SECONDS = 60;
 
 export default function Checkout() {
   return (
@@ -269,7 +271,15 @@ function CheckoutPanel() {
         {seatHold.hold && !seatHold.expired && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-sm text-brand-300">
             {/* Solo el aviso es una región viva: la cuenta regresiva no se anuncia cada segundo. */}
-            <span role="status">Tus asientos están reservados para vos.</span>
+            <span role="status">
+              Tus asientos están reservados para vos.
+              {/* Aviso único antes del vencimiento (WCAG 2.2.1); se anuncia una vez al aparecer. */}
+              {(seatHold.secondsLeft ?? 0) <= HOLD_WARNING_SECONDS && (
+                <span className="block font-semibold">
+                  Tu retención vence en menos de un minuto.
+                </span>
+              )}
+            </span>
             <span className="font-mono tabular-nums">
               <span className="sr-only">Tiempo restante: </span>
               {formatCountdown(seatHold.secondsLeft ?? 0)}
@@ -367,7 +377,14 @@ function CheckoutPanel() {
                       >
                         −
                       </button>
-                      <span className="w-6 text-center text-sm tabular-nums">{quantity}</span>
+                      <span
+                        aria-live="polite"
+                        aria-atomic="true"
+                        className="w-6 text-center text-sm tabular-nums"
+                      >
+                        {quantity}
+                        <span className="sr-only"> de {product.productName}</span>
+                      </span>
                       <button
                         type="button"
                         className="cine-btn cine-btn-ghost px-2 py-1"
@@ -436,7 +453,11 @@ function CheckoutPanel() {
             })}
           </ul>
 
-          <div className="flex justify-between border-t border-ink-800 pt-3 text-base font-semibold">
+          <div
+            aria-live="polite"
+            aria-atomic="true"
+            className="flex justify-between border-t border-ink-800 pt-3 text-base font-semibold"
+          >
             <span>Total</span>
             <span className="tabular-nums">{formatMoney(total)}</span>
           </div>
@@ -445,7 +466,7 @@ function CheckoutPanel() {
             Confirmar reserva
           </SubmitButton>
 
-          <p className="text-xs text-ink-600">
+          <p className="text-xs text-ink-500">
             {quote
               ? 'Este total es la cotización de precio confirmada por el servidor.'
               : 'El precio mostrado es una estimación; el total confirmado de tu reserva es el válido.'}

@@ -52,7 +52,7 @@ export default function AdminReservations() {
           <div className="text-xs text-ink-500">
             {reservation.user.firstName} {reservation.user.lastName} · {reservation.user.email}
           </div>
-          <code className="text-xs text-ink-600">{reservation.uuid.slice(0, 8)}</code>
+          <code className="text-xs text-ink-500">{reservation.uuid.slice(0, 8)}</code>
         </div>
       ),
     },
@@ -61,7 +61,7 @@ export default function AdminReservations() {
       header: 'Asientos',
       cell: (reservation) =>
         reservation.tickets.length === 0 ? (
-          <span className="text-ink-600">—</span>
+          <span className="text-ink-500">—</span>
         ) : (
           reservation.tickets.map((ticket) => seatLabel(ticket.row, ticket.column)).join(', ')
         ),
@@ -71,7 +71,7 @@ export default function AdminReservations() {
       header: 'Confitería',
       cell: (reservation) =>
         reservation.items.length === 0 ? (
-          <span className="text-ink-600">—</span>
+          <span className="text-ink-500">—</span>
         ) : (
           formatCount(reservation.items.length, 'ítem', 'ítems')
         ),

@@ -41,7 +41,7 @@ export function Spinner({ className = '' }: { readonly className?: string }) {
     <span
       aria-hidden="true"
       className={cx(
-        'inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent',
+        'inline-block size-4 rounded-full border-2 border-current border-t-transparent motion-safe:animate-spin',
         className,
       )}
     />
@@ -51,7 +51,10 @@ export function Spinner({ className = '' }: { readonly className?: string }) {
 /** Placeholder de carga en bloque completo para regiones respaldadas por recursos. */
 export function LoadingBlock({ label = 'Cargando…' }: { readonly label?: string }) {
   return (
-    <div className="flex items-center justify-center gap-3 py-16 text-sm text-ink-500">
+    <div
+      role="status"
+      className="flex items-center justify-center gap-3 py-16 text-sm text-ink-500"
+    >
       <Spinner />
       {label}
     </div>

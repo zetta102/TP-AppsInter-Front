@@ -208,13 +208,25 @@ export default function AdminRoomSeats() {
         />
       ) : (
         <div className="overflow-x-auto cine-card p-5">
-          <p className="mb-4 text-center text-xs tracking-[0.3em] text-ink-600 uppercase">
+          <p className="mb-4 text-center text-xs tracking-[0.3em] text-ink-500 uppercase">
             Pantalla
           </p>
-          <div className="mx-auto flex w-fit flex-col gap-1.5">
+          <div
+            role="group"
+            aria-label="Distribución de asientos"
+            className="mx-auto flex w-fit flex-col gap-1.5"
+          >
             {layoutData.rows.map((row) => (
-              <div key={row} className="flex items-center gap-1.5">
-                <span className="w-6 shrink-0 text-center text-xs font-medium text-ink-600">
+              <div
+                key={row}
+                role="group"
+                aria-label={`Fila ${row}`}
+                className="flex items-center gap-1.5"
+              >
+                <span
+                  aria-hidden="true"
+                  className="w-6 shrink-0 text-center text-xs font-medium text-ink-500"
+                >
                   {row}
                 </span>
                 {layoutData.columns.map((column) => {
@@ -226,6 +238,7 @@ export default function AdminRoomSeats() {
                       type="button"
                       onClick={() => setEditing(seat)}
                       disabled={seatPending}
+                      aria-label={`Editar asiento ${seatLabel(seat.row, seat.column)}, ${seatTypeLabels[seat.seatType]}`}
                       title={`${seatLabel(seat.row, seat.column)} · ${seatTypeLabels[seat.seatType]}`}
                       className={cx(
                         'size-8 shrink-0 rounded-md text-[10px] font-semibold disabled:opacity-50',

@@ -6,12 +6,13 @@
   --color-ink-800: oklch(0.27 0.03 275);
   --color-ink-700: oklch(0.35 0.03 275);
   --color-ink-600: oklch(0.46 0.025 275);
-  --color-ink-500: oklch(0.58 0.02 275);
+  --color-ink-500: oklch(0.65 0.02 275);
   --color-ink-400: oklch(0.68 0.018 275);
   --color-ink-300: oklch(0.78 0.015 275);
   --color-ink-200: oklch(0.86 0.012 275);
   --color-ink-100: oklch(0.93 0.008 275);
 
+  --color-brand-700: oklch(0.48 0.18 12);
   --color-brand-600: oklch(0.55 0.19 12);
   --color-brand-500: oklch(0.63 0.2 12);
   --color-brand-400: oklch(0.72 0.17 12);
@@ -31,6 +32,8 @@
   html {
     color-scheme: dark;
     scrollbar-gutter: stable;
+    /* Que el encabezado fijo no tape el elemento enfocado (WCAG 2.4.11). */
+    scroll-padding-top: 5rem;
   }
 
   body {
@@ -55,7 +58,8 @@
 @utility cine-input {
   width: 100%;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-ink-700);
+  /* Borde con contraste ≥3:1 contra el fondo (WCAG 1.4.11). */
+  border: 1px solid var(--color-ink-500);
   background-color: var(--color-ink-950);
   padding: --spacing(2) --spacing(3);
   font-size: var(--text-sm);
@@ -105,13 +109,14 @@
 }
 
 /* `@variant hover` aplica el mismo `@media (hover: hover)` que las utilidades `hover:`. */
+/* `brand-600`/`brand-700` mantienen el texto blanco por encima de 4.5:1 (WCAG 1.4.3). */
 @utility cine-btn-primary {
-  background-color: var(--color-brand-500);
+  background-color: var(--color-brand-600);
   color: var(--color-white);
 
   @variant hover {
     &:not(:disabled) {
-      background-color: var(--color-brand-600);
+      background-color: var(--color-brand-700);
     }
   }
 }

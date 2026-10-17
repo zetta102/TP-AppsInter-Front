@@ -45,6 +45,9 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
 
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
+  // El estado activo no puede ser solo visual: los lectores de pantalla lo leen de `aria-current`.
+  const currentFor = (href: string) => (isActive(href) ? 'page' : undefined);
+
   const linkClass = (href: string) =>
     cx(
       'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -52,15 +55,24 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
     );
 
   return (
-    <nav className="flex flex-wrap items-center gap-2">
+    <nav aria-label="Principal" className="flex flex-wrap items-center gap-2">
       {publicLinks.map((link) => (
-        <a key={link.href} href={link.href} className={linkClass(link.href)}>
+        <a
+          key={link.href}
+          href={link.href}
+          aria-current={currentFor(link.href)}
+          className={linkClass(link.href)}
+        >
           {link.label}
         </a>
       ))}
 
       {isAuthenticated && (
-        <a href="/reservations" className={linkClass('/reservations')}>
+        <a
+          href="/reservations"
+          aria-current={currentFor('/reservations')}
+          className={linkClass('/reservations')}
+        >
           Mis reservas
         </a>
       )}
@@ -85,6 +97,7 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
               <a
                 key={link.href}
                 href={link.href}
+                aria-current={currentFor(link.href)}
                 className="block rounded-md px-3 py-2 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100"
               >
                 {link.label}
@@ -96,7 +109,10 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
 
       <div className="ml-auto flex items-center gap-2">
         {!ready ? (
-          <span className="text-sm text-ink-600">…</span>
+          <span role="status" className="text-sm text-ink-500">
+            <span aria-hidden="true">…</span>
+            <span className="sr-only">Verificando sesión</span>
+          </span>
         ) : isAuthenticated ? (
           <>
             <a href="/account" className="hidden text-sm text-ink-500 hover:text-ink-100 sm:inline">

@@ -187,7 +187,7 @@ function AccountPanel() {
             <input type="checkbox" name="signOutEverywhere" className="size-4" />
             Cerrar también la sesión en este dispositivo
           </label>
-          <p className="-mt-2 text-xs text-ink-600">
+          <p className="-mt-2 text-xs text-ink-500">
             Al cambiar la contraseña siempre se cerrará la sesión en los demás dispositivos. Déjalo
             desmarcado para seguir con la sesión iniciada aquí.
           </p>

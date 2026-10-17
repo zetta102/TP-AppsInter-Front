@@ -88,7 +88,16 @@ export function MovieCard({
 }) {
   return (
     <article className="flex flex-col gap-3 cine-card p-4">
-      <a href={`/movies/detail?id=${movie.uuid}`} className="block">
+      {/*
+        Duplica el enlace del título: se saca del orden de tabulación y del árbol accesible para no
+        repetirlo (y porque con el marcador de póster quedaría sin nombre accesible).
+      */}
+      <a
+        href={`/movies/detail?id=${movie.uuid}`}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="block"
+      >
         <Poster movie={movie} />
       </a>
 
@@ -107,12 +116,15 @@ export function MovieCard({
         <div className="mt-auto flex flex-wrap gap-1 border-t border-ink-800 pt-3">
           {screenings.slice(0, 4).map((screening) =>
             screening.soldOut ? (
+              // El `title` no llega al teclado ni a los lectores: la sala y el estado van también en
+              // texto oculto visualmente, y "agotado" se marca con tachado además de la opacidad.
               <span
                 key={screening.uuid}
-                className="cine-btn cursor-not-allowed cine-btn-secondary px-2 py-1 text-xs opacity-50"
+                className="cine-btn cursor-not-allowed cine-btn-secondary px-2 py-1 text-xs line-through opacity-50"
                 title={`${screening.roomName} · Agotado`}
               >
                 {formatTime(screening.startsAt)}
+                <span className="sr-only">, {screening.roomName}, agotado</span>
               </span>
             ) : (
               <a
@@ -122,15 +134,19 @@ export function MovieCard({
                 title={`${screening.roomName} · ${formatMoney(screening.basePrice)}`}
               >
                 {formatTime(screening.startsAt)}
+                <span className="sr-only">
+                  , {screening.roomName}, {formatMoney(screening.basePrice)}
+                </span>
               </a>
             ),
           )}
           {screenings.length > 4 && (
             <a
               href={`/movies/detail?id=${movie.uuid}`}
-              className="self-center px-2 text-xs text-ink-500 hover:text-ink-100"
+              className="self-center px-2 py-1 text-xs text-ink-500 hover:text-ink-100"
             >
               +{screenings.length - 4} más
+              <span className="sr-only"> funciones de {movie.movieName}</span>
             </a>
           )}
         </div>
@@ -154,7 +170,7 @@ export function ScreeningAvailability({
     screening.availableSeats === null ||
     screening.totalSeats === null
   ) {
-    return <span className="text-ink-600">—</span>;
+    return <span className="text-ink-500">—</span>;
   }
   if (screening.soldOut) {
     return <Badge tone="danger">Agotado</Badge>;

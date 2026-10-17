@@ -119,7 +119,7 @@ export default function AdminMovies() {
       key: 'director',
       header: 'Director',
       sortField: 'director',
-      cell: (movie) => movie.director ?? <span className="text-ink-600">—</span>,
+      cell: (movie) => movie.director ?? <span className="text-ink-500">—</span>,
     },
     {
       key: 'actions',

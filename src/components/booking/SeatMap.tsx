@@ -63,13 +63,26 @@ export function SeatMap({
   return (
     <div className="flex flex-col gap-5">
       <div className="mx-auto h-1.5 w-3/4 rounded-full bg-linear-to-b from-ink-700 to-transparent" />
-      <p className="text-center text-xs tracking-[0.3em] text-ink-600 uppercase">Pantalla</p>
+      <p className="text-center text-xs tracking-[0.3em] text-ink-500 uppercase">Pantalla</p>
 
       <div className="overflow-x-auto pb-2">
-        <div className="mx-auto flex w-fit flex-col gap-1.5">
+        {/* Cada fila es un grupo con nombre: el lector anuncia "Fila A" al entrar en ella. */}
+        <div
+          role="group"
+          aria-label="Mapa de asientos"
+          className="mx-auto flex w-fit flex-col gap-1.5"
+        >
           {seatMap.rows.map((row) => (
-            <div key={row} className="flex items-center gap-1.5">
-              <span className="w-5 shrink-0 text-center text-xs font-medium text-ink-600">
+            <div
+              key={row}
+              role="group"
+              aria-label={`Fila ${row}`}
+              className="flex items-center gap-1.5"
+            >
+              <span
+                aria-hidden="true"
+                className="w-5 shrink-0 text-center text-xs font-medium text-ink-500"
+              >
                 {row}
               </span>
 
@@ -101,7 +114,7 @@ export function SeatMap({
                         : !seat.available
                           ? 'vendido'
                           : formatMoney(ticketPrice(basePrice, seat.seatType, premiumMultiplier))
-                    }`}
+                    }${isLost ? ', recién ocupado por otro cliente' : ''}`}
                     title={`${seatLabel(seat.row, seat.column)} · ${formatMoney(
                       ticketPrice(basePrice, seat.seatType, premiumMultiplier),
                     )}`}
@@ -121,6 +134,8 @@ export function SeatMap({
   );
 }
 
+const HELD_CLASS = 'border border-dashed border-gold-600 bg-gold-900/60';
+
 function seatClass({
   isSelected,
   isLost,
@@ -134,13 +149,17 @@ function seatClass({
   readonly seat: SeatMapSeat;
   readonly interactive: boolean;
 }): string {
+  // `scroll-mb-32`: al enfocar con teclado, el asiento queda por encima de la barra fija inferior
+  // del selector (WCAG 2.4.11).
   const base =
-    'size-7 shrink-0 rounded-md text-[10px] font-semibold transition-colors flex items-center justify-center';
+    'size-7 shrink-0 scroll-mb-32 rounded-md text-[10px] font-semibold transition-colors flex items-center justify-center';
 
-  if (isLost) return cx(base, 'bg-brand-600 ring-brand-400 animate-pulse text-white ring-2');
+  if (isLost)
+    return cx(base, 'bg-brand-600 ring-brand-400 motion-safe:animate-pulse text-white ring-2');
   if (isSelected) return cx(base, 'text-ink-950 bg-emerald-500');
-  if (!seat.available) return cx(base, 'bg-ink-800 text-ink-600 cursor-not-allowed line-through');
-  if (seat.held) return cx(base, 'bg-gold-900/60 text-gold-600 cursor-not-allowed');
+  if (!seat.available) return cx(base, 'bg-ink-800 text-ink-500 cursor-not-allowed line-through');
+  // Borde punteado: el estado "retenido" no puede distinguirse solo por color (WCAG 1.4.1).
+  if (seat.held) return cx(base, HELD_CLASS, 'text-gold-600 cursor-not-allowed');
   if (!interactive) {
     return cx(base, isPremium ? 'bg-gold-500/25 text-gold-400' : 'bg-ink-700 text-ink-300');
   }
@@ -174,11 +193,13 @@ export function SeatLegend({
         Seleccionado
       </li>
       <li className="flex items-center gap-2">
-        <span className="size-4 rounded-sm bg-ink-800" />
+        <span className="flex size-4 items-center justify-center rounded-sm bg-ink-800 text-[10px] text-ink-500 line-through">
+          <span aria-hidden="true">1</span>
+        </span>
         Ocupado
       </li>
       <li className="flex items-center gap-2">
-        <span className="size-4 rounded-sm bg-gold-900/60" />
+        <span className={cx('size-4 rounded-sm', HELD_CLASS)} />
         Retenido por otro cliente
       </li>
     </ul>

@@ -18,7 +18,7 @@ export function StatusBadge({ status }: { readonly status: ReservationStatus }) 
 /** Lista compacta de butacas — se conserva incluso tras cancelar (la cancelación lógica mantiene las entradas). */
 export function TicketSummary({ reservation }: { readonly reservation: ReservationResponse }) {
   if (reservation.tickets.length === 0) {
-    return <span className="text-ink-600 text-sm">Sin entradas</span>;
+    return <span className="text-sm text-ink-500">Sin entradas</span>;
   }
   return (
     <span className="text-sm">
@@ -35,7 +35,7 @@ export function ItemLines({ reservation }: { readonly reservation: ReservationRe
   if (reservation.items.length === 0) return null;
 
   return (
-    <ul className="divide-ink-800 divide-y text-sm">
+    <ul className="divide-y divide-ink-800 text-sm">
       {reservation.items.map((item) => (
         <li key={item.uuid} className="flex justify-between gap-3 py-2">
           <span>
@@ -44,7 +44,7 @@ export function ItemLines({ reservation }: { readonly reservation: ReservationRe
           </span>
           <span className="tabular-nums">
             {formatMoney(item.lineTotal)}
-            <span className="text-ink-600"> ({formatMoney(item.unitPrice)} cada uno)</span>
+            <span className="text-ink-500"> ({formatMoney(item.unitPrice)} cada uno)</span>
           </span>
         </li>
       ))}

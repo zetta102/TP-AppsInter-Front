@@ -111,7 +111,9 @@ export function DataTable<T, Field extends string = string>({
         </tbody>
       </table>
       {isLoading && rows && (
-        <p className="border-t border-ink-800 px-4 py-2 text-xs text-ink-500">Actualizando…</p>
+        <p role="status" className="border-t border-ink-800 px-4 py-2 text-xs text-ink-500">
+          Actualizando…
+        </p>
       )}
     </div>
   );

@@ -57,7 +57,7 @@ export function Modal({
           aria-label="Cerrar"
           className="cine-btn cine-btn-ghost px-2 py-1"
         >
-          ✕
+          <span aria-hidden="true">✕</span>
         </button>
       </div>
       <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>

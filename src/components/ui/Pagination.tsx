@@ -45,7 +45,7 @@ export function Pagination<T>({
 
         {windowed.map((entry, index) =>
           entry === null ? (
-            <span key={`gap-${index}`} className="px-2 text-sm text-ink-600">
+            <span key={`gap-${index}`} className="px-2 text-sm text-ink-500">
               …
             </span>
           ) : (

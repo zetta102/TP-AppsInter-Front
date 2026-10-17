@@ -201,13 +201,22 @@ function UserRowActions({
     });
   };
 
+  // Un botón deshabilitado no recibe foco, así que su `title` no llega al teclado ni a los
+  // lectores: para la propia cuenta se muestra el motivo como texto visible.
+  if (isSelf) {
+    return (
+      <p className="text-right text-xs text-ink-500">
+        Tu cuenta: no podés cambiar tu rol ni eliminarla.
+      </p>
+    );
+  }
+
   return (
     <div className="flex justify-end gap-2">
       <button
         type="button"
         className="cine-btn cine-btn-ghost px-2 py-1 text-xs"
-        disabled={isPending || isSelf}
-        title={isSelf ? 'No podés cambiar tu propio rol.' : undefined}
+        disabled={isPending}
         onClick={() =>
           run(`¿Cambiar el rol de ${user.email} a ${roleLabels[nextRole]}?`, () =>
             updateUserRole(user.uuid, { role: nextRole }),
@@ -219,8 +228,7 @@ function UserRowActions({
       <button
         type="button"
         className="cine-btn cine-btn-danger px-2 py-1 text-xs"
-        disabled={isPending || isSelf}
-        title={isSelf ? 'No podés eliminar tu propia cuenta.' : undefined}
+        disabled={isPending}
         onClick={() =>
           run(`¿Eliminar ${user.email}? Esta acción no se puede deshacer desde aquí.`, () =>
             deleteUser(user.uuid),

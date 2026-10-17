@@ -12,7 +12,10 @@ import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from '
 
 export interface FieldProps {
   readonly label: string;
-  readonly children: (props: { readonly id: string; readonly describedBy: string | undefined }) => ReactNode;
+  readonly children: (props: {
+    readonly id: string;
+    readonly describedBy: string | undefined;
+  }) => ReactNode;
   readonly error?: string | undefined;
   readonly hint?: string | undefined;
   readonly required?: boolean;
@@ -23,24 +26,32 @@ export function Field({ label, children, error, hint, required, className = '' }
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
-  const describedBy = error ? errorId : hint ? hintId : undefined;
+  // El error y la pista se anuncian juntos: el error no debe ocultar el formato esperado.
+  const describedBy =
+    [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className={className}>
       <label htmlFor={id} className="cine-label">
         {label}
-        {required && <span className="text-brand-400 ml-1">*</span>}
+        {/* El `required` nativo ya lo anuncia; el asterisco es solo visual. */}
+        {required && (
+          <span aria-hidden="true" className="ml-1 text-brand-400">
+            *
+          </span>
+        )}
       </label>
       {children({ id, describedBy })}
-      {error ? (
-        <p id={errorId} role="alert" className="text-brand-400 mt-1 text-xs">
+      {error && (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-brand-400">
           {error}
         </p>
-      ) : hint ? (
-        <p id={hintId} className="text-ink-500 mt-1 text-xs">
+      )}
+      {hint && (
+        <p id={hintId} className="mt-1 text-xs text-ink-500">
           {hint}
         </p>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -130,10 +141,7 @@ export function SelectInput({
   );
 }
 
-type TextAreaProps = Omit<
-  InputHTMLAttributes<HTMLTextAreaElement>,
-  'className' | 'type'
-> & {
+type TextAreaProps = Omit<InputHTMLAttributes<HTMLTextAreaElement>, 'className' | 'type'> & {
   readonly label: string;
   readonly error?: string | undefined;
   readonly hint?: string | undefined;
@@ -143,7 +151,12 @@ type TextAreaProps = Omit<
 
 export function TextArea({ label, error, hint, ref, rows = 4, required, ...props }: TextAreaProps) {
   return (
-    <Field label={label} error={error} hint={hint} {...(required === undefined ? {} : { required })}>
+    <Field
+      label={label}
+      error={error}
+      hint={hint}
+      {...(required === undefined ? {} : { required })}
+    >
       {({ id, describedBy }) => (
         <textarea
           {...props}
