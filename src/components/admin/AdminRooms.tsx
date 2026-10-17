@@ -9,9 +9,9 @@ import {
 } from '../../lib/api/rooms.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { toFieldErrors } from '../../lib/problem.ts';
-import { screenRoomTypeLabels, screenRoomTypeValues } from '../../lib/enums.ts';
+import { isEnumValue, screenRoomTypeLabels, screenRoomTypeValues } from '../../lib/enums.ts';
 import type { CreateScreenRoomRequest, Page, ScreenRoomResponse } from '../../lib/types.ts';
-import type { SortSpec } from '../../lib/query.ts';
+import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
@@ -53,7 +53,7 @@ export default function AdminRooms() {
     name: (room) => room.roomName,
   });
 
-  const columns: readonly Column<ScreenRoomResponse>[] = [
+  const columns: readonly Column<ScreenRoomResponse, RoomSortField>[] = [
     {
       key: 'roomName',
       header: 'Sala',
@@ -86,7 +86,11 @@ export default function AdminRooms() {
       className: 'text-right',
       cell: (room) => (
         <div className="flex justify-end gap-1">
-          <button type="button" className="cine-btn cine-btn-ghost" onClick={() => setEditing(room)}>
+          <button
+            type="button"
+            className="cine-btn cine-btn-ghost"
+            onClick={() => setEditing(room)}
+          >
             Editar
           </button>
           {actions.buttons(room)}
@@ -94,8 +98,6 @@ export default function AdminRooms() {
       ),
     },
   ];
-
-  const [sortField, sortDirection] = sort.split(',') as [RoomSortField, 'asc' | 'desc'];
 
   return (
     <AdminPage
@@ -132,53 +134,53 @@ export default function AdminRooms() {
         onRetry={resource.refetch}
         emptyTitle="No hay salas"
         emptyDescription="Creá una sala antes de programar funciones."
-        activeSort={{ field: sortField, direction: sortDirection }}
+        activeSort={parseSort(sort)}
         onSort={(field) => {
-          setSort(
-            (current) =>
-              (current === `${field},asc`
-                ? `${field},desc`
-                : `${field},asc`) as SortSpec<RoomSortField>,
-          );
+          setSort((current) => toggleSort(current, field));
           setPage(0);
         }}
       />
 
       <Pagination page={resource.data} onPageChange={setPage} />
 
-      <RoomFormModal
-        open={creating || editing !== null}
-        room={editing}
-        onClose={() => {
-          setCreating(false);
-          setEditing(null);
-        }}
-        onSaved={() => {
-          setCreating(false);
-          setEditing(null);
-          resource.refetch();
-        }}
-      />
+      {/* Montado solo mientras está abierto (y con `key` por sala): cerrar descarta el estado. */}
+      {(creating || editing !== null) && (
+        <RoomFormModal
+          key={editing?.uuid ?? 'new'}
+          room={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            setEditing(null);
+            resource.refetch();
+          }}
+        />
+      )}
     </AdminPage>
   );
 }
 
 function RoomFormModal({
-  open,
   room,
   onClose,
   onSaved,
 }: {
-  readonly open: boolean;
   readonly room: ScreenRoomResponse | null;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
+    const screenRoomType = formData.get('screenRoomType');
+    if (!isEnumValue(screenRoomTypeValues, screenRoomType)) {
+      return { error: null, fieldErrors: { screenRoomType: 'Elegí un tipo de proyección.' } };
+    }
     const body = {
       roomName: String(formData.get('roomName') ?? '').trim(),
-      screenRoomType: String(formData.get('screenRoomType') ?? ''),
-    } as CreateScreenRoomRequest;
+      screenRoomType,
+    } satisfies CreateScreenRoomRequest;
 
     try {
       if (room) await updateRoom(room.uuid, body);
@@ -191,10 +193,8 @@ function RoomFormModal({
     }
   }, initialFormState);
 
-  if (!open) return null;
-
   return (
-    <Modal open={open} onClose={onClose} title={room ? 'Editar sala' : 'Nueva sala'}>
+    <Modal onClose={onClose} title={room ? 'Editar sala' : 'Nueva sala'}>
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
@@ -226,7 +226,9 @@ function RoomFormModal({
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
             Cancelar
           </button>
-          <SubmitButton pendingLabel="Guardando…">{room ? 'Guardar cambios' : 'Crear'}</SubmitButton>
+          <SubmitButton pendingLabel="Guardando…">
+            {room ? 'Guardar cambios' : 'Crear'}
+          </SubmitButton>
         </div>
       </form>
     </Modal>

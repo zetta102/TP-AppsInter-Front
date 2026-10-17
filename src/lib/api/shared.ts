@@ -23,8 +23,10 @@ export { requestJson, requestVoid, requestCreated };
 export const MAX_PAGE_SIZE = 100;
 
 /** Query params comunes a cada endpoint de lista, más filtros específicos del endpoint. */
-export type ListParams<Field extends string, Filters extends QueryParams = QueryParams> =
-  PageParams<Field> & Filters;
+export type ListParams<
+  Field extends string,
+  Filters extends QueryParams = QueryParams,
+> = PageParams<Field> & Filters;
 
 export interface CallOptions {
   readonly signal?: AbortSignal;
@@ -53,18 +55,24 @@ export function getPage<T>(
 }
 
 /**
- * Recorre todas las páginas de una lista con el tamaño máximo permitido.
- * `maxPages` acota el costo ante catálogos inesperadamente grandes.
+ * Recorre las páginas de una lista con el tamaño máximo permitido, una a la vez y solo a
+ * medida que se consumen. `maxPages` acota el costo ante catálogos inesperadamente grandes.
  */
-export async function collectAllPages<T>(
+export async function* iteratePages<T>(
+  fetchPage: (page: number, size: number) => Promise<Page<T>>,
+  maxPages = 10,
+): AsyncGenerator<T> {
+  for (let page = 0; page < maxPages; page++) {
+    const result = await fetchPage(page, MAX_PAGE_SIZE);
+    yield* result.content;
+    if (result.last) return;
+  }
+}
+
+/** Junta todos los elementos de `iteratePages` en un array. */
+export function collectAllPages<T>(
   fetchPage: (page: number, size: number) => Promise<Page<T>>,
   maxPages = 10,
 ): Promise<T[]> {
-  const items: T[] = [];
-  for (let page = 0; page < maxPages; page++) {
-    const result = await fetchPage(page, MAX_PAGE_SIZE);
-    items.push(...result.content);
-    if (result.last) break;
-  }
-  return items;
+  return Array.fromAsync(iteratePages(fetchPage, maxPages));
 }

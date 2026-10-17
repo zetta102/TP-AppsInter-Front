@@ -44,7 +44,9 @@ export function useResource<T>(
 
   const [data, setDataState] = useState<T | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [status, setStatus] = useState<ResourceStatus>(enabled ? 'loading' : 'idle');
+  const [loadedStatus, setStatus] = useState<ResourceStatus>('loading');
+  // `idle` se deriva de `enabled` durante el render en lugar de sincronizarse desde el efecto.
+  const status: ResourceStatus = enabled ? loadedStatus : 'idle';
   const [nonce, setNonce] = useState(0);
   const [isRefreshing, startRefresh] = useTransition();
 
@@ -57,10 +59,7 @@ export function useResource<T>(
   });
 
   useEffect(() => {
-    if (!enabled) {
-      setStatus('idle');
-      return;
-    }
+    if (!enabled) return;
 
     const controller = new AbortController();
     let cancelled = false;
@@ -110,4 +109,25 @@ export function useResource<T>(
     refetch,
     setData,
   };
+}
+
+/**
+ * `useResource` para un recurso identificado por una clave que puede faltar (p. ej. un `?id=`
+ * todavía sin leer). Con `key` nulo queda en `idle`; si no, el fetcher recibe la clave ya
+ * narrowed, sin aserciones `!` en el llamador.
+ */
+export function useKeyedResource<K, T>(
+  key: K | null | undefined,
+  fetcher: (key: K, signal: AbortSignal) => Promise<T>,
+  deps: readonly unknown[] = [],
+): Resource<T> {
+  return useResource(
+    (signal) =>
+      key === null || key === undefined
+        ? // Inalcanzable: con la clave nula el recurso está deshabilitado y nunca llama al fetcher.
+          Promise.reject(new Error('useKeyedResource: clave ausente'))
+        : fetcher(key, signal),
+    [key, ...deps],
+    { enabled: key !== null && key !== undefined },
+  );
 }

@@ -1,4 +1,4 @@
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   createScreening,
   deleteScreening,
@@ -16,6 +16,7 @@ import { screenRoomTypeLabels } from '../../lib/enums.ts';
 import {
   formatDateTime,
   formatMoney,
+  formatMultiplier,
   formatRuntime,
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
@@ -27,7 +28,8 @@ import type {
   Page,
   ScreenRoomResponse,
 } from '../../lib/types.ts';
-import type { SortSpec } from '../../lib/query.ts';
+import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
+import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
@@ -86,6 +88,7 @@ export default function AdminScreenings() {
   // siga funcionando aunque el endpoint de metadatos no esté disponible momentáneamente.
   const config = useResource((signal) => getMetadataConfigOrDefault({ signal }), []);
   const turnoverMinutes = config.data?.screeningTurnoverMinutes ?? TURNOVER_MINUTES;
+  const premiumMultiplier = config.data?.premiumSeatMultiplier ?? PREMIUM_MULTIPLIER;
 
   const resource = useResource<Page<MovieScreeningResponse>>(
     (signal) =>
@@ -112,7 +115,7 @@ export default function AdminScreenings() {
     name: (screening) => `${screening.movieName} · ${formatDateTime(screening.startsAt)}`,
   });
 
-  const columns: readonly Column<MovieScreeningResponse>[] = [
+  const columns: readonly Column<MovieScreeningResponse, ScreeningSortField>[] = [
     {
       key: 'movie',
       header: 'Película',
@@ -159,10 +162,7 @@ export default function AdminScreenings() {
       className: 'text-right',
       cell: (screening) => (
         <div className="flex justify-end gap-1">
-          <a
-            href={`/screenings/seats?id=${screening.uuid}`}
-            className="cine-btn cine-btn-ghost"
-          >
+          <a href={`/screenings/seats?id=${screening.uuid}`} className="cine-btn cine-btn-ghost">
             Asientos
           </a>
           <button
@@ -177,8 +177,6 @@ export default function AdminScreenings() {
       ),
     },
   ];
-
-  const [sortField, sortDirection] = sort.split(',') as [ScreeningSortField, 'asc' | 'desc'];
 
   return (
     <AdminPage
@@ -195,51 +193,41 @@ export default function AdminScreenings() {
       }
     >
       <AdminToolbar>
-        <div className="min-w-48 flex-1">
-          <label htmlFor="filter-movie" className="cine-label">
-            Película
-          </label>
-          <select
-            id="filter-movie"
-            className="cine-input"
-            value={movieId}
-            onChange={(event) => {
-              setMovieId(event.target.value);
-              setPage(0);
-            }}
-          >
-            <option value="">Todas las películas</option>
-            {(movies.data?.content ?? []).map((movie) => (
-              <option key={movie.uuid} value={movie.uuid}>
-                {movie.movieName}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectInput
+          label="Película"
+          fieldClassName="min-w-48 flex-1"
+          value={movieId}
+          onChange={(event) => {
+            setMovieId(event.target.value);
+            setPage(0);
+          }}
+        >
+          <option value="">Todas las películas</option>
+          {(movies.data?.content ?? []).map((movie) => (
+            <option key={movie.uuid} value={movie.uuid}>
+              {movie.movieName}
+            </option>
+          ))}
+        </SelectInput>
 
-        <div className="min-w-48 flex-1">
-          <label htmlFor="filter-room" className="cine-label">
-            Sala
-          </label>
-          <select
-            id="filter-room"
-            className="cine-input"
-            value={roomId}
-            onChange={(event) => {
-              setRoomId(event.target.value);
-              setPage(0);
-            }}
-          >
-            <option value="">Todas las salas</option>
-            {(rooms.data?.content ?? []).map((room) => (
-              <option key={room.uuid} value={room.uuid}>
-                {room.roomName}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectInput
+          label="Sala"
+          fieldClassName="min-w-48 flex-1"
+          value={roomId}
+          onChange={(event) => {
+            setRoomId(event.target.value);
+            setPage(0);
+          }}
+        >
+          <option value="">Todas las salas</option>
+          {(rooms.data?.content ?? []).map((room) => (
+            <option key={room.uuid} value={room.uuid}>
+              {room.roomName}
+            </option>
+          ))}
+        </SelectInput>
 
-        <label className="text-ink-300 flex items-center gap-2 pb-2 text-sm">
+        <label className="flex items-center gap-2 pb-2 text-sm text-ink-300">
           <input
             type="checkbox"
             checked={upcomingOnly}
@@ -271,14 +259,9 @@ export default function AdminScreenings() {
         onRetry={resource.refetch}
         emptyTitle="No hay funciones"
         emptyDescription="Programá una función para habilitar sus reservas."
-        activeSort={{ field: sortField, direction: sortDirection }}
+        activeSort={parseSort(sort)}
         onSort={(field) => {
-          setSort(
-            (current) =>
-              (current === `${field},asc`
-                ? `${field},desc`
-                : `${field},asc`) as SortSpec<ScreeningSortField>,
-          );
+          setSort((current) => toggleSort(current, field));
           setPage(0);
         }}
       />
@@ -287,10 +270,12 @@ export default function AdminScreenings() {
 
       {(creating || editing !== null) && (
         <ScreeningFormModal
+          key={editing?.uuid ?? 'new'}
           screening={editing}
           movies={movies.data?.content ?? []}
           rooms={rooms.data?.content ?? []}
           turnoverMinutes={turnoverMinutes}
+          premiumMultiplier={premiumMultiplier}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -311,6 +296,7 @@ function ScreeningFormModal({
   movies,
   rooms,
   turnoverMinutes,
+  premiumMultiplier,
   onClose,
   onSaved,
 }: {
@@ -318,6 +304,7 @@ function ScreeningFormModal({
   readonly movies: readonly MovieResponse[];
   readonly rooms: readonly ScreenRoomResponse[];
   readonly turnoverMinutes: number;
+  readonly premiumMultiplier: number;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
@@ -326,18 +313,15 @@ function ScreeningFormModal({
     screening ? toDateTimeLocalValue(screening.startsAt) : '',
   );
 
-  const runtime = useMemo(
-    () => movies.find((movie) => movie.uuid === movieId)?.runtime ?? null,
-    [movies, movieId],
-  );
+  // Derivados en el render; el React Compiler los memoiza sin useMemo.
+  const runtime = movies.find((movie) => movie.uuid === movieId)?.runtime ?? null;
 
   // Reflejo local del cálculo del servidor, mostrado solo como vista previa.
-  const endsAtPreview = useMemo(() => {
-    if (!startsAt || runtime === null) return null;
-    const start = new Date(startsAt);
-    if (Number.isNaN(start.getTime())) return null;
-    return new Date(start.getTime() + (runtime + turnoverMinutes) * 60_000);
-  }, [startsAt, runtime, turnoverMinutes]);
+  const start = startsAt ? new Date(startsAt) : null;
+  const endsAtPreview =
+    start && runtime !== null && !Number.isNaN(start.getTime())
+      ? new Date(start.getTime() + (runtime + turnoverMinutes) * 60_000)
+      : null;
 
   const now = useNow();
   const startsInPast = startsAt !== '' && new Date(startsAt).getTime() <= now;
@@ -363,7 +347,7 @@ function ScreeningFormModal({
   }, initialFormState);
 
   return (
-    <Modal open onClose={onClose} title={screening ? 'Editar función' : 'Nueva función'}>
+    <Modal onClose={onClose} title={screening ? 'Editar función' : 'Nueva función'}>
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
@@ -411,9 +395,10 @@ function ScreeningFormModal({
         />
 
         {endsAtPreview && (
-          <p className="border-ink-800 bg-ink-900 text-ink-300 rounded-lg border px-3 py-2 text-xs">
-            Termina a las <strong>{formatDateTime(endsAtPreview.toISOString())}</strong>: duración más{' '}
-            {turnoverMinutes} minutos de recambio. La sala queda bloqueada durante toda esa franja.
+          <p className="rounded-lg border border-ink-800 bg-ink-900 px-3 py-2 text-xs text-ink-300">
+            Termina a las <strong>{formatDateTime(endsAtPreview.toISOString())}</strong>: duración
+            más {turnoverMinutes} minutos de recambio. La sala queda bloqueada durante toda esa
+            franja.
           </p>
         )}
 
@@ -425,7 +410,7 @@ function ScreeningFormModal({
           step="0.01"
           required
           defaultValue={screening?.basePrice ?? ''}
-          hint="Los asientos premium se cobran a 1,5× este precio."
+          hint={`Los asientos premium se cobran a ${formatMultiplier(premiumMultiplier)} este precio.`}
           error={state.fieldErrors['basePrice']}
         />
 

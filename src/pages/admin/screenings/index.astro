@@ -1,8 +1,13 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import AdminScreenings from '../../../components/admin/AdminScreenings.tsx';
+import { LoadingBlock } from '../../../components/ui/SubmitButton.tsx';
 ---
 
 <Layout title="Funciones · Admin" description="Programá funciones." wide>
-  <AdminScreenings client:load />
+  <AdminScreenings client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando las funciones…" />
+    </div>
+  </AdminScreenings>
 </Layout>

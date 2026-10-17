@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatCount,
+  formatCountdown,
   formatMoney,
   formatMultiplier,
+  formatNumber,
   formatRuntime,
   fromDateTimeLocalValue,
+  plural,
   seatLabel,
   toDateTimeLocalValue,
 } from './format.ts';
@@ -45,5 +49,26 @@ describe('formatMultiplier', () => {
 describe('seatLabel', () => {
   it('concatena fila y columna', () => {
     expect(seatLabel('AA', '12')).toBe('AA12');
+  });
+});
+
+describe('plural / formatCount', () => {
+  it('usa el singular solo para 1', () => {
+    expect(plural(1, 'función', 'funciones')).toBe('función');
+    expect(plural(0, 'función', 'funciones')).toBe('funciones');
+    expect(formatCount(1, 'próxima función', 'próximas funciones')).toBe('1 próxima función');
+    expect(formatCount(3, 'asiento', 'asientos')).toBe('3 asientos');
+  });
+
+  it('agrupa los miles con la convención local', () => {
+    expect(formatNumber(1234)).toBe('1.234');
+  });
+});
+
+describe('formatCountdown', () => {
+  it('muestra mm:ss y nunca valores negativos', () => {
+    expect(formatCountdown(245)).toBe('04:05');
+    expect(formatCountdown(9)).toBe('00:09');
+    expect(formatCountdown(-3)).toBe('00:00');
   });
 });

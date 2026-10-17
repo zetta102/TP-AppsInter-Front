@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { isApiErrorWithCode } from '../../lib/problem.ts';
 import type { Uuid } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
@@ -44,8 +44,10 @@ export function ArchivedBadge({ archived }: { readonly archived: boolean }) {
 
 export interface ArchiveActions<T extends Archivable> {
   /** Pide confirmación y borra; si el recurso está en uso, ofrece archivarlo en su lugar. */
-  readonly remove: (item: T) => Promise<void>;
-  readonly toggleArchived: (item: T) => Promise<void>;
+  readonly remove: (item: T) => void;
+  readonly toggleArchived: (item: T) => void;
+  /** `true` mientras corre una acción de fila; los botones quedan deshabilitados. */
+  readonly isPending: boolean;
   /** Error de la última acción de fila (con el botón "Archivar en su lugar" cuando aplica). */
   readonly banner: ReactNode;
   /** Botones "Archivar"/"Restaurar" y "Eliminar" para la columna de acciones. */
@@ -63,32 +65,38 @@ export function useArchiveActions<T extends Archivable>(options: {
 }): ArchiveActions<T> {
   const [rowError, setRowError] = useState<unknown>(null);
   const [blocked, setBlocked] = useState<T | null>(null);
+  // Una acción a la vez: mientras está pendiente, los botones no aceptan otro clic.
+  const [isPending, startTransition] = useTransition();
 
-  const toggleArchived = async (item: T) => {
+  const toggleArchived = (item: T) => {
     setRowError(null);
     setBlocked(null);
-    try {
-      await options.setArchived(item.uuid, !item.archived);
-    } catch (error) {
-      setRowError(error);
-    } finally {
-      options.refetch();
-    }
+    startTransition(async () => {
+      try {
+        await options.setArchived(item.uuid, !item.archived);
+      } catch (error) {
+        setRowError(error);
+      } finally {
+        options.refetch();
+      }
+    });
   };
 
-  const remove = async (item: T) => {
+  const remove = (item: T) => {
     if (!window.confirm(options.confirmDelete(item))) return;
     setRowError(null);
     setBlocked(null);
-    try {
-      await options.remove(item.uuid);
-    } catch (error) {
-      setRowError(error);
-      // Tiene historial: no se puede borrar, pero sí archivar.
-      if (isApiErrorWithCode(error, 'RESOURCE_IN_USE') && !item.archived) setBlocked(item);
-    } finally {
-      options.refetch();
-    }
+    startTransition(async () => {
+      try {
+        await options.remove(item.uuid);
+      } catch (error) {
+        setRowError(error);
+        // Tiene historial: no se puede borrar, pero sí archivar.
+        if (isApiErrorWithCode(error, 'RESOURCE_IN_USE') && !item.archived) setBlocked(item);
+      } finally {
+        options.refetch();
+      }
+    });
   };
 
   const banner =
@@ -100,7 +108,8 @@ export function useArchiveActions<T extends Archivable>(options: {
             <button
               type="button"
               className="cine-btn cine-btn-ghost"
-              onClick={() => void toggleArchived(blocked)}
+              disabled={isPending}
+              onClick={() => toggleArchived(blocked)}
             >
               Archivar “{options.name(blocked)}” en su lugar
             </button>
@@ -114,15 +123,21 @@ export function useArchiveActions<T extends Archivable>(options: {
       <button
         type="button"
         className="cine-btn cine-btn-ghost"
-        onClick={() => void toggleArchived(item)}
+        disabled={isPending}
+        onClick={() => toggleArchived(item)}
       >
         {item.archived ? 'Restaurar' : 'Archivar'}
       </button>
-      <button type="button" className="cine-btn cine-btn-danger" onClick={() => void remove(item)}>
+      <button
+        type="button"
+        className="cine-btn cine-btn-danger"
+        disabled={isPending}
+        onClick={() => remove(item)}
+      >
         Eliminar
       </button>
     </>
   );
 
-  return { remove, toggleArchived, banner, buttons };
+  return { remove, toggleArchived, isPending, banner, buttons };
 }

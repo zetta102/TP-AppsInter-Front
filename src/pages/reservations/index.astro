@@ -1,9 +1,14 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import MyReservations from '../../components/reservations/MyReservations.tsx';
+import { LoadingBlock } from '../../components/ui/SubmitButton.tsx';
 ---
 
 <Layout title="Mis reservas" description="Tus entradas y tu confitería.">
   <h1 class="mb-6 text-2xl font-bold">Mis reservas</h1>
-  <MyReservations client:load />
+  <MyReservations client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando tus reservas…" />
+    </div>
+  </MyReservations>
 </Layout>

@@ -1,17 +1,31 @@
-import { useCallback, useOptimistic, useState, useTransition } from 'react';
+import { useOptimistic, useState, useTransition } from 'react';
 import { cancelReservation, listMyReservations } from '../../lib/api/reservations.ts';
 import { listMovies } from '../../lib/api/movies.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
-import { ReservationStatus, reservationStatusLabels, reservationStatusValues } from '../../lib/enums.ts';
+import {
+  isEnumValue,
+  ReservationStatus,
+  reservationStatusLabels,
+  reservationStatusValues,
+} from '../../lib/enums.ts';
 import type { MovieResponse, Page, ReservationResponse } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock, Spinner } from '../ui/SubmitButton.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
+import { SelectInput, TextInput } from '../ui/Field.tsx';
 import { ItemLines, StatusBadge, TicketSummary } from './ReservationParts.tsx';
 
 const PAGE_SIZE = 10;
+
+/**
+ * `<input type="date">` da `YYYY-MM-DD`, que `new Date()` interpreta como medianoche **UTC**
+ * (en es-AR, 21:00 del día anterior). Se fija la hora local explícitamente: el inicio del día
+ * para "desde" y el final del día para "hasta", así el filtro incluye el día elegido completo.
+ */
+const startOfLocalDay = (date: string) => new Date(`${date}T00:00:00`).toISOString();
+const endOfLocalDay = (date: string) => new Date(`${date}T23:59:59.999`).toISOString();
 
 /**
  * Las reservas del propio usuario. No hay filtro de usuario — la titularidad
@@ -33,7 +47,7 @@ function ReservationList() {
   const [to, setTo] = useState('');
   const [movieId, setMovieId] = useState('');
   const [cancelError, setCancelError] = useState<unknown>(null);
-  const [, startTransition] = useTransition();
+  const [isCancelling, startTransition] = useTransition();
 
   // Para el selector de película; no es paginado, alcanza con una sola página amplia.
   const movies = useResource<Page<MovieResponse>>(
@@ -50,8 +64,8 @@ function ReservationList() {
           sort: upcomingOnly ? 'screening.startsAt,asc' : 'createdAt,desc',
           ...(status ? { status } : {}),
           ...(upcomingOnly ? { upcomingOnly: true } : {}),
-          ...(from ? { from: new Date(from).toISOString() } : {}),
-          ...(to ? { to: new Date(to).toISOString() } : {}),
+          ...(from ? { from: startOfLocalDay(from) } : {}),
+          ...(to ? { to: endOfLocalDay(to) } : {}),
           ...(movieId ? { movieId } : {}),
         },
         { signal },
@@ -59,10 +73,12 @@ function ReservationList() {
     [page, status, upcomingOnly, from, to, movieId],
   );
 
-  const resetToFirstPage = <T,>(setter: (value: T) => void) => (value: T) => {
-    setter(value);
-    setPage(0);
-  };
+  const resetToFirstPage =
+    <T,>(setter: (value: T) => void) =>
+    (value: T) => {
+      setter(value);
+      setPage(0);
+    };
 
   const rows = resource.data?.content ?? [];
   const { refetch } = resource;
@@ -84,94 +100,70 @@ function ReservationList() {
       ),
   );
 
-  const cancel = useCallback(
-    (reservation: ReservationResponse) => {
-      setCancelError(null);
+  const cancel = (reservation: ReservationResponse) => {
+    setCancelError(null);
 
-      startTransition(async () => {
-        markCancelling(reservation.uuid);
-        try {
-          await cancelReservation(reservation.uuid);
-        } catch (error) {
-          // 422 cuando ya estaba cancelada; cualquier otra cosa es inesperada.
-          setCancelError(error);
-        } finally {
-          refetch();
-        }
-      });
-    },
-    [markCancelling, refetch],
-  );
+    startTransition(async () => {
+      markCancelling(reservation.uuid);
+      try {
+        await cancelReservation(reservation.uuid);
+      } catch (error) {
+        // 422 cuando ya estaba cancelada; cualquier otra cosa es inesperada.
+        setCancelError(error);
+      } finally {
+        refetch();
+      }
+    });
+  };
 
   const hasActiveFilters = Boolean(status || upcomingOnly || from || to || movieId);
 
   const filterBar = (
-    <div className="cine-card flex flex-wrap items-end gap-3 p-4">
-      <div className="min-w-40">
-        <label htmlFor="my-res-status" className="cine-label">
-          Estado
-        </label>
-        <select
-          id="my-res-status"
-          className="cine-input"
-          value={status}
-          onChange={(event) =>
-            resetToFirstPage(setStatus)(event.target.value as ReservationStatus | '')
-          }
-        >
-          <option value="">Todos los estados</option>
-          {reservationStatusValues.map((value) => (
-            <option key={value} value={value}>
-              {reservationStatusLabels[value]}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="flex flex-wrap items-end gap-3 cine-card p-4">
+      <SelectInput
+        label="Estado"
+        fieldClassName="min-w-40"
+        value={status}
+        onChange={(event) => {
+          const { value } = event.target;
+          resetToFirstPage(setStatus)(isEnumValue(reservationStatusValues, value) ? value : '');
+        }}
+      >
+        <option value="">Todos los estados</option>
+        {reservationStatusValues.map((value) => (
+          <option key={value} value={value}>
+            {reservationStatusLabels[value]}
+          </option>
+        ))}
+      </SelectInput>
 
-      <div className="min-w-48">
-        <label htmlFor="my-res-movie" className="cine-label">
-          Película
-        </label>
-        <select
-          id="my-res-movie"
-          className="cine-input"
-          value={movieId}
-          onChange={(event) => resetToFirstPage(setMovieId)(event.target.value)}
-        >
-          <option value="">Todas las películas</option>
-          {(movies.data?.content ?? []).map((movie) => (
-            <option key={movie.uuid} value={movie.uuid}>
-              {movie.movieName}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectInput
+        label="Película"
+        fieldClassName="min-w-48"
+        value={movieId}
+        onChange={(event) => resetToFirstPage(setMovieId)(event.target.value)}
+      >
+        <option value="">Todas las películas</option>
+        {(movies.data?.content ?? []).map((movie) => (
+          <option key={movie.uuid} value={movie.uuid}>
+            {movie.movieName}
+          </option>
+        ))}
+      </SelectInput>
 
-      <div>
-        <label htmlFor="my-res-from" className="cine-label">
-          Desde
-        </label>
-        <input
-          id="my-res-from"
-          type="date"
-          className="cine-input"
-          value={from}
-          onChange={(event) => resetToFirstPage(setFrom)(event.target.value)}
-        />
-      </div>
+      <TextInput
+        label="Desde"
+        type="date"
+        value={from}
+        onChange={(event) => resetToFirstPage(setFrom)(event.target.value)}
+      />
 
-      <div>
-        <label htmlFor="my-res-to" className="cine-label">
-          Hasta
-        </label>
-        <input
-          id="my-res-to"
-          type="date"
-          className="cine-input"
-          value={to}
-          onChange={(event) => resetToFirstPage(setTo)(event.target.value)}
-        />
-      </div>
+      <TextInput
+        label="Hasta"
+        type="date"
+        value={to}
+        onChange={(event) => resetToFirstPage(setTo)(event.target.value)}
+      />
 
       <label className="flex items-center gap-2 pb-2 text-sm">
         <input
@@ -223,7 +215,11 @@ function ReservationList() {
       <div className="flex flex-col gap-4">
         {filterBar}
         <EmptyState
-          title={hasActiveFilters ? 'Ninguna reserva coincide con estos filtros' : 'Todavía no tenés reservas'}
+          title={
+            hasActiveFilters
+              ? 'Ninguna reserva coincide con estos filtros'
+              : 'Todavía no tenés reservas'
+          }
           description={
             hasActiveFilters
               ? 'Probá ajustar o limpiar los filtros para ver más resultados.'
@@ -251,7 +247,7 @@ function ReservationList() {
           const cancelled = reservation.status === ReservationStatus.CANCELLED;
 
           return (
-            <li key={reservation.uuid} className="cine-card flex flex-col gap-3 p-4">
+            <li key={reservation.uuid} className="flex flex-col gap-3 cine-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold">
@@ -262,17 +258,18 @@ function ReservationList() {
                       {reservation.movieName}
                     </a>
                   </h2>
-                  <p className="text-ink-500 text-xs">
-                    Función el {formatDateTime(reservation.screeningStartsAt)} · {reservation.roomName}
+                  <p className="text-xs text-ink-500">
+                    Función el {formatDateTime(reservation.screeningStartsAt)} ·{' '}
+                    {reservation.roomName}
                   </p>
-                  <p className="text-ink-600 text-xs">
+                  <p className="text-xs text-ink-600">
                     Reservada el {formatDateTime(reservation.createdAt)}
                   </p>
                 </div>
                 <StatusBadge status={reservation.status} />
               </div>
 
-              <div className="text-ink-300 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-ink-300">
                 <span>
                   <span className="text-ink-500">Butacas: </span>
                   <TicketSummary reservation={reservation} />
@@ -296,6 +293,8 @@ function ReservationList() {
                   <button
                     type="button"
                     className="cine-btn cine-btn-danger"
+                    // Una cancelación a la vez; la fila ya se muestra cancelada de forma optimista.
+                    disabled={isCancelling}
                     onClick={() => cancel(reservation)}
                   >
                     Cancelar
@@ -308,7 +307,7 @@ function ReservationList() {
       </ul>
 
       {resource.isRefreshing && (
-        <p className="text-ink-600 flex items-center justify-center gap-2 text-xs">
+        <p className="flex items-center justify-center gap-2 text-xs text-ink-600">
           <Spinner /> Actualizando…
         </p>
       )}

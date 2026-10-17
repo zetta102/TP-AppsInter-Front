@@ -1,3 +1,5 @@
+import { cx } from '../../lib/cx.ts';
+import { formatCount, formatNumber } from '../../lib/format.ts';
 import type { Page } from '../../lib/types.ts';
 
 /**
@@ -22,10 +24,13 @@ export function Pagination<T>({
   const windowed = pageWindow(current, page.totalPages);
 
   return (
-    <nav aria-label="Paginación" className={`flex items-center justify-between gap-4 ${className}`}>
-      <p className="text-ink-500 text-xs">
-        {page.totalElements.toLocaleString()} resultado{page.totalElements === 1 ? '' : 's'} · página{' '}
-        {current + 1} de {page.totalPages}
+    <nav
+      aria-label="Paginación"
+      className={cx('flex items-center justify-between gap-4', className)}
+    >
+      <p className="text-xs text-ink-500">
+        {formatCount(page.totalElements, 'resultado', 'resultados')} · página {current + 1} de{' '}
+        {formatNumber(page.totalPages)}
       </p>
 
       <div className="flex items-center gap-1">
@@ -40,7 +45,7 @@ export function Pagination<T>({
 
         {windowed.map((entry, index) =>
           entry === null ? (
-            <span key={`gap-${index}`} className="text-ink-600 px-2 text-sm">
+            <span key={`gap-${index}`} className="px-2 text-sm text-ink-600">
               …
             </span>
           ) : (
@@ -49,11 +54,10 @@ export function Pagination<T>({
               type="button"
               aria-current={entry === current ? 'page' : undefined}
               onClick={() => onPageChange(entry)}
-              className={
-                entry === current
-                  ? 'cine-btn cine-btn-primary min-w-9'
-                  : 'cine-btn cine-btn-ghost min-w-9'
-              }
+              className={cx(
+                'cine-btn min-w-9',
+                entry === current ? 'cine-btn-primary' : 'cine-btn-ghost',
+              )}
             >
               {entry + 1}
             </button>

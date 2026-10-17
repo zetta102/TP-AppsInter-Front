@@ -1,4 +1,4 @@
-import { useActionState, useState } from 'react';
+import { useActionState, useDeferredValue, useState } from 'react';
 import {
   createMovie,
   deleteMovie,
@@ -9,10 +9,10 @@ import {
 } from '../../lib/api/movies.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { toFieldErrors } from '../../lib/problem.ts';
-import { movieGenreLabels, movieGenreValues, type MovieGenre } from '../../lib/enums.ts';
+import { isEnumValue, movieGenreLabels, movieGenreValues } from '../../lib/enums.ts';
 import { formatRuntime } from '../../lib/format.ts';
 import type { CreateMovieRequest, MovieResponse, Page } from '../../lib/types.ts';
-import type { SortSpec } from '../../lib/query.ts';
+import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
@@ -26,18 +26,19 @@ const PAGE_SIZE = 15;
 interface FormState {
   readonly error: unknown;
   readonly fieldErrors: Readonly<Record<string, string>>;
-  readonly done: boolean;
 }
 
-const initialFormState: FormState = { error: null, fieldErrors: {}, done: false };
+const initialFormState: FormState = { error: null, fieldErrors: {} };
 
 const URL_FIELDS = ['posterUrl', 'backdropUrl', 'trailerUrl'] as const;
 
 /** Misma regla que el backend (`HttpUrl`): URL absoluta http(s), con host y sin espacios. */
 function isLoadableUrl(value: string): boolean {
-  if (/\s/.test(value) || !URL.canParse(value)) return false;
-  const url = new URL(value);
-  return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== '';
+  if (/\s/.test(value)) return false;
+  const url = URL.parse(value);
+  return (
+    url !== null && (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== ''
+  );
 }
 
 /**
@@ -48,6 +49,8 @@ export default function AdminMovies() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<MovieSortField>>('movieName,asc');
   const [search, setSearch] = useState('');
+  // La tabla sigue al texto con prioridad baja: escribir no espera a cada respuesta.
+  const deferredSearch = useDeferredValue(search.trim());
   const [editing, setEditing] = useState<MovieResponse | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -60,11 +63,11 @@ export default function AdminMovies() {
           size: PAGE_SIZE,
           sort,
           includeArchived: showArchived,
-          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(deferredSearch ? { search: deferredSearch } : {}),
         },
         { signal },
       ),
-    [page, sort, search, showArchived],
+    [page, sort, deferredSearch, showArchived],
   );
 
   const actions = useArchiveActions<MovieResponse>({
@@ -75,7 +78,7 @@ export default function AdminMovies() {
     name: (movie) => movie.movieName,
   });
 
-  const columns: readonly Column<MovieResponse>[] = [
+  const columns: readonly Column<MovieResponse, MovieSortField>[] = [
     {
       key: 'movieName',
       header: 'Título',
@@ -86,7 +89,7 @@ export default function AdminMovies() {
             <img
               src={movie.posterUrl}
               alt=""
-              className="h-12 w-8 shrink-0 rounded object-cover"
+              className="h-12 w-8 shrink-0 rounded-sm object-cover"
               loading="lazy"
             />
           ) : null}
@@ -137,35 +140,32 @@ export default function AdminMovies() {
     },
   ];
 
-  const [sortField, sortDirection] = sort.split(',') as [MovieSortField, 'asc' | 'desc'];
-
   return (
     <AdminPage
       title="Películas"
       description="Títulos, géneros y duraciones. La duración determina la hora de fin calculada de cada función."
       action={
-        <button type="button" className="cine-btn cine-btn-primary" onClick={() => setCreating(true)}>
+        <button
+          type="button"
+          className="cine-btn cine-btn-primary"
+          onClick={() => setCreating(true)}
+        >
           Nueva película
         </button>
       }
     >
       <AdminToolbar>
-        <div className="min-w-56 flex-1">
-          <label htmlFor="admin-movie-search" className="cine-label">
-            Buscar
-          </label>
-          <input
-            id="admin-movie-search"
-            type="search"
-            className="cine-input"
-            value={search}
-            placeholder="El título contiene…"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
+        <TextInput
+          label="Buscar"
+          fieldClassName="min-w-56 flex-1"
+          type="search"
+          value={search}
+          placeholder="El título contiene…"
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(0);
+          }}
+        />
         <ShowArchivedToggle
           checked={showArchived}
           onChange={(checked) => {
@@ -186,50 +186,48 @@ export default function AdminMovies() {
         onRetry={resource.refetch}
         emptyTitle="No hay películas"
         emptyDescription="Agregá una película para comenzar a programar funciones."
-        activeSort={{ field: sortField, direction: sortDirection }}
+        activeSort={parseSort(sort)}
         onSort={(field) => {
-          setSort(
-            (current) =>
-              (current === `${field},asc`
-                ? `${field},desc`
-                : `${field},asc`) as SortSpec<MovieSortField>,
-          );
+          setSort((current) => toggleSort(current, field));
           setPage(0);
         }}
       />
 
       <Pagination page={resource.data} onPageChange={setPage} />
 
-      <MovieFormModal
-        open={creating || editing !== null}
-        movie={editing}
-        onClose={() => {
-          setCreating(false);
-          setEditing(null);
-        }}
-        onSaved={() => {
-          setCreating(false);
-          setEditing(null);
-          resource.refetch();
-        }}
-      />
+      {/* Montado solo mientras está abierto (y con `key` por película): cerrar descarta el estado. */}
+      {(creating || editing !== null) && (
+        <MovieFormModal
+          key={editing?.uuid ?? 'new'}
+          movie={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            setEditing(null);
+            resource.refetch();
+          }}
+        />
+      )}
     </AdminPage>
   );
 }
 
 function MovieFormModal({
-  open,
   movie,
   onClose,
   onSaved,
 }: {
-  readonly open: boolean;
   readonly movie: MovieResponse | null;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
-    const genres = formData.getAll('genres').map((value) => String(value) as MovieGenre);
+    const genres = formData
+      .getAll('genres')
+      .filter((value) => isEnumValue(movieGenreValues, value));
     const cast = String(formData.get('mainCast') ?? '')
       .split(',')
       .map((entry) => entry.trim())
@@ -260,23 +258,21 @@ function MovieFormModal({
         urlErrors[field] = 'Ingresá una URL completa que empiece con http:// o https://.';
       }
     }
-    if (Object.keys(urlErrors).length > 0) return { error: null, fieldErrors: urlErrors, done: false };
+    if (Object.keys(urlErrors).length > 0) return { error: null, fieldErrors: urlErrors };
 
     try {
       // PUT es un reemplazo total, así que la misma carga completa sirve para ambos casos.
       if (movie) await updateMovie(movie.uuid, body);
       else await createMovie(body);
       onSaved();
-      return { ...initialFormState, done: true };
+      return initialFormState;
     } catch (error) {
-      return { error, fieldErrors: toFieldErrors(error), done: false };
+      return { error, fieldErrors: toFieldErrors(error) };
     }
   }, initialFormState);
 
-  if (!open) return null;
-
   return (
-    <Modal open={open} onClose={onClose} title={movie ? 'Editar película' : 'Nueva película'} wide>
+    <Modal onClose={onClose} title={movie ? 'Editar película' : 'Nueva película'} wide>
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
@@ -292,7 +288,7 @@ function MovieFormModal({
           <legend className="cine-label">Géneros</legend>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {movieGenreValues.map((genre) => (
-              <label key={genre} className="text-ink-300 flex items-center gap-2 text-sm">
+              <label key={genre} className="flex items-center gap-2 text-sm text-ink-300">
                 <input
                   type="checkbox"
                   name="genres"
@@ -304,7 +300,7 @@ function MovieFormModal({
             ))}
           </div>
           {state.fieldErrors['genres'] && (
-            <p role="alert" className="text-brand-400 mt-1 text-xs">
+            <p role="alert" className="mt-1 text-xs text-brand-400">
               Seleccioná al menos un género.
             </p>
           )}
@@ -402,7 +398,9 @@ function MovieFormModal({
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
             Cancelar
           </button>
-          <SubmitButton pendingLabel="Guardando…">{movie ? 'Guardar cambios' : 'Crear'}</SubmitButton>
+          <SubmitButton pendingLabel="Guardando…">
+            {movie ? 'Guardar cambios' : 'Crear'}
+          </SubmitButton>
         </div>
       </form>
     </Modal>

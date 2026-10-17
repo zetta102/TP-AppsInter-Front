@@ -1,15 +1,16 @@
-import { useDeferredValue, useState } from 'react';
+import { useDeferredValue, useState, useTransition } from 'react';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { deleteUser, listUsers, updateUserRole, type UserSortField } from '../../lib/api/users.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
-import { Role, roleLabels, roleValues } from '../../lib/enums.ts';
+import { isEnumValue, Role, roleLabels, roleValues } from '../../lib/enums.ts';
 import type { Page, UserResponse } from '../../lib/types.ts';
-import type { SortSpec } from '../../lib/query.ts';
+import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { Badge } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { SelectInput, TextInput } from '../ui/Field.tsx';
 
 const PAGE_SIZE = 20;
 /**
@@ -35,7 +36,6 @@ export default function AdminUsers() {
   const deferredEmail = useDeferredValue(email.trim());
   const deferredName = useDeferredValue(name.trim());
   const [rowError, setRowError] = useState<unknown>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   const resource = useResource<Page<UserResponse>>(
     (signal) =>
@@ -53,40 +53,7 @@ export default function AdminUsers() {
     [page, sort, role, deferredEmail, deferredName],
   );
 
-  const toggleRole = async (target: UserResponse) => {
-    const next = target.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN;
-    if (
-      !window.confirm(`¿Cambiar el rol de ${target.email} a ${roleLabels[next]}?`)
-    ) {
-      return;
-    }
-    setRowError(null);
-    setBusyId(target.uuid);
-    try {
-      await updateUserRole(target.uuid, { role: next });
-    } catch (error) {
-      setRowError(error);
-    } finally {
-      setBusyId(null);
-      resource.refetch();
-    }
-  };
-
-  const remove = async (target: UserResponse) => {
-    if (!window.confirm(`¿Eliminar ${target.email}? Esta acción no se puede deshacer desde aquí.`)) return;
-    setRowError(null);
-    setBusyId(target.uuid);
-    try {
-      await deleteUser(target.uuid);
-    } catch (error) {
-      setRowError(error);
-    } finally {
-      setBusyId(null);
-      resource.refetch();
-    }
-  };
-
-  const columns: readonly Column<UserResponse>[] = [
+  const columns: readonly Column<UserResponse, UserSortField>[] = [
     {
       key: 'email',
       header: 'Email',
@@ -105,42 +72,25 @@ export default function AdminUsers() {
       header: 'Rol',
       sortField: 'role',
       cell: (user) => (
-        <Badge tone={user.role === Role.ADMIN ? 'premium' : 'neutral'}>{roleLabels[user.role]}</Badge>
+        <Badge tone={user.role === Role.ADMIN ? 'premium' : 'neutral'}>
+          {roleLabels[user.role]}
+        </Badge>
       ),
     },
     {
       key: 'actions',
       header: '',
       className: 'text-right',
-      cell: (user) => {
-        const isSelf = user.uuid === me?.uuid;
-        return (
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="cine-btn cine-btn-ghost px-2 py-1 text-xs"
-              disabled={busyId === user.uuid || isSelf}
-              title={isSelf ? 'No podés cambiar tu propio rol.' : undefined}
-              onClick={() => void toggleRole(user)}
-            >
-              Asignar rol de {user.role === Role.ADMIN ? roleLabels[Role.CUSTOMER] : roleLabels[Role.ADMIN]}
-            </button>
-            <button
-              type="button"
-              className="cine-btn cine-btn-danger px-2 py-1 text-xs"
-              disabled={busyId === user.uuid || isSelf}
-              title={isSelf ? 'No podés eliminar tu propia cuenta.' : undefined}
-              onClick={() => void remove(user)}
-            >
-              Eliminar
-            </button>
-          </div>
-        );
-      },
+      cell: (user) => (
+        <UserRowActions
+          user={user}
+          isSelf={user.uuid === me?.uuid}
+          onError={setRowError}
+          onDone={resource.refetch}
+        />
+      ),
     },
   ];
-
-  const [sortField, sortDirection] = sort.split(',') as [UserSortField, 'asc' | 'desc'];
 
   return (
     <AdminPage
@@ -148,65 +98,51 @@ export default function AdminUsers() {
       description="Cuentas registradas. Cambiá el rol para otorgar o revocar acceso de administrador; eliminar realiza una baja lógica."
     >
       <AdminToolbar>
-        <div className="min-w-48 flex-1">
-          <label htmlFor="user-email" className="cine-label">
-            Email
-          </label>
-          <input
-            id="user-email"
-            type="search"
-            className="cine-input"
-            value={email}
-            placeholder="El email contiene…"
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
+        <TextInput
+          label="Email"
+          fieldClassName="min-w-48 flex-1"
+          type="search"
+          value={email}
+          placeholder="El email contiene…"
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setPage(0);
+          }}
+        />
 
-        <div className="min-w-48 flex-1">
-          <label htmlFor="user-name" className="cine-label">
-            Nombre
-          </label>
-          <input
-            id="user-name"
-            type="search"
-            className="cine-input"
-            value={name}
-            placeholder="Nombre o apellido…"
-            onChange={(event) => {
-              setName(event.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
+        <TextInput
+          label="Nombre"
+          fieldClassName="min-w-48 flex-1"
+          type="search"
+          value={name}
+          placeholder="Nombre o apellido…"
+          onChange={(event) => {
+            setName(event.target.value);
+            setPage(0);
+          }}
+        />
 
-        <div className="min-w-48">
-          <label htmlFor="user-role" className="cine-label">
-            Rol
-          </label>
-          <select
-            id="user-role"
-            className="cine-input"
-            value={role}
-            onChange={(event) => {
-              setRole(event.target.value as Role | '');
-              setPage(0);
-            }}
-          >
-            <option value="">Todos los roles</option>
-            {roleValues.map((value) => (
-              <option key={value} value={value}>
-                {roleLabels[value]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectInput
+          label="Rol"
+          fieldClassName="min-w-48"
+          value={role}
+          onChange={(event) => {
+            const { value } = event.target;
+            setRole(isEnumValue(roleValues, value) ? value : '');
+            setPage(0);
+          }}
+        >
+          <option value="">Todos los roles</option>
+          {roleValues.map((value) => (
+            <option key={value} value={value}>
+              {roleLabels[value]}
+            </option>
+          ))}
+        </SelectInput>
       </AdminToolbar>
 
       {rowError !== null && (
-        <div className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm">
+        <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
           {isApiErrorWithCode(rowError, 'LAST_ADMIN')
             ? 'Siempre debe existir al menos un administrador; no podés degradarte ni eliminarte a vos mismo, ni tampoco al último administrador restante.'
             : isApiErrorWithCode(rowError, 'RESOURCE_IN_USE')
@@ -224,19 +160,75 @@ export default function AdminUsers() {
         onRetry={resource.refetch}
         emptyTitle="No hay usuarios"
         emptyDescription="Ninguna cuenta coincide con este filtro."
-        activeSort={{ field: sortField, direction: sortDirection }}
+        activeSort={parseSort(sort)}
         onSort={(field) => {
-          setSort(
-            (current) =>
-              (current === `${field},asc`
-                ? `${field},desc`
-                : `${field},asc`) as SortSpec<UserSortField>,
-          );
+          setSort((current) => toggleSort(current, field));
           setPage(0);
         }}
       />
 
       <Pagination page={resource.data} onPageChange={setPage} />
     </AdminPage>
+  );
+}
+
+/** Acciones de una fila, con su propia transición: solo esa fila queda pendiente. */
+function UserRowActions({
+  user,
+  isSelf,
+  onError,
+  onDone,
+}: {
+  readonly user: UserResponse;
+  readonly isSelf: boolean;
+  readonly onError: (error: unknown) => void;
+  readonly onDone: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const nextRole = user.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN;
+
+  const run = (confirmation: string, action: () => Promise<unknown>) => {
+    if (!window.confirm(confirmation)) return;
+    onError(null);
+    startTransition(async () => {
+      try {
+        await action();
+      } catch (error) {
+        onError(error);
+      } finally {
+        onDone();
+      }
+    });
+  };
+
+  return (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        className="cine-btn cine-btn-ghost px-2 py-1 text-xs"
+        disabled={isPending || isSelf}
+        title={isSelf ? 'No podés cambiar tu propio rol.' : undefined}
+        onClick={() =>
+          run(`¿Cambiar el rol de ${user.email} a ${roleLabels[nextRole]}?`, () =>
+            updateUserRole(user.uuid, { role: nextRole }),
+          )
+        }
+      >
+        Asignar rol de {roleLabels[nextRole]}
+      </button>
+      <button
+        type="button"
+        className="cine-btn cine-btn-danger px-2 py-1 text-xs"
+        disabled={isPending || isSelf}
+        title={isSelf ? 'No podés eliminar tu propia cuenta.' : undefined}
+        onClick={() =>
+          run(`¿Eliminar ${user.email}? Esta acción no se puede deshacer desde aquí.`, () =>
+            deleteUser(user.uuid),
+          )
+        }
+      >
+        Eliminar
+      </button>
+    </div>
   );
 }

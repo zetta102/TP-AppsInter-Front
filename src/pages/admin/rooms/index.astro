@@ -1,8 +1,13 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import AdminRooms from '../../../components/admin/AdminRooms.tsx';
+import { LoadingBlock } from '../../../components/ui/SubmitButton.tsx';
 ---
 
 <Layout title="Salas · Admin" description="Administrá las salas." wide>
-  <AdminRooms client:load />
+  <AdminRooms client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando las salas…" />
+    </div>
+  </AdminRooms>
 </Layout>

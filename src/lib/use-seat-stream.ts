@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useState } from 'react';
+import { delay } from './delay.ts';
 import { openStream } from './http.ts';
 import { getAuthState, refreshTokens } from './auth-store.ts';
 import { readSse } from './sse.ts';
@@ -61,20 +62,6 @@ async function ensureFreshToken(): Promise<void> {
   if (new Date(tokens.expiresAt).getTime() - Date.now() < TOKEN_MARGIN_MS) await refreshTokens();
 }
 
-function wait(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const id = setTimeout(resolve, ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(id);
-        resolve();
-      },
-      { once: true },
-    );
-  });
-}
-
 /** Devuelve `true` mientras el stream está conectado. */
 export function useSeatStream(screeningId: Uuid | undefined, options: SeatStreamOptions): boolean {
   const { viewer = null, enabled = true } = options;
@@ -102,7 +89,7 @@ export function useSeatStream(screeningId: Uuid | undefined, options: SeatStream
           // La primera conexión sigue a la carga inicial del mapa: solo las siguientes recargan.
           if (!first) handleReconnect();
           first = false;
-          await readSse(response.body!, (event) => {
+          await readSse(response.body, (event) => {
             if (event.event === 'seats') handleSeats(parseStates(event.data));
           });
         } catch (error) {
@@ -115,7 +102,8 @@ export function useSeatStream(screeningId: Uuid | undefined, options: SeatStream
         if (signal.aborted) return;
         setConnected(false);
         first = false;
-        await wait(backoff, signal);
+        // Abortar durante la espera la corta; el `while` sale en la vuelta siguiente.
+        await delay(backoff, signal).catch(() => undefined);
         backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
       }
     })();

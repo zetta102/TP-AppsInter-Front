@@ -44,6 +44,12 @@ const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
 
 const multiplier = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
 
+const integer = new Intl.NumberFormat(locale);
+
+const pluralRules = new Intl.PluralRules(locale);
+
+const countdown = new Intl.DurationFormat(locale, { style: 'digital', hoursDisplay: 'auto' });
+
 const pad = (n: number) => String(n).padStart(2, '0');
 
 export function formatMoney(value: Money | null | undefined): string {
@@ -90,6 +96,31 @@ export function formatRelative(value: OffsetDateTimeString | null | undefined): 
 /** `1.5` -> `"1,5×"`, para mostrar el multiplicador de asientos premium. */
 export function formatMultiplier(value: number): string {
   return `${multiplier.format(value)}×`;
+}
+
+/** `1234` -> `"1.234"`, con el separador de miles local (no el del navegador). */
+export function formatNumber(value: number): string {
+  return integer.format(value);
+}
+
+/** Elige la forma singular o plural según las reglas de `es-AR`. */
+export function plural(count: number, one: string, other: string): string {
+  return pluralRules.select(count) === 'one' ? one : other;
+}
+
+/** `(1, 'función', 'funciones')` -> `"1 función"`; `(3, …)` -> `"3 funciones"`. */
+export function formatCount(count: number, one: string, other: string): string {
+  return `${formatNumber(count)} ${plural(count, one, other)}`;
+}
+
+/** `245` segundos -> `"04:05"`; las horas solo aparecen si hacen falta. */
+export function formatCountdown(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.trunc(totalSeconds));
+  return countdown.format({
+    hours: Math.floor(seconds / 3600),
+    minutes: Math.floor((seconds % 3600) / 60),
+    seconds: seconds % 60,
+  });
 }
 
 /** `142` minutos -> `"2h 22m"`. */

@@ -42,7 +42,7 @@ describe('readSse', () => {
   it('decodifica UTF-8 partido entre lecturas', async () => {
     const bytes = new TextEncoder().encode('data: función\n\n');
     const split = bytes.indexOf(0xc3) + 1; // en medio de la "ó"
-    const body = new ReadableStream<Uint8Array>({
+    const body = new ReadableStream<Uint8Array<ArrayBuffer>>({
       start(controller) {
         controller.enqueue(bytes.slice(0, split));
         controller.enqueue(bytes.slice(split));

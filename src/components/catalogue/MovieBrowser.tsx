@@ -1,12 +1,18 @@
 import { useDeferredValue, useState } from 'react';
 import { listMovies, type MovieSortField } from '../../lib/api/movies.ts';
 import { useResource } from '../../lib/use-resource.ts';
-import { movieGenreLabels, movieGenreValues, type MovieGenre } from '../../lib/enums.ts';
+import {
+  isEnumValue,
+  movieGenreLabels,
+  movieGenreValues,
+  type MovieGenre,
+} from '../../lib/enums.ts';
 import type { MovieResponse, Page } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { SelectInput, TextInput } from '../ui/Field.tsx';
 import { MovieCard } from './MovieCard.tsx';
 
 const PAGE_SIZE = 12;
@@ -17,6 +23,8 @@ const sortOptions = [
   { value: 'runtime,asc', label: 'Más corta primero' },
   { value: 'runtime,desc', label: 'Más larga primero' },
 ] as const satisfies readonly { value: SortSpec<MovieSortField>; label: string }[];
+
+const sortValues = sortOptions.map((option) => option.value);
 
 /**
  * Explorador de películas: filtros de `search` (subcadena sin distinguir mayúsculas)
@@ -45,7 +53,7 @@ export default function MovieBrowser() {
         },
         { signal },
       ),
-    [page, PAGE_SIZE, sort, deferredSearch, genre],
+    [page, sort, deferredSearch, genre],
   );
 
   const resetTo = (mutate: () => void) => {
@@ -55,59 +63,48 @@ export default function MovieBrowser() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="cine-card flex flex-wrap items-end gap-3 p-4">
-        <div className="min-w-56 flex-1">
-          <label htmlFor="movie-search" className="cine-label">
-            Buscar
-          </label>
-          <input
-            id="movie-search"
-            type="search"
-            value={search}
-            placeholder="El título contiene…"
-            onChange={(event) => resetTo(() => setSearch(event.target.value))}
-            className="cine-input"
-          />
-        </div>
+      <div className="flex flex-wrap items-end gap-3 cine-card p-4">
+        <TextInput
+          label="Buscar"
+          fieldClassName="min-w-56 flex-1"
+          type="search"
+          value={search}
+          placeholder="El título contiene…"
+          onChange={(event) => resetTo(() => setSearch(event.target.value))}
+        />
 
-        <div className="w-44">
-          <label htmlFor="movie-genre" className="cine-label">
-            Género
-          </label>
-          <select
-            id="movie-genre"
-            value={genre}
-            onChange={(event) => resetTo(() => setGenre(event.target.value as MovieGenre | ''))}
-            className="cine-input"
-          >
-            <option value="">Todos los géneros</option>
-            {movieGenreValues.map((value) => (
-              <option key={value} value={value}>
-                {movieGenreLabels[value]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectInput
+          label="Género"
+          fieldClassName="w-44"
+          value={genre}
+          onChange={(event) => {
+            const { value } = event.target;
+            resetTo(() => setGenre(isEnumValue(movieGenreValues, value) ? value : ''));
+          }}
+        >
+          <option value="">Todos los géneros</option>
+          {movieGenreValues.map((value) => (
+            <option key={value} value={value}>
+              {movieGenreLabels[value]}
+            </option>
+          ))}
+        </SelectInput>
 
-        <div className="w-48">
-          <label htmlFor="movie-sort" className="cine-label">
-            Ordenar
-          </label>
-          <select
-            id="movie-sort"
-            value={sort}
-            onChange={(event) =>
-              resetTo(() => setSort(event.target.value as SortSpec<MovieSortField>))
-            }
-            className="cine-input"
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectInput
+          label="Ordenar"
+          fieldClassName="w-48"
+          value={sort}
+          onChange={(event) => {
+            const { value } = event.target;
+            if (isEnumValue(sortValues, value)) resetTo(() => setSort(value));
+          }}
+        >
+          {sortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </SelectInput>
       </div>
 
       {resource.error ? (
@@ -121,7 +118,9 @@ export default function MovieBrowser() {
         />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {resource.data?.content.map((movie) => <MovieCard key={movie.uuid} movie={movie} />)}
+          {resource.data?.content.map((movie) => (
+            <MovieCard key={movie.uuid} movie={movie} />
+          ))}
         </div>
       )}
 

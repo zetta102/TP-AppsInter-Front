@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
-import { useResource } from '../../lib/use-resource.ts';
+import { useKeyedResource } from '../../lib/use-resource.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
 import { useNow } from '../../lib/use-now.ts';
 import { usePolling } from '../../lib/use-polling.ts';
@@ -13,11 +14,11 @@ import type {
   SeatMapResponse,
   SeatMapSeat,
 } from '../../lib/types.ts';
-import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
+import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import { estimateTotal } from '../../lib/pricing.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
-import { SeatMap } from './SeatMap.tsx';
+import { indexSeatsById, SeatMap } from './SeatMap.tsx';
 
 /**
  * Selector público de asientos para una función.
@@ -39,27 +40,23 @@ export default function SeatPicker() {
   // Se conserva el orden de selección: `seatIds` se envía en el mismo orden en que se eligen.
   const [selected, setSelected] = useState<readonly string[]>([]);
 
-  const resource = useResource<{
-    readonly screening: MovieScreeningResponse;
-    readonly seatMap: SeatMapResponse;
-    readonly config: MetadataConfigResponse;
-  }>(
-    async (signal) => {
-      const [screening, config] = await Promise.all([
-        getScreeningWithSeatMap(screeningId!, { signal }),
-        getMetadataConfigOrDefault({ signal }),
-      ]);
-      return { screening, seatMap: screening.seatMap, config };
-    },
-    [screeningId],
-    { enabled: Boolean(screeningId) },
-  );
+  const resource = useKeyedResource<
+    string,
+    {
+      readonly screening: MovieScreeningResponse;
+      readonly seatMap: SeatMapResponse;
+      readonly config: MetadataConfigResponse;
+    }
+  >(screeningId, async (id, signal) => {
+    const [screening, config] = await Promise.all([
+      getScreeningWithSeatMap(id, { signal }),
+      getMetadataConfigOrDefault({ signal }),
+    ]);
+    return { screening, seatMap: screening.seatMap, config };
+  });
 
-  const seatsById = useMemo(() => {
-    const map = new Map<string, SeatMapSeat>();
-    for (const seat of resource.data?.seatMap.seats ?? []) map.set(seat.seatId, seat);
-    return map;
-  }, [resource.data]);
+  const seatsById = indexSeatsById(resource.data?.seatMap.seats ?? []);
+  useDocumentTitle(resource.data && `Asientos · ${resource.data.screening.movieName}`);
 
   const { refetch, setData } = resource;
   // Ventas y retenciones de otros clientes, en vivo. Se espera a conocer la sesión para que el
@@ -69,21 +66,26 @@ export default function SeatPicker() {
     enabled: ready,
     onReconnect: refetch,
     onSeats: (states) => {
-      setData((current) => current && { ...current, seatMap: patchSeatMap(current.seatMap, states) });
+      setData(
+        (current) => current && { ...current, seatMap: patchSeatMap(current.seatMap, states) },
+      );
       // Un asiento elegido que otra persona acaba de tomar sale de la selección.
-      const taken = new Set(states.filter((state) => !state.available).map((state) => state.seatId));
-      if (taken.size > 0) setSelected((current) => current.filter((id) => !taken.has(id)));
+      const taken = new Set(
+        states.filter((state) => !state.available).map((state) => state.seatId),
+      );
+      // Los Set conservan el orden de inserción, así que el orden de selección se mantiene.
+      if (taken.size > 0) setSelected((current) => [...new Set(current).difference(taken)]);
     },
   });
   usePolling(refetch, live ? SEAT_MAP_SAFETY_POLL_MS : SEAT_MAP_POLL_MS, Boolean(screeningId));
 
-  const toggle = useCallback((seat: SeatMapSeat) => {
+  const toggle = (seat: SeatMapSeat) => {
     setSelected((current) =>
       current.includes(seat.seatId)
         ? current.filter((id) => id !== seat.seatId)
         : [...current, seat.seatId],
     );
-  }, []);
+  };
 
   if (!screeningId) {
     return (
@@ -117,7 +119,7 @@ export default function SeatPicker() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{screening.movieName}</h1>
-          <p className="text-ink-500 text-sm">
+          <p className="text-sm text-ink-500">
             {formatDateTime(screening.startsAt)} · {screening.roomName} · desde{' '}
             {formatMoney(screening.basePrice)}
           </p>
@@ -128,7 +130,7 @@ export default function SeatPicker() {
       </header>
 
       {closed && (
-        <div role="alert" className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm">
+        <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
           {screening.archived
             ? 'Esta función ya no está disponible.'
             : 'Esta función ya comenzó, por lo que ya no puede reservarse.'}
@@ -146,15 +148,15 @@ export default function SeatPicker() {
         />
       </div>
 
-      <div className="cine-card sticky bottom-4 flex flex-wrap items-center justify-between gap-4 p-4">
+      <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-4 cine-card p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold">
             {chosen.length === 0
               ? 'No hay asientos seleccionados'
               : chosen.map((seat) => seatLabel(seat.row, seat.column)).join(', ')}
           </p>
-          <p className="text-ink-500 text-xs">
-            {chosen.length} {chosen.length === 1 ? 'asiento' : 'asientos'} · estimado{' '}
+          <p className="text-xs text-ink-500">
+            {formatCount(chosen.length, 'asiento', 'asientos')} · estimado{' '}
             {formatMoney(estimate.total)}
           </p>
         </div>
@@ -171,17 +173,19 @@ export default function SeatPicker() {
           )}
 
           {!ready ? (
-            <span className="text-ink-600 text-sm">…</span>
+            <span className="text-sm text-ink-600">…</span>
           ) : isAuthenticated ? (
-            <a
-              href={checkoutHref}
-              aria-disabled={selected.length === 0 || closed}
-              className={`cine-btn cine-btn-primary ${
-                selected.length === 0 || closed ? 'pointer-events-none opacity-50' : ''
-              }`}
-            >
-              Continuar con la reserva
-            </a>
+            // Un enlace no se puede deshabilitar (sigue activo con el teclado): sin selección se
+            // renderiza un botón deshabilitado de verdad.
+            selected.length === 0 || closed ? (
+              <button type="button" disabled className="cine-btn cine-btn-primary">
+                Continuar con la reserva
+              </button>
+            ) : (
+              <a href={checkoutHref} className="cine-btn cine-btn-primary">
+                Continuar con la reserva
+              </a>
+            )
           ) : (
             <a
               href={selected.length === 0 ? '/login' : signInHref}
@@ -193,7 +197,7 @@ export default function SeatPicker() {
         </div>
       </div>
 
-      <p className="text-ink-600 text-center text-xs">
+      <p className="text-center text-xs text-ink-600">
         {live
           ? 'La disponibilidad se actualiza en vivo.'
           : 'La disponibilidad se actualiza cada pocos segundos.'}{' '}

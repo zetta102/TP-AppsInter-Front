@@ -112,3 +112,11 @@ export const productCategoryValues = Object.keys(
   productCategoryLabels,
 ) as readonly ProductCategory[];
 export const roleValues = Object.keys(roleLabels) as readonly Role[];
+
+/**
+ * Type guard para valores que llegan como `string` (un `<select>`, `FormData`): reemplaza el
+ * `as` por una verificación real contra la lista de valores del enum.
+ */
+export function isEnumValue<T extends string>(values: readonly T[], value: unknown): value is T {
+  return typeof value === 'string' && (values as readonly string[]).includes(value);
+}

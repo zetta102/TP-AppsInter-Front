@@ -36,6 +36,26 @@ export function sortBy<const Field extends string>(
   return `${field},${direction}`;
 }
 
+/** Separa `field,asc` en sus partes, conservando el tipo del campo. */
+export function parseSort<Field extends string>(
+  sort: SortSpec<Field>,
+): { readonly field: Field; readonly direction: SortDirection } {
+  const comma = sort.lastIndexOf(',');
+  // El template literal garantiza la forma; TS no puede inferir las partes de `slice`.
+  return {
+    field: sort.slice(0, comma) as Field,
+    direction: sort.slice(comma + 1) as SortDirection,
+  };
+}
+
+/** Clic en una columna: ascendente la primera vez, alterna la dirección si ya estaba activa. */
+export function toggleSort<const Field extends string>(
+  current: SortSpec<Field>,
+  field: Field,
+): SortSpec<Field> {
+  return sortBy(field, current === sortBy(field, 'asc') ? 'desc' : 'asc');
+}
+
 function serialize(value: Exclude<QueryValue, null | undefined>): string {
   if (value instanceof Date) return value.toISOString();
   return String(value);

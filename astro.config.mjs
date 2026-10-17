@@ -6,7 +6,9 @@ import tailwindcss from '@tailwindcss/vite';
 // https://astro.build/config
 export default defineConfig({
   output: 'static',
-  integrations: [react()],
+  // React Compiler (Oxc): memoiza componentes y hooks automáticamente, sin useMemo/useCallback.
+  // `oxc-transform-react` lo consume `@vitejs/plugin-react`; ver `overrides` en package.json.
+  integrations: [react({ compiler: true })],
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover',

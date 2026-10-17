@@ -71,21 +71,18 @@ export function createSseParser(onEvent: (event: SseEvent) => void): SseParser {
 
 /** Lee un body de `fetch` como SSE hasta que el servidor lo cierre o se aborte la lectura. */
 export async function readSse(
-  body: ReadableStream<Uint8Array>,
+  body: ReadableStream<Uint8Array<ArrayBuffer>>,
   onEvent: (event: SseEvent) => void,
 ): Promise<void> {
   const parser = createSseParser(onEvent);
-  // `stream: true` conserva entre lecturas los caracteres UTF-8 partidos.
-  const decoder = new TextDecoder();
-  const reader = body.getReader();
+  // `TextDecoderStream` conserva entre fragmentos los caracteres UTF-8 partidos. Se lee con un
+  // reader explícito porque Safari todavía no soporta `for await` sobre un `ReadableStream`.
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) {
-        parser.push(decoder.decode());
-        return;
-      }
-      parser.push(decoder.decode(value, { stream: true }));
+      if (done) return;
+      parser.push(value);
     }
   } finally {
     reader.releaseLock();

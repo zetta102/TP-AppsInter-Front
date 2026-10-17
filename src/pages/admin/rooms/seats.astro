@@ -1,9 +1,18 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import AdminRoomSeats from '../../../components/admin/AdminRoomSeats.tsx';
+import { LoadingBlock } from '../../../components/ui/SubmitButton.tsx';
 ---
 
 <!-- `/admin/rooms/:id/seats` se implementa como `/admin/rooms/seats?id=<uuid>`. -->
-<Layout title="Distribución de asientos · Admin" description="Armá la grilla de asientos de una sala." wide>
-  <AdminRoomSeats client:load />
+<Layout
+  title="Distribución de asientos · Admin"
+  description="Armá la grilla de asientos de una sala."
+  wide
+>
+  <AdminRoomSeats client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando la distribución…" />
+    </div>
+  </AdminRoomSeats>
 </Layout>

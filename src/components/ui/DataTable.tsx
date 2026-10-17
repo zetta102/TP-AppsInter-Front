@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { LoadingBlock, EmptyState } from './SubmitButton.tsx';
 import { ErrorBanner } from './ErrorBanner.tsx';
+import { cx } from '../../lib/cx.ts';
 
 /**
  * Contenedor de tabla compartido por las consolas de admin.
@@ -9,40 +10,40 @@ import { ErrorBanner } from './ErrorBanner.tsx';
  * de carga, vacío y error sin repetir markup.
  */
 
-export interface Column<T> {
+export interface Column<T, Field extends string = string> {
   readonly key: string;
   readonly header: ReactNode;
   readonly cell: (row: T) => ReactNode;
   readonly className?: string;
-  /** Entity property to sort on, when the endpoint supports it. */
-  readonly sortField?: string;
+  /** Propiedad de la entidad por la que ordenar, si el endpoint lo soporta. */
+  readonly sortField?: Field;
 }
 
-export interface DataTableProps<T> {
+export interface DataTableProps<T, Field extends string = string> {
   readonly rows: readonly T[] | null;
-  readonly columns: readonly Column<T>[];
+  readonly columns: readonly Column<T, Field>[];
   readonly rowKey: (row: T) => string;
   readonly isLoading?: boolean;
   readonly error?: unknown;
   readonly onRetry?: () => void;
   readonly emptyTitle?: string;
   readonly emptyDescription?: string;
-  readonly activeSort?: { readonly field: string; readonly direction: 'asc' | 'desc' } | undefined;
-  readonly onSort?: (field: string) => void;
+  readonly activeSort?: { readonly field: Field; readonly direction: 'asc' | 'desc' } | undefined;
+  readonly onSort?: (field: Field) => void;
 }
 
-export function DataTable<T>({
+export function DataTable<T, Field extends string = string>({
   rows,
   columns,
   rowKey,
   isLoading = false,
   error,
   onRetry,
-  emptyTitle = 'Nothing here yet',
+  emptyTitle = 'Todavía no hay nada acá',
   emptyDescription,
   activeSort,
   onSort,
-}: DataTableProps<T>) {
+}: DataTableProps<T, Field>) {
   if (error) return <ErrorBanner error={error} onRetry={onRetry} />;
   if (isLoading && !rows) return <LoadingBlock />;
   if (rows && rows.length === 0) {
@@ -55,24 +56,38 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="cine-card overflow-x-auto">
+    <div className="overflow-x-auto cine-card">
       <table className="w-full text-left text-sm">
-        <thead className="text-ink-500 border-ink-800 border-b text-xs uppercase tracking-wide">
+        <thead className="border-b border-ink-800 text-xs tracking-wide text-ink-500 uppercase">
           <tr>
             {columns.map((column) => {
-              const sortable = Boolean(column.sortField && onSort);
-              const isActive = activeSort?.field === column.sortField;
+              const { sortField } = column;
+              const direction =
+                activeSort && sortField !== undefined && activeSort.field === sortField
+                  ? activeSort.direction
+                  : null;
               return (
-                <th key={column.key} scope="col" className={`px-4 py-3 ${column.className ?? ''}`}>
-                  {sortable ? (
+                <th
+                  key={column.key}
+                  scope="col"
+                  aria-sort={
+                    direction === null
+                      ? undefined
+                      : direction === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                  }
+                  className={cx('px-4 py-3', column.className)}
+                >
+                  {sortField !== undefined && onSort ? (
                     <button
                       type="button"
-                      onClick={() => onSort?.(column.sortField!)}
-                      className="hover:text-ink-100 inline-flex items-center gap-1 uppercase"
+                      onClick={() => onSort(sortField)}
+                      className="inline-flex items-center gap-1 uppercase hover:text-ink-100"
                     >
                       {column.header}
                       <span aria-hidden="true">
-                        {isActive && activeSort ? (activeSort.direction === 'asc' ? '▲' : '▼') : '↕'}
+                        {direction === null ? '↕' : direction === 'asc' ? '▲' : '▼'}
                       </span>
                     </button>
                   ) : (
@@ -83,11 +98,11 @@ export function DataTable<T>({
             })}
           </tr>
         </thead>
-        <tbody className="divide-ink-800 divide-y">
+        <tbody className="divide-y divide-ink-800">
           {(rows ?? []).map((row) => (
             <tr key={rowKey(row)} className="hover:bg-ink-800/40">
               {columns.map((column) => (
-                <td key={column.key} className={`px-4 py-3 align-middle ${column.className ?? ''}`}>
+                <td key={column.key} className={cx('px-4 py-3 align-middle', column.className)}>
                   {column.cell(row)}
                 </td>
               ))}
@@ -96,7 +111,7 @@ export function DataTable<T>({
         </tbody>
       </table>
       {isLoading && rows && (
-        <p className="text-ink-500 border-ink-800 border-t px-4 py-2 text-xs">Refreshing…</p>
+        <p className="border-t border-ink-800 px-4 py-2 text-xs text-ink-500">Actualizando…</p>
       )}
     </div>
   );

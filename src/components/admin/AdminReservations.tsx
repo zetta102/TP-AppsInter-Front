@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import {
   cancelReservation,
   listAllReservations,
@@ -6,17 +6,19 @@ import {
 } from '../../lib/api/reservations.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import {
+  isEnumValue,
   ReservationStatus,
   reservationStatusLabels,
   reservationStatusValues,
 } from '../../lib/enums.ts';
-import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
+import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import type { Page, ReservationResponse } from '../../lib/types.ts';
-import type { SortSpec } from '../../lib/query.ts';
+import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Badge } from '../ui/Modal.tsx';
+import { SelectInput } from '../ui/Field.tsx';
+import { StatusBadge } from '../reservations/ReservationParts.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
 
 const PAGE_SIZE = 20;
@@ -30,7 +32,6 @@ export default function AdminReservations() {
   const [sort, setSort] = useState<SortSpec<ReservationSortField>>('createdAt,desc');
   const [status, setStatus] = useState<ReservationStatus | ''>('');
   const [rowError, setRowError] = useState<unknown>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   const resource = useResource<Page<ReservationResponse>>(
     (signal) =>
@@ -41,34 +42,17 @@ export default function AdminReservations() {
     [page, sort, status],
   );
 
-  const cancel = async (reservation: ReservationResponse) => {
-    if (!window.confirm(`¿Cancelar la reserva ${reservation.uuid.slice(0, 8)}? Los asientos se liberarán.`)) {
-      return;
-    }
-    setRowError(null);
-    setBusyId(reservation.uuid);
-    try {
-      await cancelReservation(reservation.uuid);
-    } catch (error) {
-      // 422 cuando ya estaba cancelada.
-      setRowError(error);
-    } finally {
-      setBusyId(null);
-      resource.refetch();
-    }
-  };
-
-  const columns: readonly Column<ReservationResponse>[] = [
+  const columns: readonly Column<ReservationResponse, ReservationSortField>[] = [
     {
       key: 'reference',
       header: 'Reserva',
       cell: (reservation) => (
         <div>
           <div className="font-medium">{reservation.movieName}</div>
-          <div className="text-ink-500 text-xs">
+          <div className="text-xs text-ink-500">
             {reservation.user.firstName} {reservation.user.lastName} · {reservation.user.email}
           </div>
-          <code className="text-ink-600 text-xs">{reservation.uuid.slice(0, 8)}</code>
+          <code className="text-xs text-ink-600">{reservation.uuid.slice(0, 8)}</code>
         </div>
       ),
     },
@@ -89,7 +73,7 @@ export default function AdminReservations() {
         reservation.items.length === 0 ? (
           <span className="text-ink-600">—</span>
         ) : (
-          `${reservation.items.length} ítem${reservation.items.length === 1 ? '' : 's'}`
+          formatCount(reservation.items.length, 'ítem', 'ítems')
         ),
     },
     {
@@ -103,19 +87,7 @@ export default function AdminReservations() {
       key: 'status',
       header: 'Estado',
       sortField: 'status',
-      cell: (reservation) => (
-        <Badge
-          tone={
-            reservation.status === ReservationStatus.CONFIRMED
-              ? 'success'
-              : reservation.status === ReservationStatus.CANCELLED
-                ? 'danger'
-                : 'warning'
-          }
-        >
-          {reservationStatusLabels[reservation.status]}
-        </Badge>
-      ),
+      cell: (reservation) => <StatusBadge status={reservation.status} />,
     },
     {
       key: 'createdAt',
@@ -129,19 +101,10 @@ export default function AdminReservations() {
       className: 'text-right',
       cell: (reservation) =>
         reservation.status === ReservationStatus.CANCELLED ? null : (
-          <button
-            type="button"
-            disabled={busyId === reservation.uuid}
-            className="cine-btn cine-btn-danger"
-            onClick={() => void cancel(reservation)}
-          >
-            {busyId === reservation.uuid ? 'Cancelando…' : 'Cancelar'}
-          </button>
+          <CancelButton reservation={reservation} onError={setRowError} onDone={resource.refetch} />
         ),
     },
   ];
-
-  const [sortField, sortDirection] = sort.split(',') as [ReservationSortField, 'asc' | 'desc'];
 
   return (
     <AdminPage
@@ -149,27 +112,23 @@ export default function AdminReservations() {
       description="Todas las reservas del sistema. Al cancelar se liberan los asientos y se repone el stock de confitería."
     >
       <AdminToolbar>
-        <div className="min-w-48">
-          <label htmlFor="res-status" className="cine-label">
-            Estado
-          </label>
-          <select
-            id="res-status"
-            className="cine-input"
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as ReservationStatus | '');
-              setPage(0);
-            }}
-          >
-            <option value="">Todos los estados</option>
-            {reservationStatusValues.map((value) => (
-              <option key={value} value={value}>
-                {reservationStatusLabels[value]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectInput
+          label="Estado"
+          fieldClassName="min-w-48"
+          value={status}
+          onChange={(event) => {
+            const { value } = event.target;
+            setStatus(isEnumValue(reservationStatusValues, value) ? value : '');
+            setPage(0);
+          }}
+        >
+          <option value="">Todos los estados</option>
+          {reservationStatusValues.map((value) => (
+            <option key={value} value={value}>
+              {reservationStatusLabels[value]}
+            </option>
+          ))}
+        </SelectInput>
       </AdminToolbar>
 
       {rowError !== null && <ErrorBanner error={rowError} onRetry={resource.refetch} />}
@@ -183,19 +142,59 @@ export default function AdminReservations() {
         onRetry={resource.refetch}
         emptyTitle="No hay reservas"
         emptyDescription="Todavía no se registraron reservas para este filtro."
-        activeSort={{ field: sortField, direction: sortDirection }}
+        activeSort={parseSort(sort)}
         onSort={(field) => {
-          setSort(
-            (current) =>
-              (current === `${field},asc`
-                ? `${field},desc`
-                : `${field},asc`) as SortSpec<ReservationSortField>,
-          );
+          setSort((current) => toggleSort(current, field));
           setPage(0);
         }}
       />
 
       <Pagination page={resource.data} onPageChange={setPage} />
     </AdminPage>
+  );
+}
+
+/** Cancelación de una fila, con su propia transición: solo esa fila queda pendiente. */
+function CancelButton({
+  reservation,
+  onError,
+  onDone,
+}: {
+  readonly reservation: ReservationResponse;
+  readonly onError: (error: unknown) => void;
+  readonly onDone: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+
+  const cancel = () => {
+    if (
+      !window.confirm(
+        `¿Cancelar la reserva ${reservation.uuid.slice(0, 8)}? Los asientos se liberarán.`,
+      )
+    ) {
+      return;
+    }
+    onError(null);
+    startTransition(async () => {
+      try {
+        await cancelReservation(reservation.uuid);
+      } catch (error) {
+        // 422 cuando ya estaba cancelada.
+        onError(error);
+      } finally {
+        onDone();
+      }
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      disabled={isPending}
+      className="cine-btn cine-btn-danger"
+      onClick={cancel}
+    >
+      {isPending ? 'Cancelando…' : 'Cancelar'}
+    </button>
   );
 }

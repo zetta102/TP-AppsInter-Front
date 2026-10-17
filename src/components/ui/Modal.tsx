@@ -1,48 +1,56 @@
-import { useEffect, useRef } from 'react';
+import { useId } from 'react';
 import type { ReactNode } from 'react';
+import { cx } from '../../lib/cx.ts';
 
 /**
  * Diálogo sobre el elemento nativo `<dialog>`: el foco atrapado, la capa superior
  * y el manejo de Escape los resuelve la plataforma.
+ *
+ * El diálogo está abierto mientras está montado: el llamador lo renderiza de forma condicional
+ * (`{open && <Modal …/>}`), lo que además descarta el estado del formulario al cerrarlo. El ref
+ * callback con cleanup de React 19 lo abre al montar y lo cierra al desmontar.
  */
+/**
+ * Ref callback a nivel de módulo: una identidad estable evita que React ejecute el cleanup
+ * (cerrar) y vuelva a abrir el diálogo en cada render.
+ */
+function showWhileMounted(dialog: HTMLDialogElement) {
+  if (!dialog.open) dialog.showModal();
+  return () => dialog.close();
+}
+
 export function Modal({
-  open,
   onClose,
   title,
   children,
   footer,
   wide = false,
 }: {
-  readonly open: boolean;
   readonly onClose: () => void;
   readonly title: string;
   readonly children: ReactNode;
   readonly footer?: ReactNode;
   readonly wide?: boolean;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+  const titleId = useId();
 
   return (
     <dialog
-      ref={ref}
+      ref={showWhileMounted}
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
       }}
-      onClose={onClose}
-      className={`bg-ink-900 text-ink-100 border-ink-800 rounded-card m-auto w-full border p-0 backdrop:bg-black/70 ${
-        wide ? 'max-w-3xl' : 'max-w-lg'
-      }`}
+      className={cx(
+        'm-auto w-full rounded-card border border-ink-800 bg-ink-900 p-0 text-ink-100 backdrop:bg-black/70',
+        wide ? 'max-w-3xl' : 'max-w-lg',
+      )}
     >
-      <div className="border-ink-800 flex items-center justify-between border-b px-5 py-4">
-        <h2 className="text-base font-semibold">{title}</h2>
+      <div className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
+        <h2 id={titleId} className="text-base font-semibold">
+          {title}
+        </h2>
         <button
           type="button"
           onClick={onClose}
@@ -54,7 +62,7 @@ export function Modal({
       </div>
       <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
       {footer && (
-        <div className="border-ink-800 flex justify-end gap-2 border-t px-5 py-4">{footer}</div>
+        <div className="flex justify-end gap-2 border-t border-ink-800 px-5 py-4">{footer}</div>
       )}
     </dialog>
   );
@@ -78,7 +86,10 @@ export function Badge({
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tones[tone]}`}
+      className={cx(
+        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+        tones[tone],
+      )}
     >
       {children}
     </span>

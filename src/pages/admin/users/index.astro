@@ -1,8 +1,13 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import AdminUsers from '../../../components/admin/AdminUsers.tsx';
+import { LoadingBlock } from '../../../components/ui/SubmitButton.tsx';
 ---
 
 <Layout title="Usuarios · Admin" description="Cuentas registradas." wide>
-  <AdminUsers client:load />
+  <AdminUsers client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando los usuarios…" />
+    </div>
+  </AdminUsers>
 </Layout>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createHold, releaseHold, replaceHold } from './api/holds.ts';
 import { isApiErrorWithStatus, toUserMessage } from './problem.ts';
+import { useNow } from './use-now.ts';
 import type { SeatHoldResponse, Uuid } from './types.ts';
 
 /**
@@ -47,7 +48,10 @@ function isLive(hold: SeatHoldResponse, screeningId: Uuid): boolean {
   return hold.screeningId === screeningId && new Date(hold.expiresAt).getTime() > Date.now();
 }
 
-export function useSeatHold(screeningId: Uuid | undefined, seatIds: readonly Uuid[]): SeatHoldState {
+export function useSeatHold(
+  screeningId: Uuid | undefined,
+  seatIds: readonly Uuid[],
+): SeatHoldState {
   const [generation, setGeneration] = useState(0);
   // Clave estable e independiente del orden: la retención solo cambia si cambia el conjunto
   // (o si se pidió renovarla).
@@ -55,7 +59,6 @@ export function useSeatHold(screeningId: Uuid | undefined, seatIds: readonly Uui
 
   const [created, setCreated] = useState<Keyed<SeatHoldResponse> | null>(null);
   const [failure, setFailure] = useState<Keyed<string> | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const consumedRef = useRef(false);
   // La retención vigente en el servidor según la última operación terminada.
   const liveRef = useRef<SeatHoldResponse | null>(null);
@@ -128,11 +131,8 @@ export function useSeatHold(screeningId: Uuid | undefined, seatIds: readonly Uui
   const hold = created?.key === key && seatIds.length > 0 ? created.value : null;
   const error = failure?.key === key && seatIds.length > 0 ? failure.value : null;
 
-  useEffect(() => {
-    if (!hold) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [hold]);
+  // La cuenta regresiva solo corre mientras hay una retención activa.
+  const now = useNow(1000, hold !== null);
 
   const secondsLeft = hold
     ? Math.min(

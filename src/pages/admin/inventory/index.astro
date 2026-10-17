@@ -1,8 +1,13 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import AdminInventory from '../../../components/admin/AdminInventory.tsx';
+import { LoadingBlock } from '../../../components/ui/SubmitButton.tsx';
 ---
 
 <Layout title="Confitería · Admin" description="Administrá el catálogo de confitería." wide>
-  <AdminInventory client:load />
+  <AdminInventory client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando el inventario…" />
+    </div>
+  </AdminInventory>
 </Layout>

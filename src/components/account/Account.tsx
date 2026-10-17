@@ -3,7 +3,6 @@ import { useActionState } from 'react';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { changeMyPassword, updateMyProfile } from '../../lib/api/users.ts';
 import { isApiErrorWithCode, toFieldErrors, toUserMessage } from '../../lib/problem.ts';
-import { logout } from '../../lib/auth-store.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { TextInput } from '../ui/Field.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
@@ -41,7 +40,7 @@ interface PasswordState {
 const initialPasswordState: PasswordState = { error: null, fieldErrors: {}, success: false };
 
 function AccountPanel() {
-  const { user, tokens, setUser } = useAuth();
+  const { user, tokens, setUser, logout } = useAuth();
 
   const [profileState, profileAction] = useActionState(
     async (_prev: ProfileState, formData: FormData) => {
@@ -88,9 +87,7 @@ function AccountPanel() {
         if (signOutEverywhere) {
           await logout();
           void navigate('/login');
-          return { error: null, fieldErrors: {}, success: true };
         }
-
         return { error: null, fieldErrors: {}, success: true };
       } catch (error) {
         // `422 WRONG_PASSWORD`: la contraseña actual es incorrecta, pero la sesión sigue
@@ -110,20 +107,17 @@ function AccountPanel() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8">
-      <section className="cine-card flex flex-col gap-4 p-6">
+      <section className="flex flex-col gap-4 cine-card p-6">
         <h2 className="text-lg font-semibold">Perfil</h2>
 
         <ErrorBanner error={profileState.error} />
         {profileState.success && (
-          <p
-            role="status"
-            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm"
-          >
+          <p role="status" className="cine-alert-success px-4 py-2 text-sm">
             Perfil actualizado.
           </p>
         )}
 
-        <p className="text-ink-500 text-sm">
+        <p className="text-sm text-ink-500">
           Iniciaste sesión como <span className="text-ink-200">{user?.email}</span>
         </p>
 
@@ -150,15 +144,12 @@ function AccountPanel() {
         </form>
       </section>
 
-      <section className="cine-card flex flex-col gap-4 p-6">
+      <section className="flex flex-col gap-4 cine-card p-6">
         <h2 className="text-lg font-semibold">Cambiar contraseña</h2>
 
         <ErrorBanner error={passwordState.error} />
         {passwordState.success && (
-          <p
-            role="status"
-            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm"
-          >
+          <p role="status" className="cine-alert-success px-4 py-2 text-sm">
             Contraseña actualizada.
           </p>
         )}
@@ -192,11 +183,11 @@ function AccountPanel() {
             error={passwordState.fieldErrors['confirmPassword']}
           />
 
-          <label className="text-ink-300 flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-ink-300">
             <input type="checkbox" name="signOutEverywhere" className="size-4" />
             Cerrar también la sesión en este dispositivo
           </label>
-          <p className="text-ink-600 -mt-2 text-xs">
+          <p className="-mt-2 text-xs text-ink-600">
             Al cambiar la contraseña siempre se cerrará la sesión en los demás dispositivos. Déjalo
             desmarcado para seguir con la sesión iniciada aquí.
           </p>

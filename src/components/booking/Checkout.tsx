@@ -1,10 +1,12 @@
 import { navigate } from 'astro:transitions/client';
-import { useActionState, useCallback, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { getScreeningSeatMap, getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
 import { listProducts } from '../../lib/api/products.ts';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { createReservation, quoteReservation } from '../../lib/api/reservations.ts';
-import { useResource } from '../../lib/use-resource.ts';
+import { useKeyedResource, useResource } from '../../lib/use-resource.ts';
+import { delay } from '../../lib/delay.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useQueryParams } from '../../lib/use-query-param.ts';
 import { useSeatHold } from '../../lib/use-seat-hold.ts';
 import { useNow } from '../../lib/use-now.ts';
@@ -12,21 +14,20 @@ import { usePolling } from '../../lib/use-polling.ts';
 import { patchSeatMap, useSeatStream } from '../../lib/use-seat-stream.ts';
 import { useAuth } from '../../lib/auth-context.tsx';
 import { isApiError, isApiErrorWithCode } from '../../lib/problem.ts';
-import { estimateTotal } from '../../lib/pricing.ts';
-import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
-import { productCategoryLabels } from '../../lib/enums.ts';
+import { estimateTotal, lineTotal, ticketPrice } from '../../lib/pricing.ts';
+import { formatCountdown, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
+import { productCategoryLabels, SeatType } from '../../lib/enums.ts';
 import type {
   MetadataConfigResponse,
   MovieScreeningResponse,
   ProductResponse,
-  ReservationQuoteResponse,
   SeatMapResponse,
   SeatMapSeat,
 } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock, SubmitButton } from '../ui/SubmitButton.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
-import { SeatMap } from './SeatMap.tsx';
+import { indexSeatsById, SeatMap } from './SeatMap.tsx';
 
 /**
  * Pantalla de checkout (backend-status-for-frontend.md §7.2–§7.4).
@@ -80,31 +81,24 @@ function CheckoutPanel() {
   const [initialised, setInitialised] = useState(false);
   const [quantities, setQuantities] = useState<ReadonlyMap<string, number>>(new Map());
 
-  const resource = useResource<CheckoutData>(
-    async (signal) => {
-      const [screening, products, config] = await Promise.all([
-        // Función + mapa en una sola llamada (`include=seatMap`).
-        getScreeningWithSeatMap(screeningId!, { signal }),
-        // Público y solo de precios: ya no se oculta este panel ante un 403.
-        listProducts({ size: 100, sort: 'productName,asc' }, { signal }),
-        // Ante un error, vuelve a los valores predeterminados documentados, para que
-        // una caída de metadata nunca bloquee el checkout.
-        getMetadataConfigOrDefault({ signal }),
-      ]);
+  const resource = useKeyedResource<string, CheckoutData>(screeningId, async (id, signal) => {
+    const [screening, products, config] = await Promise.all([
+      // Función + mapa en una sola llamada (`include=seatMap`).
+      getScreeningWithSeatMap(id, { signal }),
+      // Público y solo de precios: ya no se oculta este panel ante un 403.
+      listProducts({ size: 100, sort: 'productName,asc' }, { signal }),
+      // Ante un error, vuelve a los valores predeterminados documentados, para que
+      // una caída de metadata nunca bloquee el checkout.
+      getMetadataConfigOrDefault({ signal }),
+    ]);
 
-      return { screening, seatMap: screening.seatMap, products: products.content, config };
-    },
-    [screeningId],
-    { enabled: Boolean(screeningId) },
-  );
+    return { screening, seatMap: screening.seatMap, products: products.content, config };
+  });
+  useDocumentTitle(resource.data && `Reserva · ${resource.data.screening.movieName}`);
 
   // Inicializa la selección desde la query string una vez conocido el mapa,
   // descartando cualquier asiento que ya no esté disponible.
-  const seatsById = useMemo(() => {
-    const map = new Map<string, SeatMapSeat>();
-    for (const seat of resource.data?.seatMap.seats ?? []) map.set(seat.seatId, seat);
-    return map;
-  }, [resource.data]);
+  const seatsById = indexSeatsById(resource.data?.seatMap.seats ?? []);
 
   if (resource.data && !initialised) {
     const requested = (params.seats ?? '').split(',').filter(Boolean);
@@ -116,22 +110,22 @@ function CheckoutPanel() {
   // durante el checkout. Cada cambio de selección la reemplaza sin soltar los asientos que siguen.
   const seatHold = useSeatHold(screeningId ?? undefined, selected);
 
-  const toggle = useCallback((seat: SeatMapSeat) => {
+  const toggle = (seat: SeatMapSeat) => {
     setSelected((current) =>
       current.includes(seat.seatId)
         ? current.filter((id) => id !== seat.seatId)
         : [...current, seat.seatId],
     );
-  }, []);
+  };
 
-  const setQuantity = useCallback((inventoryId: string, quantity: number) => {
+  const setQuantity = (inventoryId: string, quantity: number) => {
     setQuantities((current) => {
       const next = new Map(current);
       if (quantity <= 0) next.delete(inventoryId);
       else next.set(inventoryId, quantity);
       return next;
     });
-  }, []);
+  };
 
   const { refetch, setData } = resource;
   // Ventas y retenciones de otros clientes, en vivo; el polling queda como red de seguridad.
@@ -139,7 +133,9 @@ function CheckoutPanel() {
     viewer: user?.uuid ?? null,
     onReconnect: refetch,
     onSeats: (states) =>
-      setData((current) => current && { ...current, seatMap: patchSeatMap(current.seatMap, states) }),
+      setData(
+        (current) => current && { ...current, seatMap: patchSeatMap(current.seatMap, states) },
+      ),
   });
   usePolling(refetch, live ? SEAT_MAP_SAFETY_POLL_MS : SEAT_MAP_POLL_MS, Boolean(screeningId));
   // Cuando la cuenta regresiva llega a cero, la retención se pierde: vuelve a consultar el mapa
@@ -148,50 +144,46 @@ function CheckoutPanel() {
     if (seatHold.expired) refetch();
   }, [seatHold.expired, refetch]);
 
-  const productsRequest = quantities.size > 0
-    ? [...quantities].map(([inventoryId, quantity]) => ({ inventoryId, quantity }))
-    : undefined;
+  const productsRequest =
+    quantities.size > 0
+      ? Array.from(quantities, ([inventoryId, quantity]) => ({ inventoryId, quantity }))
+      : undefined;
 
-  // Vista previa autorizada del precio: mismo cuerpo y misma validación que
-  // create, sin efectos secundarios. Tiene debounce para que no se dispare una petición en cada clic.
-  const [quote, setQuote] = useState<ReservationQuoteResponse | null>(null);
   // Solo se envía la retención si cubre toda la selección actual; si no, el servidor
   // respondería `404`/`409` mientras se recrea la retención para la nueva selección.
   const holdId =
-    seatHold.hold && selected.every((id) => seatHold.hold?.seatIds.includes(id))
+    seatHold.hold && new Set(selected).isSubsetOf(new Set(seatHold.hold.seatIds))
       ? seatHold.hold.uuid
       : undefined;
-  const quoteKey = `${selected.join(',')}|${[...quantities].map((e) => e.join(':')).join(',')}|${holdId ?? ''}`;
-  useEffect(() => {
-    if (!screeningId || selected.length === 0) {
-      setQuote(null);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      void quoteReservation(
+  const quoteKey = `${selected.join(',')}|${Array.from(quantities, (entry) => entry.join(':')).join(',')}|${holdId ?? ''}`;
+
+  // Vista previa autorizada del precio: mismo cuerpo y misma validación que create, sin efectos
+  // secundarios. El `delay` abortable hace de debounce: cambiar la selección cancela la espera
+  // y la petición en curso, así que no se dispara una cotización en cada clic.
+  const quoteResource = useResource(
+    async (signal) => {
+      await delay(QUOTE_DEBOUNCE_MS, signal);
+      return quoteReservation(
         {
-          movieScreeningId: screeningId,
+          movieScreeningId: screeningId ?? '',
           seatIds: selected,
           ...(productsRequest ? { products: productsRequest } : {}),
           ...(holdId ? { holdId } : {}),
         },
-        { signal: controller.signal },
-      )
-        .then(setQuote)
-        .catch(() => setQuote(null));
-    }, QUOTE_DEBOUNCE_MS);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- quoteKey deriva las dependencias
-  }, [screeningId, quoteKey]);
+        { signal },
+      );
+    },
+    [screeningId, quoteKey],
+    { enabled: Boolean(screeningId) && selected.length > 0 },
+  );
+  // Un error de cotización no bloquea: se vuelve a la estimación local.
+  const quote = quoteResource.status === 'success' ? quoteResource.data : null;
 
   const [submitState, submitAction] = useActionState(async (_prev: SubmitState) => {
+    if (!screeningId) return initialSubmitState;
     try {
       const { data } = await createReservation({
-        movieScreeningId: screeningId!,
+        movieScreeningId: screeningId,
         seatIds: selected,
         ...(productsRequest ? { products: productsRequest } : {}),
         ...(seatHold.hold ? { holdId: seatHold.hold.uuid } : {}),
@@ -203,15 +195,14 @@ function CheckoutPanel() {
     } catch (error) {
       // 409: otra persona reservó uno de estos asientos antes. Volvé a consultar y mostrá cuáles.
       if (isApiError(error) && error.status === 409) {
-        const fresh = await getScreeningSeatMap(screeningId!).catch(() => null);
-        const lost = fresh
-          ? selected.filter(
-              (id) => fresh.seats.find((seat) => seat.seatId === id)?.available === false,
-            )
-          : [];
+        const fresh = await getScreeningSeatMap(screeningId).catch(() => null);
+        const unavailable = new Set(
+          (fresh?.seats ?? []).filter((seat) => !seat.available).map((seat) => seat.seatId),
+        );
+        const lost = new Set(selected).intersection(unavailable);
         resource.refetch();
-        setSelected((current) => current.filter((id) => !lost.includes(id)));
-        return { error, lostSeatIds: lost };
+        setSelected((current) => current.filter((id) => !lost.has(id)));
+        return { error, lostSeatIds: [...lost] };
       }
       // La función se archivó o empezó mientras tanto: se recarga para reflejarlo.
       if (isApiErrorWithCode(error, 'RESOURCE_ARCHIVED', 'SCREENING_STARTED')) resource.refetch();
@@ -243,12 +234,11 @@ function CheckoutPanel() {
   const { screening, seatMap, products, config } = resource.data;
   const chosenSeats = selected.map((id) => seatsById.get(id)).filter((seat) => seat !== undefined);
 
-  const chosenProducts = [...quantities]
-    .map(([id, quantity]) => {
-      const product = products.find((candidate) => candidate.uuid === id);
-      return product ? { product, quantity } : null;
-    })
-    .filter((entry) => entry !== null);
+  const productsById = new Map(products.map((product) => [product.uuid, product]));
+  const chosenProducts = Array.from(quantities, ([id, quantity]) => {
+    const product = productsById.get(id);
+    return product ? { product, quantity } : null;
+  }).filter((entry) => entry !== null);
 
   // Una vez cargada, la cotización del servidor es la referencia válida; la réplica del cliente
   // solo cubre el intervalo mientras está en curso o no disponible, y usa el multiplicador premium
@@ -271,29 +261,24 @@ function CheckoutPanel() {
       <div className="flex flex-col gap-6">
         <header>
           <h1 className="text-2xl font-bold">{screening.movieName}</h1>
-          <p className="text-ink-500 text-sm">
+          <p className="text-sm text-ink-500">
             {formatDateTime(screening.startsAt)} · {screening.roomName}
           </p>
         </header>
 
         {seatHold.hold && !seatHold.expired && (
-          <div
-            role="status"
-            className="border-brand-500/40 bg-brand-500/10 text-brand-300 flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm"
-          >
-            <span>Tus asientos están reservados para vos.</span>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-sm text-brand-300">
+            {/* Solo el aviso es una región viva: la cuenta regresiva no se anuncia cada segundo. */}
+            <span role="status">Tus asientos están reservados para vos.</span>
             <span className="font-mono tabular-nums">
-              {String(Math.floor((seatHold.secondsLeft ?? 0) / 60)).padStart(2, '0')}:
-              {String((seatHold.secondsLeft ?? 0) % 60).padStart(2, '0')}
+              <span className="sr-only">Tiempo restante: </span>
+              {formatCountdown(seatHold.secondsLeft ?? 0)}
             </span>
           </div>
         )}
 
         {closed && (
-          <div
-            role="alert"
-            className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm"
-          >
+          <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
             {screening.archived
               ? 'Esta función ya no está disponible.'
               : 'Esta función ya comenzó, por lo que ya no puede reservarse.'}
@@ -303,7 +288,7 @@ function CheckoutPanel() {
         {seatHold.expired && !closed && (
           <div
             role="alert"
-            className="border-gold-500/40 bg-gold-500/10 text-gold-400 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 cine-alert-warning px-4 py-3 text-sm"
           >
             <span>Tu retención venció. Renovala para seguir con estos asientos.</span>
             <button type="button" className="cine-btn cine-btn-ghost" onClick={seatHold.renew}>
@@ -313,29 +298,23 @@ function CheckoutPanel() {
         )}
 
         {seatHold.error && !closed && (
-          <div
-            role="alert"
-            className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm"
-          >
+          <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
             No pudimos retener tus asientos: {seatHold.error}
           </div>
         )}
 
         {submitState.lostSeatIds.length > 0 && (
-          <div
-            role="alert"
-            className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm"
-          >
+          <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
             <p className="font-semibold">Algunos asientos acaban de ocuparse</p>
-            <p className="text-ink-300 mt-0.5">
+            <p className="mt-0.5 text-ink-300">
               {submitState.lostSeatIds
                 .map((id) => {
                   const seat = seatsById.get(id);
                   return seat ? seatLabel(seat.row, seat.column) : id.slice(0, 8);
                 })
                 .join(', ')}{' '}
-              ahora pertenecen a otro cliente y se quitaron de tu pedido. Elegí reemplazos e
-              intentá nuevamente.
+              ahora pertenecen a otro cliente y se quitaron de tu pedido. Elegí reemplazos e intentá
+              nuevamente.
             </p>
           </div>
         )}
@@ -361,9 +340,9 @@ function CheckoutPanel() {
           <h2 className="mb-4 text-sm font-semibold">Agregar confitería</h2>
 
           {products.length === 0 ? (
-            <p className="text-ink-500 text-sm">No hay productos disponibles en este momento.</p>
+            <p className="text-sm text-ink-500">No hay productos disponibles en este momento.</p>
           ) : (
-            <ul className="divide-ink-800 divide-y">
+            <ul className="divide-y divide-ink-800">
               {products.map((product) => {
                 const quantity = quantities.get(product.uuid) ?? 0;
                 const soldOut = !product.available;
@@ -372,7 +351,7 @@ function CheckoutPanel() {
                   <li key={product.uuid} className="flex items-center gap-4 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{product.productName}</p>
-                      <p className="text-ink-500 text-xs">
+                      <p className="text-xs text-ink-500">
                         {productCategoryLabels[product.category]} · {formatMoney(product.price)} ·{' '}
                         {soldOut ? 'sin stock' : 'disponible'}
                       </p>
@@ -408,7 +387,7 @@ function CheckoutPanel() {
       </div>
 
       <aside className="lg:sticky lg:top-24 lg:self-start">
-        <form action={submitAction} className="cine-card flex flex-col gap-4 p-5">
+        <form action={submitAction} className="flex flex-col gap-4 cine-card p-5">
           <h2 className="text-sm font-semibold">Resumen del pedido</h2>
 
           <ul className="flex flex-col gap-2 text-sm">
@@ -423,14 +402,17 @@ function CheckoutPanel() {
                       Asiento {seatLabel(seat.row, seat.column)}
                       <span className="text-ink-500">
                         {' '}
-                        · {seat.seatType === 'PREMIUM' ? 'premium' : 'estándar'}
+                        · {seat.seatType === SeatType.PREMIUM ? 'premium' : 'estándar'}
                       </span>
                     </span>
                     <span className="tabular-nums">
                       {formatMoney(
                         quoted?.price ??
-                          estimateTotal(screening.basePrice, [seat], [], config.premiumSeatMultiplier)
-                            .seatsTotal,
+                          ticketPrice(
+                            screening.basePrice,
+                            seat.seatType,
+                            config.premiumSeatMultiplier,
+                          ),
                       )}
                     </span>
                   </li>
@@ -447,14 +429,14 @@ function CheckoutPanel() {
                     <span className="text-ink-500"> × {quantity}</span>
                   </span>
                   <span className="tabular-nums">
-                    {formatMoney(quoted?.lineTotal ?? product.price * quantity)}
+                    {formatMoney(quoted?.lineTotal ?? lineTotal(product.price, quantity))}
                   </span>
                 </li>
               );
             })}
           </ul>
 
-          <div className="border-ink-800 flex justify-between border-t pt-3 text-base font-semibold">
+          <div className="flex justify-between border-t border-ink-800 pt-3 text-base font-semibold">
             <span>Total</span>
             <span className="tabular-nums">{formatMoney(total)}</span>
           </div>
@@ -463,7 +445,7 @@ function CheckoutPanel() {
             Confirmar reserva
           </SubmitButton>
 
-          <p className="text-ink-600 text-xs">
+          <p className="text-xs text-ink-600">
             {quote
               ? 'Este total es la cotización de precio confirmada por el servidor.'
               : 'El precio mostrado es una estimación; el total confirmado de tu reserva es el válido.'}

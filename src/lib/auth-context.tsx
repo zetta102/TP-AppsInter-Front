@@ -1,4 +1,4 @@
-import { createContext, use, useCallback, useEffect, useSyncExternalStore } from 'react';
+import { createContext, use, useEffect, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import {
   clearSession,
@@ -49,24 +49,23 @@ export function useAuthSnapshot(): AuthState {
   return snapshot;
 }
 
+/** Acciones del store: funciones de módulo, con identidad estable sin necesidad de memoizar. */
+const actions = {
+  login: (credentials: LoginRequest) => storeLogin(credentials),
+  register: (payload: RegisterRequest) => storeRegister(payload),
+  logout: () => storeLogout(),
+  clear: () => clearSession(),
+  setUser: (user: UserResponse) => storeSetUser(user),
+} as const;
+
 function useStoreBackedValue(): AuthContextValue {
   const snapshot = useAuthSnapshot();
-
-  const login = useCallback((credentials: LoginRequest) => storeLogin(credentials), []);
-  const register = useCallback((payload: RegisterRequest) => storeRegister(payload), []);
-  const logout = useCallback(() => storeLogout(), []);
-  const clear = useCallback(() => clearSession(), []);
-  const setUser = useCallback((user: UserResponse) => storeSetUser(user), []);
 
   return {
     ...snapshot,
     isAuthenticated: snapshot.tokens !== null,
     isAdmin: snapshot.user?.role === Role.ADMIN,
-    login,
-    register,
-    logout,
-    clear,
-    setUser,
+    ...actions,
   };
 }
 

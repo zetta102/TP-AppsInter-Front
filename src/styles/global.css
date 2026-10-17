@@ -23,6 +23,8 @@
   --color-gold-400: oklch(0.82 0.15 85);
 
   --radius-card: 0.875rem;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 @layer base {
@@ -35,7 +37,7 @@
     background-color: var(--color-ink-950);
     color: var(--color-ink-100);
     -webkit-font-smoothing: antialiased;
-    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-family: var(--font-sans);
   }
 
   :focus-visible {
@@ -58,7 +60,9 @@
   padding: --spacing(2) --spacing(3);
   font-size: var(--text-sm);
   color: var(--color-ink-100);
-  transition: border-color 150ms ease;
+  transition-property: border-color;
+  transition-duration: var(--default-transition-duration);
+  transition-timing-function: var(--default-transition-timing-function);
 
   &::placeholder {
     color: var(--color-ink-500);
@@ -90,9 +94,9 @@
   padding: --spacing(2) --spacing(4);
   font-size: var(--text-sm);
   font-weight: 600;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
+  transition-property: background-color, color;
+  transition-duration: var(--default-transition-duration);
+  transition-timing-function: var(--default-transition-timing-function);
 
   &:disabled {
     cursor: not-allowed;
@@ -100,12 +104,15 @@
   }
 }
 
+/* `@variant hover` aplica el mismo `@media (hover: hover)` que las utilidades `hover:`. */
 @utility cine-btn-primary {
   background-color: var(--color-brand-500);
-  color: white;
+  color: var(--color-white);
 
-  &:hover:not(:disabled) {
-    background-color: var(--color-brand-600);
+  @variant hover {
+    &:not(:disabled) {
+      background-color: var(--color-brand-600);
+    }
   }
 }
 
@@ -113,17 +120,21 @@
   background-color: var(--color-ink-800);
   color: var(--color-ink-100);
 
-  &:hover:not(:disabled) {
-    background-color: var(--color-ink-700);
+  @variant hover {
+    &:not(:disabled) {
+      background-color: var(--color-ink-700);
+    }
   }
 }
 
 @utility cine-btn-ghost {
   color: var(--color-ink-300);
 
-  &:hover:not(:disabled) {
-    background-color: var(--color-ink-800);
-    color: var(--color-ink-100);
+  @variant hover {
+    &:not(:disabled) {
+      background-color: var(--color-ink-800);
+      color: var(--color-ink-100);
+    }
   }
 }
 
@@ -131,8 +142,24 @@
   border: 1px solid var(--color-brand-600);
   color: var(--color-brand-400);
 
-  &:hover:not(:disabled) {
-    background-color: var(--color-brand-600);
-    color: white;
+  @variant hover {
+    &:not(:disabled) {
+      background-color: var(--color-brand-600);
+      color: var(--color-white);
+    }
   }
+}
+
+/* Avisos en línea (retenciones, advertencias, confirmaciones). El espaciado queda en el markup. */
+@utility cine-alert-warning {
+  border: 1px solid --alpha(var(--color-gold-500) / 40%);
+  border-radius: var(--radius-lg);
+  background-color: --alpha(var(--color-gold-500) / 10%);
+  color: var(--color-gold-400);
+}
+
+@utility cine-alert-success {
+  border: 1px solid --alpha(var(--color-emerald-500) / 40%);
+  border-radius: var(--radius-lg);
+  background-color: --alpha(var(--color-emerald-500) / 10%);
 }

@@ -1,9 +1,14 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import ReservationDetail from '../../components/reservations/ReservationDetail.tsx';
+import { LoadingBlock } from '../../components/ui/SubmitButton.tsx';
 ---
 
 <!-- `/reservations/:id` se implementa como `/reservations/detail?id=<uuid>`. -->
 <Layout title="Reserva" description="Detalle de entradas y confitería.">
-  <ReservationDetail client:load />
+  <ReservationDetail client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando la reserva…" />
+    </div>
+  </ReservationDetail>
 </Layout>

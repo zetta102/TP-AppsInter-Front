@@ -1,6 +1,7 @@
 import { listMovies, listNowShowing } from '../../lib/api/movies.ts';
 import { collectAllPages } from '../../lib/api/shared.ts';
 import { useResource } from '../../lib/use-resource.ts';
+import { formatCount } from '../../lib/format.ts';
 import type { MovieResponse, NowShowingResponse } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
@@ -54,7 +55,9 @@ export default function NowShowing() {
       <section>
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="text-xl font-bold">En cartel</h2>
-          <p className="text-sm text-ink-500">{screeningCount} próximas funciones</p>
+          <p className="text-sm text-ink-500">
+            {formatCount(screeningCount, 'próxima función', 'próximas funciones')}
+          </p>
         </div>
 
         {showing.length === 0 ? (

@@ -1,3 +1,4 @@
+import { cx } from '../../lib/cx.ts';
 import { isApiError, toUserMessage } from '../../lib/problem.ts';
 
 /**
@@ -12,16 +13,16 @@ import { isApiError, toUserMessage } from '../../lib/problem.ts';
  */
 
 const toneByKind = {
-  validation: 'border-gold-500/40 bg-gold-500/10 text-gold-400',
-  unauthorized: 'border-gold-500/40 bg-gold-500/10 text-gold-400',
-  forbidden: 'border-gold-500/40 bg-gold-500/10 text-gold-400',
-  notFound: 'border-ink-700 bg-ink-800/60 text-ink-300',
-  conflict: 'border-gold-500/40 bg-gold-500/10 text-gold-400',
-  businessRule: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
-  request: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
-  server: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
-  network: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
-  unknown: 'border-brand-500/40 bg-brand-500/10 text-brand-400',
+  validation: 'cine-alert-warning',
+  unauthorized: 'cine-alert-warning',
+  forbidden: 'cine-alert-warning',
+  notFound: 'rounded-lg border border-ink-700 bg-ink-800/60 text-ink-300',
+  conflict: 'cine-alert-warning',
+  businessRule: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
+  request: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
+  server: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
+  network: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
+  unknown: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
 } as const;
 
 const headingByKind = {
@@ -59,14 +60,18 @@ export function ErrorBanner({
   return (
     <div
       role="alert"
-      className={`flex items-start justify-between gap-4 rounded-lg border px-4 py-3 text-sm ${toneByKind[kind]} ${className}`}
+      className={cx(
+        'flex items-start justify-between gap-4 px-4 py-3 text-sm',
+        toneByKind[kind],
+        className,
+      )}
     >
       <div className="min-w-0">
         <p className="font-semibold">{headingByKind[kind]}</p>
-        <p className="text-ink-300 mt-0.5 break-words">{toUserMessage(error)}</p>
+        <p className="mt-0.5 wrap-break-word text-ink-300">{toUserMessage(error)}</p>
       </div>
       {showRetry && (
-        <button type="button" onClick={onRetry} className="cine-btn cine-btn-secondary shrink-0">
+        <button type="button" onClick={onRetry} className="cine-btn shrink-0 cine-btn-secondary">
           {retryLabel}
         </button>
       )}
@@ -78,7 +83,7 @@ export function ErrorBanner({
 export function InlineError({ error }: { readonly error: unknown }) {
   if (!error) return null;
   return (
-    <p role="alert" className="text-brand-400 text-sm">
+    <p role="alert" className="text-sm text-brand-400">
       {toUserMessage(error)}
     </p>
   );

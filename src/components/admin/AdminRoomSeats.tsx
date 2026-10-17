@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { generateSeats, getRoom, getRoomLayout } from '../../lib/api/rooms.ts';
 import { deleteSeat, updateSeat } from '../../lib/api/seats.ts';
-import { useResource } from '../../lib/use-resource.ts';
+import { useKeyedResource, useResource } from '../../lib/use-resource.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import { SeatType, seatTypeLabels } from '../../lib/enums.ts';
+import { cx } from '../../lib/cx.ts';
 import { formatMultiplier, seatLabel } from '../../lib/format.ts';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
@@ -13,6 +14,7 @@ import { AdminPage } from './AdminPage.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { Badge, Modal } from '../ui/Modal.tsx';
+import { TextInput } from '../ui/Field.tsx';
 
 /** Letras de fila A, B, … Z, AA, AB: el mismo formato que suele usar una sala de cine. */
 function rowName(index: number): string {
@@ -27,6 +29,10 @@ function rowName(index: number): string {
 
 const coord = (row: string, column: string) => `${row}-${column}`;
 
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
 /**
  * `/admin/rooms/seats?id=<uuid>` — el generador de distribución de asientos.
  *
@@ -39,16 +45,10 @@ const coord = (row: string, column: string) => `${row}-${column}`;
 export default function AdminRoomSeats() {
   const roomId = useQueryParam('id');
 
-  const room = useResource(
-    (signal) => getRoom(roomId!, { signal }),
-    [roomId],
-    { enabled: Boolean(roomId) },
-  );
+  const room = useKeyedResource(roomId, (id, signal) => getRoom(id, { signal }));
 
-  const layout = useResource<SeatLayoutResponse>(
-    (signal) => getRoomLayout(roomId!, { signal }),
-    [roomId],
-    { enabled: Boolean(roomId) },
+  const layout = useKeyedResource<string, SeatLayoutResponse>(roomId, (id, signal) =>
+    getRoomLayout(id, { signal }),
   );
 
   // Si falla, vuelve al valor documentado: el texto de ayuda nunca bloquea la pantalla.
@@ -57,7 +57,9 @@ export default function AdminRoomSeats() {
     config.data?.premiumSeatMultiplier ?? PREMIUM_MULTIPLIER,
   );
 
-  const [generating, setGenerating] = useState(false);
+  // Transiciones async de React 19: el estado pendiente lo lleva React, sin flags manuales.
+  const [generating, startGenerate] = useTransition();
+  const [seatPending, startSeatAction] = useTransition();
   const [generateError, setGenerateError] = useState<unknown>(null);
   const [generateSuccess, setGenerateSuccess] = useState<string | null>(null);
   const [rowError, setRowError] = useState<unknown>(null);
@@ -83,7 +85,7 @@ export default function AdminRoomSeats() {
     (layout.data?.seats ?? []).map((seat) => [coord(seat.row, seat.column), seat]),
   );
 
-  const generate = async (spec: {
+  const generate = (spec: {
     rows: number;
     columns: number;
     startRowIndex: number;
@@ -92,7 +94,6 @@ export default function AdminRoomSeats() {
     setShowGenerator(false);
     setGenerateError(null);
     setGenerateSuccess(null);
-    setGenerating(true);
 
     const startRow = rowName(spec.startRowIndex);
     const preview = Array.from({ length: spec.rows }, (_, index) =>
@@ -100,53 +101,59 @@ export default function AdminRoomSeats() {
     );
     const premiumRows = preview.slice(Math.max(0, preview.length - spec.premiumFrom));
 
-    try {
-      const { data } = await generateSeats(roomId, {
-        rows: spec.rows,
-        columns: spec.columns,
-        startRow,
-        ...(premiumRows.length > 0 ? { premiumRows } : {}),
-        onConflict: 'SKIP',
-      });
-      setGenerateSuccess(`La distribución ahora tiene ${data.seats.length} asientos.`);
-    } catch (error) {
-      setGenerateError(error);
-    } finally {
-      setGenerating(false);
-      layout.refetch();
-    }
+    startGenerate(async () => {
+      try {
+        const { data } = await generateSeats(roomId, {
+          rows: spec.rows,
+          columns: spec.columns,
+          startRow,
+          ...(premiumRows.length > 0 ? { premiumRows } : {}),
+          onConflict: 'SKIP',
+        });
+        setGenerateSuccess(`La distribución ahora tiene ${data.seats.length} asientos.`);
+      } catch (error) {
+        setGenerateError(error);
+      } finally {
+        layout.refetch();
+      }
+    });
   };
 
-  const remove = async (seat: SeatResponse) => {
+  const remove = (seat: SeatResponse) => {
     if (!window.confirm(`¿Eliminar el asiento ${seatLabel(seat.row, seat.column)}?`)) return;
     setRowError(null);
-    try {
-      await deleteSeat(seat.uuid);
-    } catch (error) {
-      // 409 cuando los tickets ya referencian el asiento.
-      setRowError(error);
-    } finally {
-      layout.refetch();
-    }
+    startSeatAction(async () => {
+      try {
+        await deleteSeat(seat.uuid);
+      } catch (error) {
+        // 409 cuando los tickets ya referencian el asiento.
+        setRowError(error);
+      } finally {
+        layout.refetch();
+      }
+    });
   };
 
-  const toggleType = async (seat: SeatResponse) => {
+  const toggleType = (seat: SeatResponse) => {
     setRowError(null);
-    const next =
-      seat.seatType === SeatType.PREMIUM ? SeatType.NORMAL : SeatType.PREMIUM;
-    try {
-      await updateSeat(seat.uuid, {
-        screenRoomId: seat.screenRoomId,
-        row: seat.row,
-        column: seat.column,
-        seatType: next,
-      });
-    } catch (error) {
-      setRowError(error);
-    } finally {
-      layout.refetch();
-    }
+    const next = seat.seatType === SeatType.PREMIUM ? SeatType.NORMAL : SeatType.PREMIUM;
+    startSeatAction(async () => {
+      try {
+        await updateSeat(seat.uuid, {
+          screenRoomId: seat.screenRoomId,
+          row: seat.row,
+          column: seat.column,
+          seatType: next,
+        });
+      } catch (error) {
+        setRowError(error);
+      } finally {
+        layout.refetch();
+      }
+    });
   };
+
+  const { data: layoutData } = layout;
 
   return (
     <AdminPage
@@ -170,23 +177,21 @@ export default function AdminRoomSeats() {
     >
       {rowError !== null && <ErrorBanner error={rowError} />}
 
-      {generating && (
-        <div className="cine-card p-4 text-sm">Generando la distribución…</div>
-      )}
+      {generating && <div className="cine-card p-4 text-sm">Generando la distribución…</div>}
 
       {generateSuccess && (
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">
+        <div role="status" className="cine-alert-success px-4 py-3 text-sm">
           {generateSuccess}
         </div>
       )}
 
       {generateError !== null && (
-        <div className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm">
+        <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
           {toUserMessage(generateError)}
           {isApiErrorWithCode(generateError, 'NAME_TAKEN') &&
-            Array.isArray(generateError.context.conflicts) && (
-              <p className="text-ink-300 mt-1">
-                Asientos en conflicto: {(generateError.context.conflicts as string[]).join(', ')}
+            isStringArray(generateError.context.conflicts) && (
+              <p className="mt-1 text-ink-300">
+                Asientos en conflicto: {generateError.context.conflicts.join(', ')}
               </p>
             )}
         </div>
@@ -196,21 +201,23 @@ export default function AdminRoomSeats() {
         <LoadingBlock label="Cargando distribución…" />
       ) : layout.error ? (
         <ErrorBanner error={layout.error} onRetry={layout.refetch} />
-      ) : !layout.data || layout.data.seats.length === 0 ? (
+      ) : !layoutData || layoutData.seats.length === 0 ? (
         <EmptyState
           title="Esta sala no tiene asientos"
           description="Genere una grilla para comenzar. Después podrá ajustar los asientos de forma individual."
         />
       ) : (
-        <div className="cine-card overflow-x-auto p-5">
-          <p className="text-ink-600 mb-4 text-center text-xs uppercase tracking-[0.3em]">Pantalla</p>
+        <div className="overflow-x-auto cine-card p-5">
+          <p className="mb-4 text-center text-xs tracking-[0.3em] text-ink-600 uppercase">
+            Pantalla
+          </p>
           <div className="mx-auto flex w-fit flex-col gap-1.5">
-            {layout.data.rows.map((row) => (
+            {layoutData.rows.map((row) => (
               <div key={row} className="flex items-center gap-1.5">
-                <span className="text-ink-600 w-6 shrink-0 text-center text-xs font-medium">
+                <span className="w-6 shrink-0 text-center text-xs font-medium text-ink-600">
                   {row}
                 </span>
-                {layout.data!.columns.map((column) => {
+                {layoutData.columns.map((column) => {
                   const seat = existing.get(coord(row, column));
                   if (!seat) return <span key={column} className="size-8 shrink-0" />;
                   return (
@@ -218,12 +225,14 @@ export default function AdminRoomSeats() {
                       key={column}
                       type="button"
                       onClick={() => setEditing(seat)}
+                      disabled={seatPending}
                       title={`${seatLabel(seat.row, seat.column)} · ${seatTypeLabels[seat.seatType]}`}
-                      className={`size-8 shrink-0 rounded-md text-[10px] font-semibold ${
+                      className={cx(
+                        'size-8 shrink-0 rounded-md text-[10px] font-semibold disabled:opacity-50',
                         seat.seatType === SeatType.PREMIUM
                           ? 'bg-gold-500/25 text-gold-400 hover:bg-gold-500/45'
-                          : 'bg-ink-700 text-ink-100 hover:bg-ink-600'
-                      }`}
+                          : 'bg-ink-700 text-ink-100 hover:bg-ink-600',
+                      )}
                     >
                       {column}
                     </button>
@@ -232,32 +241,31 @@ export default function AdminRoomSeats() {
               </div>
             ))}
           </div>
-          <p className="text-ink-500 mt-5 text-center text-xs">
-            {layout.data.seats.length} asientos · {layout.data.rows.length} filas ×{' '}
-            {layout.data.columns.length} columnas
+          <p className="mt-5 text-center text-xs text-ink-500">
+            {layoutData.seats.length} asientos · {layoutData.rows.length} filas ×{' '}
+            {layoutData.columns.length} columnas
           </p>
         </div>
       )}
 
       {showGenerator && (
         <GeneratorModal
-          open={showGenerator}
-          existingRows={layout.data?.rows ?? []}
+          existingRows={layoutData?.rows ?? []}
           premiumMultiplier={premiumMultiplier}
           onClose={() => setShowGenerator(false)}
-          onGenerate={(spec) => void generate(spec)}
+          onGenerate={generate}
         />
       )}
 
       {editing && (
         <Modal
-          open
           onClose={() => setEditing(null)}
           title={`Asiento ${seatLabel(editing.row, editing.column)}`}
         >
           <div className="flex flex-col gap-4 text-sm">
             <p>
-              Actualmente <Badge tone={editing.seatType === SeatType.PREMIUM ? 'premium' : 'neutral'}>
+              Actualmente{' '}
+              <Badge tone={editing.seatType === SeatType.PREMIUM ? 'premium' : 'neutral'}>
                 {seatTypeLabels[editing.seatType]}
               </Badge>
             </p>
@@ -268,7 +276,7 @@ export default function AdminRoomSeats() {
                 onClick={() => {
                   const seat = editing;
                   setEditing(null);
-                  void remove(seat);
+                  remove(seat);
                 }}
               >
                 Eliminar asiento
@@ -279,7 +287,7 @@ export default function AdminRoomSeats() {
                 onClick={() => {
                   const seat = editing;
                   setEditing(null);
-                  void toggleType(seat);
+                  toggleType(seat);
                 }}
               >
                 Convertir en{' '}
@@ -296,13 +304,11 @@ export default function AdminRoomSeats() {
 }
 
 function GeneratorModal({
-  open,
   existingRows,
   premiumMultiplier,
   onClose,
   onGenerate,
 }: {
-  readonly open: boolean;
   readonly existingRows: readonly string[];
   /** Multiplicador ya formateado, p. ej. `"1,5×"`. */
   readonly premiumMultiplier: string;
@@ -324,64 +330,43 @@ function GeneratorModal({
   const premiumRows = new Set(preview.slice(Math.max(0, preview.length - premiumFrom)));
 
   return (
-    <Modal open={open} onClose={onClose} title="Generar asientos">
+    <Modal onClose={onClose} title="Generar asientos">
       <div className="flex flex-col gap-4">
-        <p className="text-ink-500 text-sm">
+        <p className="text-sm text-ink-500">
           Los asientos se crean en una sola transacción: o se genera toda la distribución o no
           cambia nada. Las posiciones existentes se mantienen intactas.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="gen-rows" className="cine-label">
-              Filas
-            </label>
-            <input
-              id="gen-rows"
-              type="number"
-              min={1}
-              max={100}
-              className="cine-input"
-              value={rows}
-              onChange={(event) => setRows(Math.max(1, Number(event.target.value)))}
-            />
-          </div>
-          <div>
-            <label htmlFor="gen-cols" className="cine-label">
-              Asientos por fila
-            </label>
-            <input
-              id="gen-cols"
-              type="number"
-              min={1}
-              max={100}
-              className="cine-input"
-              value={columns}
-              onChange={(event) => setColumns(Math.max(1, Number(event.target.value)))}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="gen-premium" className="cine-label">
-            Filas traseras premium
-          </label>
-          <input
-            id="gen-premium"
+          <TextInput
+            label="Filas"
             type="number"
-            min={0}
-            max={rows}
-            className="cine-input"
-            value={premiumFrom}
-            onChange={(event) => setPremiumFrom(Math.max(0, Number(event.target.value)))}
+            min={1}
+            max={100}
+            value={rows}
+            onChange={(event) => setRows(Math.max(1, Number(event.target.value)))}
           />
-          <p className="text-ink-500 mt-1 text-xs">
-            Las últimas N filas se convierten en asientos premium a {premiumMultiplier} el precio
-            base.
-          </p>
+          <TextInput
+            label="Asientos por fila"
+            type="number"
+            min={1}
+            max={100}
+            value={columns}
+            onChange={(event) => setColumns(Math.max(1, Number(event.target.value)))}
+          />
         </div>
 
-        <p className="text-ink-400 text-xs">
+        <TextInput
+          label="Filas traseras premium"
+          type="number"
+          min={0}
+          max={rows}
+          value={premiumFrom}
+          onChange={(event) => setPremiumFrom(Math.max(0, Number(event.target.value)))}
+          hint={`Las últimas N filas se convierten en asientos premium a ${premiumMultiplier} el precio base.`}
+        />
+
+        <p className="text-xs text-ink-400">
           Se crearán hasta <strong>{rows * columns}</strong> asientos en las filas {preview[0]}–
           {preview.at(-1)}
           {premiumRows.size > 0 && ` (premium: ${[...premiumRows].join(', ')})`}.

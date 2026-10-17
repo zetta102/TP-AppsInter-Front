@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import MovieDetail from '../../components/catalogue/MovieDetail.tsx';
+import { LoadingBlock } from '../../components/ui/SubmitButton.tsx';
 ---
 
 <!--
@@ -8,5 +9,9 @@ import MovieDetail from '../../components/catalogue/MovieDetail.tsx';
   se implementa como `/movies/detail?id=<uuid>` y se resuelve en el cliente.
 -->
 <Layout title="Película" description="Detalle de la película y próximas funciones.">
-  <MovieDetail client:load />
+  <MovieDetail client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando la película…" />
+    </div>
+  </MovieDetail>
 </Layout>

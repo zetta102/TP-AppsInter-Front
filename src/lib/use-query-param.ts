@@ -1,60 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 /**
- * Reads a query-string parameter on the client.
+ * Lee parámetros de la query string en el cliente.
  *
- * Static output cannot prerender unknown UUIDs, so the spec's `:id` routes are
- * implemented as query parameters (`/movies/detail?id=…`). During prerender
- * there is no `window`, so the value starts `null` and settles on hydration —
- * every consumer must handle the `null` case.
+ * La salida estática no puede prerenderizar UUIDs desconocidos, así que las rutas `:id` del
+ * contrato se implementan como query params (`/movies/detail?id=…`). La URL es un store externo:
+ * `useSyncExternalStore` la lee en cada render y se suscribe a sus cambios (historial del
+ * navegador y swaps de `<ClientRouter />`). En el servidor y durante la hidratación el snapshot
+ * es `null`, así que cada consumidor debe manejar ese caso.
  */
-export function useQueryParam(name: string): string | null {
-  const [value, setValue] = useState<string | null>(() =>
-    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get(name),
-  );
 
-  useEffect(() => {
-    const read = () => setValue(new URLSearchParams(window.location.search).get(name));
-    read();
-
-    // Astro's <ClientRouter /> swaps pages without a full reload.
-    window.addEventListener('popstate', read);
-    document.addEventListener('astro:after-swap', read);
-    return () => {
-      window.removeEventListener('popstate', read);
-      document.removeEventListener('astro:after-swap', read);
-    };
-  }, [name]);
-
-  return value;
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener('popstate', onChange);
+  // `<ClientRouter />` cambia de página sin recargar.
+  document.addEventListener('astro:after-swap', onChange);
+  return () => {
+    window.removeEventListener('popstate', onChange);
+    document.removeEventListener('astro:after-swap', onChange);
+  };
 }
 
-/** Reads several query parameters at once. */
+const getSearch = () => window.location.search;
+const getServerSearch = () => null;
+
+/** El `location.search` actual, o `null` durante el prerender y la hidratación. */
+function useSearch(): string | null {
+  return useSyncExternalStore(subscribe, getSearch, getServerSearch);
+}
+
+/** Lee un único parámetro de la query string. */
+export function useQueryParam(name: string): string | null {
+  const search = useSearch();
+  return search === null ? null : new URLSearchParams(search).get(name);
+}
+
+/** Lee varios parámetros a la vez. */
 export function useQueryParams<const Names extends readonly string[]>(
   names: Names,
 ): Readonly<Record<Names[number], string | null>> {
-  const [values, setValues] = useState<Record<string, string | null>>(() => {
-    const search =
-      typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
-    return Object.fromEntries(names.map((name) => [name, search.get(name)]));
-  });
-
-  const key = names.join('|');
-
-  useEffect(() => {
-    const read = () => {
-      const search = new URLSearchParams(window.location.search);
-      setValues(Object.fromEntries(key.split('|').map((name) => [name, search.get(name)])));
-    };
-    read();
-
-    window.addEventListener('popstate', read);
-    document.addEventListener('astro:after-swap', read);
-    return () => {
-      window.removeEventListener('popstate', read);
-      document.removeEventListener('astro:after-swap', read);
-    };
-  }, [key]);
-
-  return values as Readonly<Record<Names[number], string | null>>;
+  const search = useSearch();
+  const params = new URLSearchParams(search ?? '');
+  return Object.fromEntries(
+    names.map((name) => [name, search === null ? null : params.get(name)]),
+  ) as Readonly<Record<Names[number], string | null>>;
 }

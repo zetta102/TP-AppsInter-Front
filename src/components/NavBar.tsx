@@ -1,6 +1,7 @@
 import { navigate } from 'astro:transitions/client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useAuth } from '../lib/auth-context.tsx';
+import { cx } from '../lib/cx.ts';
 
 /**
  * Isla de navegación del sitio.
@@ -26,37 +27,29 @@ const adminLinks = [
 
 export default function NavBar({ pathname }: { readonly pathname: string }) {
   const { ready, isAuthenticated, isAdmin, user, logout } = useAuth();
-  const [adminOpen, setAdminOpen] = useState(false);
+  // Menú de administración sobre la Popover API nativa (`popover="auto"`): el navegador resuelve
+  // abrir/cerrar, Escape, el clic afuera, la capa superior y `aria-expanded` del botón.
+  const adminMenuId = useId();
   const adminMenuRef = useRef<HTMLDivElement>(null);
 
-  // La isla persiste entre transiciones: el menú se cierra al navegar, con Escape o al hacer
-  // clic afuera, en lugar de quedar abierto sobre la página nueva.
+  // La isla persiste entre transiciones (`transition:persist`), y el popover con ella: se cierra
+  // al navegar para no quedar abierto sobre la página nueva.
   useEffect(() => {
-    if (!adminOpen) return;
-    const close = () => setAdminOpen(false);
-    const onPointerDown = (event: PointerEvent) => {
-      if (!adminMenuRef.current?.contains(event.target as Node)) close();
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+    const close = () => {
+      const menu = adminMenuRef.current;
+      if (menu?.matches(':popover-open')) menu.hidePopover();
     };
     document.addEventListener('astro:before-swap', close);
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('astro:before-swap', close);
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [adminOpen]);
+    return () => document.removeEventListener('astro:before-swap', close);
+  }, []);
 
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
   const linkClass = (href: string) =>
-    `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-      isActive(href) ? 'bg-ink-800 text-ink-100' : 'text-ink-300 hover:text-ink-100'
-    }`;
+    cx(
+      'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+      isActive(href) ? 'bg-ink-800 text-ink-100' : 'text-ink-300 hover:text-ink-100',
+    );
 
   return (
     <nav className="flex flex-wrap items-center gap-2">
@@ -73,40 +66,40 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
       )}
 
       {isAdmin && (
-        <div ref={adminMenuRef} className="relative">
+        <>
           <button
             type="button"
-            onClick={() => setAdminOpen((open) => !open)}
-            aria-expanded={adminOpen}
-            className={linkClass('/admin')}
+            popoverTarget={adminMenuId}
+            className={cx(linkClass('/admin'), '[anchor-name:--admin-menu]')}
           >
             Administración ▾
           </button>
-          {adminOpen && (
-            <div className="cine-card absolute right-0 z-20 mt-1 w-48 p-1 shadow-xl">
-              {adminLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className="text-ink-300 hover:bg-ink-800 hover:text-ink-100 block rounded-md px-3 py-2 text-sm"
-                >
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
+          {/* CSS anchor positioning: el popover vive en la capa superior, anclado bajo el botón. */}
+          <div
+            id={adminMenuId}
+            ref={adminMenuRef}
+            popover="auto"
+            className="inset-auto m-0 mt-1 w-48 cine-card p-1 shadow-xl [position-anchor:--admin-menu] [position-area:bottom_span-left]"
+          >
+            {adminLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="block rounded-md px-3 py-2 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </>
       )}
 
       <div className="ml-auto flex items-center gap-2">
         {!ready ? (
-          <span className="text-ink-600 text-sm">…</span>
+          <span className="text-sm text-ink-600">…</span>
         ) : isAuthenticated ? (
           <>
-            <a
-              href="/account"
-              className="text-ink-500 hover:text-ink-100 hidden text-sm sm:inline"
-            >
+            <a href="/account" className="hidden text-sm text-ink-500 hover:text-ink-100 sm:inline">
               {user?.firstName ?? 'Cuenta'}
             </a>
             <button

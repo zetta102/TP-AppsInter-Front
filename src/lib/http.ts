@@ -206,7 +206,7 @@ export async function requestCreated<T>(
 export async function openStream(
   path: string,
   options: { readonly signal?: AbortSignal; readonly timeoutMs?: number } = {},
-): Promise<Response> {
+): Promise<StreamResponse> {
   const headers = new Headers({ Accept: 'text/event-stream' });
   const token = authHooks?.getAccessToken() ?? null;
   if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -233,10 +233,17 @@ export async function openStream(
     clearTimeout(timer);
   }
 
-  if (!response.ok || !response.body) {
+  if (!response.ok || !hasBody(response)) {
     throw new ApiError(response.status, await parseProblem(response));
   }
   return response;
+}
+
+/** Una respuesta 2xx cuyo body está garantizado (lo verifica `openStream`). */
+export type StreamResponse = Response & { readonly body: ReadableStream<Uint8Array<ArrayBuffer>> };
+
+function hasBody(response: Response): response is StreamResponse {
+  return response.body !== null;
 }
 
 export { PUBLIC_API_BASE_URL as apiBaseUrl };

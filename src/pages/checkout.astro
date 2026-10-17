@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Checkout from '../components/booking/Checkout.tsx';
+import { LoadingBlock } from '../components/ui/SubmitButton.tsx';
 ---
 
 <!--
@@ -8,5 +9,9 @@ import Checkout from '../components/booking/Checkout.tsx';
   con la selección de asientos en `&seats=<uuid,uuid>`.
 -->
 <Layout title="Confirmar reserva" description="Confirmá tus asientos y tu confitería." wide>
-  <Checkout client:load />
+  <Checkout client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Preparando tu pedido…" />
+    </div>
+  </Checkout>
 </Layout>

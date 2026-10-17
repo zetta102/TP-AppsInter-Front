@@ -1,4 +1,4 @@
-import { useActionState, useState } from 'react';
+import { useActionState, useDeferredValue, useState } from 'react';
 import {
   adjustInventory,
   createInventoryItem,
@@ -11,11 +11,21 @@ import {
   type InventorySortField,
 } from '../../lib/api/inventory.ts';
 import { useResource } from '../../lib/use-resource.ts';
-import { isApiErrorWithCode, isApiErrorWithStatus, toFieldErrors, toUserMessage } from '../../lib/problem.ts';
-import { productCategoryLabels, productCategoryValues, type ProductCategory } from '../../lib/enums.ts';
+import {
+  isApiErrorWithCode,
+  isApiErrorWithStatus,
+  toFieldErrors,
+  toUserMessage,
+} from '../../lib/problem.ts';
+import {
+  isEnumValue,
+  productCategoryLabels,
+  productCategoryValues,
+  type ProductCategory,
+} from '../../lib/enums.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
 import type { CreateInventoryRequest, InventoryResponse, Page } from '../../lib/types.ts';
-import type { SortSpec } from '../../lib/query.ts';
+import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
@@ -49,6 +59,8 @@ export default function AdminInventory() {
   const [sort, setSort] = useState<SortSpec<InventorySortField>>('productName,asc');
   const [category, setCategory] = useState<ProductCategory | ''>('');
   const [search, setSearch] = useState('');
+  // La tabla sigue al texto con prioridad baja: escribir no espera a cada respuesta.
+  const deferredSearch = useDeferredValue(search.trim());
   const [editing, setEditing] = useState<InventoryResponse | null>(null);
   const [adjusting, setAdjusting] = useState<InventoryResponse | null>(null);
   const [creating, setCreating] = useState(false);
@@ -63,11 +75,11 @@ export default function AdminInventory() {
           sort,
           includeArchived: showArchived,
           ...(category ? { category } : {}),
-          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(deferredSearch ? { search: deferredSearch } : {}),
         },
         { signal },
       ),
-    [page, sort, category, search, showArchived],
+    [page, sort, category, deferredSearch, showArchived],
   );
 
   // Un producto ya vendido no se puede borrar (409): se archiva y deja de ofrecerse.
@@ -79,7 +91,7 @@ export default function AdminInventory() {
     name: (item) => item.productName,
   });
 
-  const columns: readonly Column<InventoryResponse>[] = [
+  const columns: readonly Column<InventoryResponse, InventorySortField>[] = [
     {
       key: 'productName',
       header: 'Producto',
@@ -131,7 +143,11 @@ export default function AdminInventory() {
           >
             Ajustar
           </button>
-          <button type="button" className="cine-btn cine-btn-ghost" onClick={() => setEditing(item)}>
+          <button
+            type="button"
+            className="cine-btn cine-btn-ghost"
+            onClick={() => setEditing(item)}
+          >
             Editar
           </button>
           {actions.buttons(item)}
@@ -139,8 +155,6 @@ export default function AdminInventory() {
       ),
     },
   ];
-
-  const [sortField, sortDirection] = sort.split(',') as [InventorySortField, 'asc' | 'desc'];
 
   return (
     <AdminPage
@@ -157,43 +171,34 @@ export default function AdminInventory() {
       }
     >
       <AdminToolbar>
-        <div className="min-w-56 flex-1">
-          <label htmlFor="inv-search" className="cine-label">
-            Buscar
-          </label>
-          <input
-            id="inv-search"
-            type="search"
-            className="cine-input"
-            value={search}
-            placeholder="El nombre del producto contiene…"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
-        <div className="min-w-48">
-          <label htmlFor="inv-category" className="cine-label">
-            Categoría
-          </label>
-          <select
-            id="inv-category"
-            className="cine-input"
-            value={category}
-            onChange={(event) => {
-              setCategory(event.target.value as ProductCategory | '');
-              setPage(0);
-            }}
-          >
-            <option value="">Todas las categorías</option>
-            {productCategoryValues.map((value) => (
-              <option key={value} value={value}>
-                {productCategoryLabels[value]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <TextInput
+          label="Buscar"
+          fieldClassName="min-w-56 flex-1"
+          type="search"
+          value={search}
+          placeholder="El nombre del producto contiene…"
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(0);
+          }}
+        />
+        <SelectInput
+          label="Categoría"
+          fieldClassName="min-w-48"
+          value={category}
+          onChange={(event) => {
+            const { value } = event.target;
+            setCategory(isEnumValue(productCategoryValues, value) ? value : '');
+            setPage(0);
+          }}
+        >
+          <option value="">Todas las categorías</option>
+          {productCategoryValues.map((value) => (
+            <option key={value} value={value}>
+              {productCategoryLabels[value]}
+            </option>
+          ))}
+        </SelectInput>
 
         <ShowArchivedToggle
           checked={showArchived}
@@ -215,14 +220,9 @@ export default function AdminInventory() {
         onRetry={resource.refetch}
         emptyTitle="No hay productos"
         emptyDescription="Agregá snacks y bebidas para que los clientes puedan pedirlos al finalizar la compra."
-        activeSort={{ field: sortField, direction: sortDirection }}
+        activeSort={parseSort(sort)}
         onSort={(field) => {
-          setSort(
-            (current) =>
-              (current === `${field},asc`
-                ? `${field},desc`
-                : `${field},asc`) as SortSpec<InventorySortField>,
-          );
+          setSort((current) => toggleSort(current, field));
           setPage(0);
         }}
       />
@@ -231,6 +231,7 @@ export default function AdminInventory() {
 
       {(creating || editing !== null) && (
         <InventoryFormModal
+          key={editing?.uuid ?? 'new'}
           item={editing}
           onClose={() => {
             setCreating(false);
@@ -268,9 +269,13 @@ function InventoryFormModal({
   readonly onRefreshed: (item: InventoryResponse) => void;
 }) {
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
+    const category = formData.get('category');
+    if (!isEnumValue(productCategoryValues, category)) {
+      return { error: null, fieldErrors: { category: 'Elegí una categoría.' }, conflict: false };
+    }
     const body: CreateInventoryRequest = {
       productName: String(formData.get('productName') ?? '').trim(),
-      category: String(formData.get('category') ?? '') as ProductCategory,
+      category,
       cost: Number(formData.get('cost') ?? 0),
       quantity: Number(formData.get('quantity') ?? 0),
     };
@@ -300,17 +305,21 @@ function InventoryFormModal({
     : 'new';
 
   return (
-    <Modal open onClose={onClose} title={item ? 'Editar producto' : 'Nuevo producto'}>
+    <Modal onClose={onClose} title={item ? 'Editar producto' : 'Nuevo producto'}>
       <form key={formKey} action={formAction} className="flex flex-col gap-4" noValidate>
         <ErrorBanner error={state.error} />
 
         {state.conflict && (
-          <div className="border-gold-500/40 bg-gold-500/10 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-3 cine-alert-warning px-3 py-2 text-xs">
             <span>
               Otra persona cambió este producto mientras lo estaba editando. Recargue los valores
               actuales y luego vuelva a aplicar su cambio.
             </span>
-            <button type="button" className="cine-btn cine-btn-secondary" onClick={() => void reload()}>
+            <button
+              type="button"
+              className="cine-btn cine-btn-secondary"
+              onClick={() => void reload()}
+            >
               Recargar
             </button>
           </div>
@@ -367,7 +376,9 @@ function InventoryFormModal({
           <button type="button" className="cine-btn cine-btn-ghost" onClick={onClose}>
             Cancelar
           </button>
-          <SubmitButton pendingLabel="Guardando…">{item ? 'Guardar cambios' : 'Crear'}</SubmitButton>
+          <SubmitButton pendingLabel="Guardando…">
+            {item ? 'Guardar cambios' : 'Crear'}
+          </SubmitButton>
         </div>
       </form>
     </Modal>
@@ -400,7 +411,11 @@ function AdjustStockModal({
 
   const history = useResource(
     (signal) =>
-      listInventoryAdjustments(current.uuid, { page: 0, size: 10, sort: 'createdAt,desc' }, { signal }),
+      listInventoryAdjustments(
+        current.uuid,
+        { page: 0, size: 10, sort: 'createdAt,desc' },
+        { signal },
+      ),
     [current.uuid],
   );
 
@@ -420,22 +435,24 @@ function AdjustStockModal({
   }, initialAdjustState);
 
   return (
-    <Modal open onClose={onClose} title={`Ajustar stock — ${current.productName}`}>
+    <Modal onClose={onClose} title={`Ajustar stock — ${current.productName}`}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-neutral-400">
-          Actualmente hay <span className="font-medium text-neutral-100">{current.quantity}</span>{' '}
+        <p className="text-sm text-ink-400">
+          Actualmente hay <span className="font-medium text-ink-100">{current.quantity}</span>{' '}
           unidades en stock. Ingresá una variación positiva para reponer o una negativa para
-          descontar stock; ambas se aplican de forma atómica para que los ajustes concurrentes
-          nunca se sobrescriban entre sí.
+          descontar stock; ambas se aplican de forma atómica para que los ajustes concurrentes nunca
+          se sobrescriban entre sí.
         </p>
 
         <form key={current.quantity} action={formAction} className="flex flex-col gap-4" noValidate>
           {state.error !== null && (
-            <div className="border-gold-500/40 bg-gold-500/10 text-gold-400 rounded-lg border px-4 py-3 text-sm">
+            <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
               {toUserMessage(state.error)}
               {isApiErrorWithCode(state.error, 'INSUFFICIENT_STOCK') &&
                 typeof state.error.context.available === 'number' && (
-                  <p className="text-ink-300 mt-1">Solo hay {state.error.context.available} disponibles.</p>
+                  <p className="mt-1 text-ink-300">
+                    Solo hay {state.error.context.available} disponibles.
+                  </p>
                 )}
             </div>
           )}
@@ -468,32 +485,34 @@ function AdjustStockModal({
           </div>
         </form>
 
-        <div className="border-t border-neutral-800 pt-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        <div className="border-t border-ink-800 pt-4">
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-500 uppercase">
             Ajustes recientes
           </h3>
-          {history.error !== null && <ErrorBanner error={history.error} onRetry={history.refetch} />}
+          {history.error !== null && (
+            <ErrorBanner error={history.error} onRetry={history.refetch} />
+          )}
           {history.data !== null && history.data.content.length === 0 && (
-            <p className="text-sm text-neutral-500">Todavía no hay ajustes registrados.</p>
+            <p className="text-sm text-ink-500">Todavía no hay ajustes registrados.</p>
           )}
           {history.data !== null && history.data.content.length > 0 && (
             <ul className="flex flex-col gap-2 text-sm">
               {history.data.content.map((entry) => (
                 <li
                   key={entry.uuid}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 px-3 py-2"
                 >
                   <span>
-                    <span className={entry.delta >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    <span className={entry.delta >= 0 ? 'text-emerald-400' : 'text-brand-400'}>
                       {entry.delta >= 0 ? '+' : ''}
                       {entry.delta}
                     </span>{' '}
-                    <span className="text-neutral-500">→ Quedan {entry.resultingStock}</span>
-                    <span className="block text-xs text-neutral-500">
+                    <span className="text-ink-500">→ Quedan {entry.resultingStock}</span>
+                    <span className="block text-xs text-ink-500">
                       {entry.reason} · {entry.adjustedBy ?? 'sistema'}
                     </span>
                   </span>
-                  <span className="whitespace-nowrap text-xs text-neutral-500">
+                  <span className="text-xs whitespace-nowrap text-ink-500">
                     {formatDateTime(entry.createdAt)}
                   </span>
                 </li>

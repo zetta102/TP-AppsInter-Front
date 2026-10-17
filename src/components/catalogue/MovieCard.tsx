@@ -1,5 +1,6 @@
 import type { MovieResponse, MovieScreeningResponse } from '../../lib/types.ts';
-import { movieGenreLabels } from '../../lib/enums.ts';
+import { movieGenreLabels, type MovieGenre } from '../../lib/enums.ts';
+import { cx } from '../../lib/cx.ts';
 import { formatMoney, formatRuntime, formatTime, dayKey } from '../../lib/format.ts';
 import { Badge } from '../ui/Modal.tsx';
 
@@ -11,11 +12,11 @@ import { Badge } from '../ui/Modal.tsx';
  * un listado nunca necesita una segunda petición.
  */
 
-export function GenreList({ genres }: { readonly genres: readonly string[] }) {
+export function GenreList({ genres }: { readonly genres: readonly MovieGenre[] }) {
   return (
     <div className="flex flex-wrap gap-1">
       {genres.map((genre) => (
-        <Badge key={genre}>{movieGenreLabels[genre as keyof typeof movieGenreLabels] ?? genre}</Badge>
+        <Badge key={genre}>{movieGenreLabels[genre]}</Badge>
       ))}
     </div>
   );
@@ -43,15 +44,25 @@ export function PosterPlaceholder({ title }: { readonly title: string }) {
   );
 }
 
-/** Póster de la película cuando existe; en caso contrario, usa el marcador determinista. */
-export function Poster({ movie }: { readonly movie: MovieResponse }) {
+/**
+ * Póster de la película cuando existe; en caso contrario, usa el marcador determinista.
+ * `priority` es para el póster principal de una página (sobre el pliegue): se carga sin
+ * `lazy` y con `fetchPriority="high"`, en lugar de esperar al layout.
+ */
+export function Poster({
+  movie,
+  priority = false,
+}: {
+  readonly movie: MovieResponse;
+  readonly priority?: boolean;
+}) {
   if (!movie.posterUrl) return <PosterPlaceholder title={movie.movieName} />;
   return (
     <img
       src={movie.posterUrl}
       alt={`Póster de ${movie.movieName}`}
       className="aspect-2/3 w-full rounded-lg object-cover"
-      loading="lazy"
+      {...(priority ? { fetchPriority: 'high' } : { loading: 'lazy' })}
     />
   );
 }
@@ -65,7 +76,7 @@ export function MovieMeta({ movie }: { readonly movie: MovieResponse }) {
   ].filter((part): part is string => Boolean(part));
 
   if (parts.length === 0) return null;
-  return <p className="text-ink-500 text-xs">{parts.join(' · ')}</p>;
+  return <p className="text-xs text-ink-500">{parts.join(' · ')}</p>;
 }
 
 export function MovieCard({
@@ -76,7 +87,7 @@ export function MovieCard({
   readonly screenings?: readonly MovieScreeningResponse[];
 }) {
   return (
-    <article className="cine-card flex flex-col gap-3 p-4">
+    <article className="flex flex-col gap-3 cine-card p-4">
       <a href={`/movies/detail?id=${movie.uuid}`} className="block">
         <Poster movie={movie} />
       </a>
@@ -87,18 +98,18 @@ export function MovieCard({
             {movie.movieName}
           </a>
         </h3>
-        <p className="text-ink-500 text-xs">{formatRuntime(movie.runtime)}</p>
+        <p className="text-xs text-ink-500">{formatRuntime(movie.runtime)}</p>
         <MovieMeta movie={movie} />
         <GenreList genres={movie.genres} />
       </div>
 
       {screenings.length > 0 && (
-        <div className="border-ink-800 mt-auto flex flex-wrap gap-1 border-t pt-3">
+        <div className="mt-auto flex flex-wrap gap-1 border-t border-ink-800 pt-3">
           {screenings.slice(0, 4).map((screening) =>
             screening.soldOut ? (
               <span
                 key={screening.uuid}
-                className="cine-btn cine-btn-secondary cursor-not-allowed px-2 py-1 text-xs opacity-50"
+                className="cine-btn cursor-not-allowed cine-btn-secondary px-2 py-1 text-xs opacity-50"
                 title={`${screening.roomName} · Agotado`}
               >
                 {formatTime(screening.startsAt)}
@@ -117,7 +128,7 @@ export function MovieCard({
           {screenings.length > 4 && (
             <a
               href={`/movies/detail?id=${movie.uuid}`}
-              className="text-ink-500 hover:text-ink-100 self-center px-2 text-xs"
+              className="self-center px-2 text-xs text-ink-500 hover:text-ink-100"
             >
               +{screenings.length - 4} más
             </a>
@@ -138,7 +149,11 @@ export function ScreeningAvailability({
 }: {
   readonly screening: MovieScreeningResponse;
 }) {
-  if (screening.soldOut === null || screening.availableSeats === null || screening.totalSeats === null) {
+  if (
+    screening.soldOut === null ||
+    screening.availableSeats === null ||
+    screening.totalSeats === null
+  ) {
     return <span className="text-ink-600">—</span>;
   }
   if (screening.soldOut) {
@@ -167,13 +182,14 @@ export function ScreeningRow({ screening }: { readonly screening: MovieScreening
   return (
     <Tag
       {...(screening.soldOut ? {} : { href: `/screenings/seats?id=${screening.uuid}` })}
-      className={`border-ink-800 flex items-center justify-between gap-4 rounded-lg border px-4 py-3 transition-colors ${
-        screening.soldOut ? 'opacity-50' : 'hover:bg-ink-800/50'
-      }`}
+      className={cx(
+        'flex items-center justify-between gap-4 rounded-lg border border-ink-800 px-4 py-3 transition-colors',
+        screening.soldOut ? 'opacity-50' : 'hover:bg-ink-800/50',
+      )}
     >
       <div>
         <p className="font-semibold">{formatTime(screening.startsAt)}</p>
-        <p className="text-ink-500 text-xs">
+        <p className="text-xs text-ink-500">
           {screening.roomName} · termina a las {formatTime(screening.endsAt)}
         </p>
       </div>
@@ -185,12 +201,21 @@ export function ScreeningRow({ screening }: { readonly screening: MovieScreening
   );
 }
 
+export interface DayGroup {
+  /** `YYYY-MM-DD` en la zona local. */
+  readonly day: string;
+  /** La primera función del día (todo grupo tiene al menos una). */
+  readonly first: MovieScreeningResponse;
+  readonly screenings: readonly MovieScreeningResponse[];
+}
+
 /** Agrupa las funciones por día local del calendario, conservando el orden del servidor. */
-export function groupByDay(
-  screenings: readonly MovieScreeningResponse[],
-): readonly (readonly [string, readonly MovieScreeningResponse[]])[] {
-  const grouped = Object.groupBy(screenings, (screening) => dayKey(screening.startsAt));
-  return Object.entries(grouped)
-    .filter((entry): entry is [string, MovieScreeningResponse[]] => Boolean(entry[1]?.length))
-    .toSorted(([a], [b]) => a.localeCompare(b));
+export function groupByDay(screenings: readonly MovieScreeningResponse[]): readonly DayGroup[] {
+  const groups: DayGroup[] = [];
+  // `Map.groupBy` conserva el orden de inserción dentro de cada grupo.
+  for (const [day, items] of Map.groupBy(screenings, (screening) => dayKey(screening.startsAt))) {
+    const [first] = items;
+    if (first) groups.push({ day, first, screenings: items });
+  }
+  return groups.toSorted((a, b) => a.day.localeCompare(b.day));
 }
