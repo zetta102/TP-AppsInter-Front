@@ -18,11 +18,11 @@ import { estimateTotal, lineTotal, ticketPrice } from '../../lib/pricing.ts';
 import { formatCountdown, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import { productCategoryLabels, SeatType } from '../../lib/enums.ts';
 import type {
-  MetadataConfigResponse,
-  MovieScreeningResponse,
-  ProductResponse,
-  SeatMapResponse,
-  SeatMapSeat,
+  MetadataConfig,
+  Screening,
+  Product,
+  SeatMap as SeatMapData,
+  SeatAvailability,
 } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock, SubmitButton } from '../ui/SubmitButton.tsx';
@@ -47,10 +47,10 @@ import { indexSeatsById, SeatMap } from './SeatMap.tsx';
  */
 
 interface CheckoutData {
-  readonly screening: MovieScreeningResponse;
-  readonly seatMap: SeatMapResponse;
-  readonly products: readonly ProductResponse[];
-  readonly config: MetadataConfigResponse;
+  readonly screening: Screening;
+  readonly seatMap: SeatMapData;
+  readonly products: readonly Product[];
+  readonly config: MetadataConfig;
 }
 
 interface SubmitState {
@@ -112,7 +112,7 @@ function CheckoutPanel() {
   // durante el checkout. Cada cambio de selección la reemplaza sin soltar los asientos que siguen.
   const seatHold = useSeatHold(screeningId ?? undefined, selected);
 
-  const toggle = (seat: SeatMapSeat) => {
+  const toggle = (seat: SeatAvailability) => {
     setSelected((current) =>
       current.includes(seat.seatId)
         ? current.filter((id) => id !== seat.seatId)

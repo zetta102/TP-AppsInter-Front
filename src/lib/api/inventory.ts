@@ -9,11 +9,11 @@ import {
 import type { PageParams } from '../query.ts';
 import type { ProductCategory } from '../enums.ts';
 import type {
-  CreateInventoryRequest,
-  InventoryAdjustmentResponse,
-  InventoryResponse,
+  InventoryItemRequest,
+  InventoryAdjustment,
+  InventoryItem,
   Page,
-  StockAdjustmentRequest,
+  InventoryAdjustmentRequest,
   Uuid,
 } from '../types.ts';
 
@@ -42,20 +42,20 @@ export type ListInventoryParams = PageParams<InventorySortField> & InventoryFilt
 export function listInventory(
   params: ListInventoryParams = {},
   options: CallOptions = {},
-): Promise<Page<InventoryResponse>> {
-  return getPage<InventoryResponse>('/api/inventory', params, { ...options, auth: true });
+): Promise<Page<InventoryItem>> {
+  return getPage<InventoryItem>('/api/inventory', params, { ...options, auth: true });
 }
 
 export function getInventoryItem(
   uuid: Uuid,
   options: CallOptions = {},
-): Promise<InventoryResponse> {
-  return requestJson<InventoryResponse>(`/api/inventory/${uuid}`, { ...options, auth: true });
+): Promise<InventoryItem> {
+  return requestJson<InventoryItem>(`/api/inventory/${uuid}`, { ...options, auth: true });
 }
 
 /** `409 "Product '…' already exists"` ante un choque de nombre sin distinguir mayúsculas. */
-export function createInventoryItem(body: CreateInventoryRequest) {
-  return requestCreated<InventoryResponse>('/api/inventory', { body, auth: true });
+export function createInventoryItem(body: InventoryItemRequest) {
+  return requestCreated<InventoryItem>('/api/inventory', { body, auth: true });
 }
 
 /**
@@ -65,9 +65,9 @@ export function createInventoryItem(body: CreateInventoryRequest) {
  */
 export function updateInventoryItem(
   uuid: Uuid,
-  body: CreateInventoryRequest,
-): Promise<InventoryResponse> {
-  return requestJson<InventoryResponse>(`/api/inventory/${uuid}`, {
+  body: InventoryItemRequest,
+): Promise<InventoryItem> {
+  return requestJson<InventoryItem>(`/api/inventory/${uuid}`, {
     method: 'PUT',
     body,
     auth: true,
@@ -75,8 +75,8 @@ export function updateInventoryItem(
 }
 
 /** Siempre permitido: las reservas pasadas conservan sus líneas. */
-export function setInventoryArchived(uuid: Uuid, archived: boolean): Promise<InventoryResponse> {
-  return setArchived<InventoryResponse>(`/api/inventory/${uuid}`, archived);
+export function setInventoryArchived(uuid: Uuid, archived: boolean): Promise<InventoryItem> {
+  return setArchived<InventoryItem>(`/api/inventory/${uuid}`, archived);
 }
 
 /** `409 RESOURCE_IN_USE` cuando una línea de reserva todavía referencia el producto: archivalo. */
@@ -92,9 +92,9 @@ export function deleteInventoryItem(uuid: Uuid): Promise<void> {
  */
 export function adjustInventory(
   uuid: Uuid,
-  body: StockAdjustmentRequest,
-): Promise<InventoryResponse> {
-  return requestJson<InventoryResponse>(`/api/inventory/${uuid}/adjustments`, {
+  body: InventoryAdjustmentRequest,
+): Promise<InventoryItem> {
+  return requestJson<InventoryItem>(`/api/inventory/${uuid}/adjustments`, {
     method: 'POST',
     body,
     auth: true,
@@ -106,8 +106,8 @@ export function listInventoryAdjustments(
   uuid: Uuid,
   params: PageParams<AdjustmentSortField> = {},
   options: CallOptions = {},
-): Promise<Page<InventoryAdjustmentResponse>> {
-  return getPage<InventoryAdjustmentResponse>(`/api/inventory/${uuid}/adjustments`, params, {
+): Promise<Page<InventoryAdjustment>> {
+  return getPage<InventoryAdjustment>(`/api/inventory/${uuid}/adjustments`, params, {
     ...options,
     auth: true,
   });

@@ -1,5 +1,5 @@
 import { requestCreated, requestJson, requestVoid, type CallOptions } from './shared.ts';
-import type { CreateSeatHoldRequest, SeatHoldResponse, Uuid } from '../types.ts';
+import type { SeatHoldRequest, SeatHold, Uuid } from '../types.ts';
 
 /**
  * Retenciones de asientos (backend-status-for-frontend.md §5.9, §7.3).
@@ -17,8 +17,8 @@ import type { CreateSeatHoldRequest, SeatHoldResponse, Uuid } from '../types.ts'
 
 /** `201` + `Location: /api/holds/{uuid}`. `404` por función/asiento desconocido, `422 SCREENING_STARTED`,
  * `409 SEATS_UNAVAILABLE` (ya vendido o retenido por otra persona, `context.seatIds`). */
-export function createHold(screeningId: Uuid, body: CreateSeatHoldRequest) {
-  return requestCreated<SeatHoldResponse>(`/api/screenings/${screeningId}/holds`, {
+export function createHold(screeningId: Uuid, body: SeatHoldRequest) {
+  return requestCreated<SeatHold>(`/api/screenings/${screeningId}/holds`, {
     body,
     auth: true,
   });
@@ -30,13 +30,13 @@ export function createHold(screeningId: Uuid, body: CreateSeatHoldRequest) {
  * la retención. `404` si venció, se liberó o se consumió; si no, los mismos errores que al crearla.
  * Ante un fallo, la retención conserva sus asientos anteriores.
  */
-export function replaceHold(uuid: Uuid, body: CreateSeatHoldRequest): Promise<SeatHoldResponse> {
-  return requestJson<SeatHoldResponse>(`/api/holds/${uuid}`, { method: 'PUT', body, auth: true });
+export function replaceHold(uuid: Uuid, body: SeatHoldRequest): Promise<SeatHold> {
+  return requestJson<SeatHold>(`/api/holds/${uuid}`, { method: 'PUT', body, auth: true });
 }
 
 /** Una retención vencida o liberada es `404`: ya no reserva nada. */
-export function getHold(uuid: Uuid, options: CallOptions = {}): Promise<SeatHoldResponse> {
-  return requestJson<SeatHoldResponse>(`/api/holds/${uuid}`, { ...options, auth: true });
+export function getHold(uuid: Uuid, options: CallOptions = {}): Promise<SeatHold> {
+  return requestJson<SeatHold>(`/api/holds/${uuid}`, { ...options, auth: true });
 }
 
 /** `204`, idempotente: liberar dos veces o liberar un id desconocido sigue devolviendo `204`. */

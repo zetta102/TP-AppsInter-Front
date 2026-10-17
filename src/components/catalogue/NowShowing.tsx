@@ -2,7 +2,7 @@ import { listMovies, listNowShowing } from '../../lib/api/movies.ts';
 import { collectAllPages } from '../../lib/api/shared.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { formatCount } from '../../lib/format.ts';
-import type { MovieResponse, NowShowingResponse } from '../../lib/types.ts';
+import type { Movie, NowShowing as NowShowingEntry } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { MovieCard } from './MovieCard.tsx';
@@ -18,8 +18,8 @@ import { MovieCard } from './MovieCard.tsx';
  */
 export default function NowShowing() {
   const resource = useResource<{
-    readonly showing: readonly NowShowingResponse[];
-    readonly movies: readonly MovieResponse[];
+    readonly showing: readonly NowShowingEntry[];
+    readonly movies: readonly Movie[];
   }>(async (signal) => {
     const [showing, movies] = await Promise.all([
       collectAllPages((page, size) =>

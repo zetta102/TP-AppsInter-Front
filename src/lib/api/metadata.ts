@@ -1,5 +1,5 @@
 import { requestJson, type CallOptions } from './shared.ts';
-import type { MetadataConfigResponse, MetadataEnumsResponse } from '../types.ts';
+import type { MetadataConfig, MetadataEnums } from '../types.ts';
 
 /**
  * `/api/metadata`: público y cacheable (backend-status-for-frontend.md §5.4).
@@ -14,12 +14,12 @@ import type { MetadataConfigResponse, MetadataEnumsResponse } from '../types.ts'
  * respuesta chica y cacheable, así que se deja completar siempre.
  */
 
-let enumsPromise: Promise<MetadataEnumsResponse> | null = null;
-let configPromise: Promise<MetadataConfigResponse> | null = null;
+let enumsPromise: Promise<MetadataEnums> | null = null;
+let configPromise: Promise<MetadataConfig> | null = null;
 
 /** Los seis enums como listas `{ value, label }`. Las etiquetas son solo en inglés. */
-export function getMetadataEnums(_options: CallOptions = {}): Promise<MetadataEnumsResponse> {
-  enumsPromise ??= requestJson<MetadataEnumsResponse>('/api/metadata/enums').catch(
+export function getMetadataEnums(_options: CallOptions = {}): Promise<MetadataEnums> {
+  enumsPromise ??= requestJson<MetadataEnums>('/api/metadata/enums').catch(
     (error: unknown) => {
       enumsPromise = null;
       throw error;
@@ -29,8 +29,8 @@ export function getMetadataEnums(_options: CallOptions = {}): Promise<MetadataEn
 }
 
 /** `premiumSeatMultiplier`, `screeningTurnoverMinutes`, `currency`, `seatHoldTtlSeconds`. */
-export function getMetadataConfig(_options: CallOptions = {}): Promise<MetadataConfigResponse> {
-  configPromise ??= requestJson<MetadataConfigResponse>('/api/metadata/config').catch(
+export function getMetadataConfig(_options: CallOptions = {}): Promise<MetadataConfig> {
+  configPromise ??= requestJson<MetadataConfig>('/api/metadata/config').catch(
     (error: unknown) => {
       configPromise = null;
       throw error;
@@ -40,7 +40,7 @@ export function getMetadataConfig(_options: CallOptions = {}): Promise<MetadataC
 }
 
 /** Valores por defecto documentados, usados solo hasta que `getMetadataConfig` se resuelva. */
-export const DEFAULT_METADATA_CONFIG: MetadataConfigResponse = {
+export const DEFAULT_METADATA_CONFIG: MetadataConfig = {
   premiumSeatMultiplier: 1.5,
   screeningTurnoverMinutes: 15,
   currency: 'USD',
@@ -53,7 +53,7 @@ export const DEFAULT_METADATA_CONFIG: MetadataConfigResponse = {
  */
 export async function getMetadataConfigOrDefault(
   options: CallOptions = {},
-): Promise<MetadataConfigResponse> {
+): Promise<MetadataConfig> {
   try {
     return await getMetadataConfig(options);
   } catch {

@@ -4,7 +4,7 @@ import { openStream } from './http.ts';
 import { getAuthState, refreshTokens } from './auth-store.ts';
 import { readSse } from './sse.ts';
 import { isApiErrorWithStatus } from './problem.ts';
-import type { SeatMapResponse, SeatState, Uuid } from './types.ts';
+import type { SeatMap, SeatState, Uuid } from './types.ts';
 
 /**
  * Disponibilidad de asientos en vivo por Server-Sent Events
@@ -35,7 +35,7 @@ export interface SeatStreamOptions {
 }
 
 /** Aplica estados recibidos por el stream sobre un mapa ya cargado. */
-export function patchSeatMap<T extends SeatMapResponse>(map: T, states: readonly SeatState[]): T {
+export function patchSeatMap<T extends SeatMap>(map: T, states: readonly SeatState[]): T {
   if (states.length === 0) return map;
   const byId = new Map(states.map((state) => [state.seatId, state]));
   return {

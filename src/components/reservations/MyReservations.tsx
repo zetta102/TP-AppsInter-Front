@@ -9,7 +9,7 @@ import {
   reservationStatusLabels,
   reservationStatusValues,
 } from '../../lib/enums.ts';
-import type { MovieResponse, Page, ReservationResponse } from '../../lib/types.ts';
+import type { Movie, Page, Reservation } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock, Spinner } from '../ui/SubmitButton.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
@@ -50,12 +50,12 @@ function ReservationList() {
   const [isCancelling, startTransition] = useTransition();
 
   // Para el selector de película; no es paginado, alcanza con una sola página amplia.
-  const movies = useResource<Page<MovieResponse>>(
+  const movies = useResource<Page<Movie>>(
     (signal) => listMovies({ page: 0, size: 100, sort: 'movieName,asc' }, { signal }),
     [],
   );
 
-  const resource = useResource<Page<ReservationResponse>>(
+  const resource = useResource<Page<Reservation>>(
     (signal) =>
       listMyReservations(
         {
@@ -86,7 +86,7 @@ function ReservationList() {
   // Marca optimistamente una fila como cancelada mientras la petición está en curso.
   const [optimisticRows, markCancelling] = useOptimistic(
     rows,
-    (current: readonly ReservationResponse[], uuid: string) =>
+    (current: readonly Reservation[], uuid: string) =>
       current.map((row) =>
         row.uuid === uuid
           ? {
@@ -100,7 +100,7 @@ function ReservationList() {
       ),
   );
 
-  const cancel = (reservation: ReservationResponse) => {
+  const cancel = (reservation: Reservation) => {
     setCancelError(null);
 
     startTransition(async () => {

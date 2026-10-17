@@ -9,7 +9,7 @@ import { cx } from '../../lib/cx.ts';
 import { formatMultiplier, seatLabel } from '../../lib/format.ts';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
-import type { SeatLayoutResponse, SeatResponse } from '../../lib/types.ts';
+import type { SeatLayout, Seat } from '../../lib/types.ts';
 import { AdminPage } from './AdminPage.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
@@ -47,7 +47,7 @@ export default function AdminRoomSeats() {
 
   const room = useKeyedResource(roomId, (id, signal) => getRoom(id, { signal }));
 
-  const layout = useKeyedResource<string, SeatLayoutResponse>(roomId, (id, signal) =>
+  const layout = useKeyedResource<string, SeatLayout>(roomId, (id, signal) =>
     getRoomLayout(id, { signal }),
   );
 
@@ -63,7 +63,7 @@ export default function AdminRoomSeats() {
   const [generateError, setGenerateError] = useState<unknown>(null);
   const [generateSuccess, setGenerateSuccess] = useState<string | null>(null);
   const [rowError, setRowError] = useState<unknown>(null);
-  const [editing, setEditing] = useState<SeatResponse | null>(null);
+  const [editing, setEditing] = useState<Seat | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
 
   if (!roomId) {
@@ -119,7 +119,7 @@ export default function AdminRoomSeats() {
     });
   };
 
-  const remove = (seat: SeatResponse) => {
+  const remove = (seat: Seat) => {
     if (!window.confirm(`¿Eliminar el asiento ${seatLabel(seat.row, seat.column)}?`)) return;
     setRowError(null);
     startSeatAction(async () => {
@@ -134,7 +134,7 @@ export default function AdminRoomSeats() {
     });
   };
 
-  const toggleType = (seat: SeatResponse) => {
+  const toggleType = (seat: Seat) => {
     setRowError(null);
     const next = seat.seatType === SeatType.PREMIUM ? SeatType.NORMAL : SeatType.PREMIUM;
     startSeatAction(async () => {

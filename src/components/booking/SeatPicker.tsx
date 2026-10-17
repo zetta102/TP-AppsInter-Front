@@ -9,10 +9,10 @@ import { usePolling } from '../../lib/use-polling.ts';
 import { patchSeatMap, useSeatStream } from '../../lib/use-seat-stream.ts';
 import { useAuth } from '../../lib/auth-context.tsx';
 import type {
-  MetadataConfigResponse,
-  MovieScreeningResponse,
-  SeatMapResponse,
-  SeatMapSeat,
+  MetadataConfig,
+  Screening,
+  SeatMap as SeatMapData,
+  SeatAvailability,
 } from '../../lib/types.ts';
 import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import { estimateTotal } from '../../lib/pricing.ts';
@@ -43,9 +43,9 @@ export default function SeatPicker() {
   const resource = useKeyedResource<
     string,
     {
-      readonly screening: MovieScreeningResponse;
-      readonly seatMap: SeatMapResponse;
-      readonly config: MetadataConfigResponse;
+      readonly screening: Screening;
+      readonly seatMap: SeatMapData;
+      readonly config: MetadataConfig;
     }
   >(screeningId, async (id, signal) => {
     const [screening, config] = await Promise.all([
@@ -79,7 +79,7 @@ export default function SeatPicker() {
   });
   usePolling(refetch, live ? SEAT_MAP_SAFETY_POLL_MS : SEAT_MAP_POLL_MS, Boolean(screeningId));
 
-  const toggle = (seat: SeatMapSeat) => {
+  const toggle = (seat: SeatAvailability) => {
     setSelected((current) =>
       current.includes(seat.seatId)
         ? current.filter((id) => id !== seat.seatId)

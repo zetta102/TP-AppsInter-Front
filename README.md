@@ -84,7 +84,7 @@ consulta en su lugar. El comportamiento es idéntico en todo lo demás.
 ```
 src/
   lib/
-    types.ts              DTOs de solo tipos, Page<T>, ProblemDetail
+    types.ts              DTOs de solo tipos (nombres de §6), Page<T>, Problem
     enums.ts              enums de la API como uniones `as const` + mapas de etiquetas
     problem.ts            ApiError, parseo de RFC 7807, extracción de errores de campo
     http.ts               el único cuello de botella de fetch: timeouts, reintento en 401

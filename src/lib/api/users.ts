@@ -7,7 +7,7 @@ import type {
   UpdateProfileRequest,
   UpdateRoleRequest,
   Uuid,
-  UserResponse,
+  User,
 } from '../types.ts';
 
 /** `/api/users`: `me` requiere autenticación; el resto es ADMIN. */
@@ -26,13 +26,13 @@ export type UserFilters = {
 export type ListUsersParams = PageParams<UserSortField> & UserFilters;
 
 /** La fuente autoritativa para el control por roles: nunca decodifiques el JWT. */
-export function getCurrentUser(options: CallOptions = {}): Promise<UserResponse> {
-  return requestJson<UserResponse>('/api/users/me', { ...options, auth: true });
+export function getCurrentUser(options: CallOptions = {}): Promise<User> {
+  return requestJson<User>('/api/users/me', { ...options, auth: true });
 }
 
 /** `firstName` y `lastName` son ambos `@NotBlank`. */
-export function updateMyProfile(body: UpdateProfileRequest): Promise<UserResponse> {
-  return requestJson<UserResponse>('/api/users/me', { method: 'PATCH', body, auth: true });
+export function updateMyProfile(body: UpdateProfileRequest): Promise<User> {
+  return requestJson<User>('/api/users/me', { method: 'PATCH', body, auth: true });
 }
 
 /**
@@ -49,17 +49,17 @@ export function changeMyPassword(body: ChangePasswordRequest): Promise<void> {
 export function listUsers(
   params: ListUsersParams = {},
   options: CallOptions = {},
-): Promise<Page<UserResponse>> {
-  return getPage<UserResponse>('/api/users', params, { ...options, auth: true });
+): Promise<Page<User>> {
+  return getPage<User>('/api/users', params, { ...options, auth: true });
 }
 
-export function getUser(uuid: Uuid, options: CallOptions = {}): Promise<UserResponse> {
-  return requestJson<UserResponse>(`/api/users/${uuid}`, { ...options, auth: true });
+export function getUser(uuid: Uuid, options: CallOptions = {}): Promise<User> {
+  return requestJson<User>(`/api/users/${uuid}`, { ...options, auth: true });
 }
 
 /** `422 LAST_ADMIN` al degradarte a ti mismo o al último admin que queda. */
-export function updateUserRole(uuid: Uuid, body: UpdateRoleRequest): Promise<UserResponse> {
-  return requestJson<UserResponse>(`/api/users/${uuid}/role`, {
+export function updateUserRole(uuid: Uuid, body: UpdateRoleRequest): Promise<User> {
+  return requestJson<User>(`/api/users/${uuid}/role`, {
     method: 'PATCH',
     body,
     auth: true,

@@ -1,4 +1,4 @@
-import type { MovieResponse, MovieScreeningResponse } from '../../lib/types.ts';
+import type { Movie, Screening } from '../../lib/types.ts';
 import { movieGenreLabels, type MovieGenre } from '../../lib/enums.ts';
 import { cx } from '../../lib/cx.ts';
 import { formatMoney, formatRuntime, formatTime, dayKey } from '../../lib/format.ts';
@@ -53,7 +53,7 @@ export function Poster({
   movie,
   priority = false,
 }: {
-  readonly movie: MovieResponse;
+  readonly movie: Movie;
   readonly priority?: boolean;
 }) {
   if (!movie.posterUrl) return <PosterPlaceholder title={movie.movieName} />;
@@ -68,7 +68,7 @@ export function Poster({
 }
 
 /** Año de estreno / calificación / idioma original, cuando el backend los tenga. */
-export function MovieMeta({ movie }: { readonly movie: MovieResponse }) {
+export function MovieMeta({ movie }: { readonly movie: Movie }) {
   const parts = [
     movie.releaseYear !== null ? String(movie.releaseYear) : null,
     movie.certification,
@@ -83,8 +83,8 @@ export function MovieCard({
   movie,
   screenings = [],
 }: {
-  readonly movie: MovieResponse;
-  readonly screenings?: readonly MovieScreeningResponse[];
+  readonly movie: Movie;
+  readonly screenings?: readonly Screening[];
 }) {
   return (
     <article className="flex flex-col gap-3 cine-card p-4">
@@ -163,7 +163,7 @@ export function MovieCard({
 export function ScreeningAvailability({
   screening,
 }: {
-  readonly screening: MovieScreeningResponse;
+  readonly screening: Screening;
 }) {
   if (
     screening.soldOut === null ||
@@ -193,7 +193,7 @@ export function ScreeningAvailability({
 }
 
 /** Una única fila de función, usada en la página de detalle de la película. */
-export function ScreeningRow({ screening }: { readonly screening: MovieScreeningResponse }) {
+export function ScreeningRow({ screening }: { readonly screening: Screening }) {
   const Tag = screening.soldOut ? 'div' : 'a';
   return (
     <Tag
@@ -221,12 +221,12 @@ export interface DayGroup {
   /** `YYYY-MM-DD` en la zona local. */
   readonly day: string;
   /** La primera función del día (todo grupo tiene al menos una). */
-  readonly first: MovieScreeningResponse;
-  readonly screenings: readonly MovieScreeningResponse[];
+  readonly first: Screening;
+  readonly screenings: readonly Screening[];
 }
 
 /** Agrupa las funciones por día local del calendario, conservando el orden del servidor. */
-export function groupByDay(screenings: readonly MovieScreeningResponse[]): readonly DayGroup[] {
+export function groupByDay(screenings: readonly Screening[]): readonly DayGroup[] {
   const groups: DayGroup[] = [];
   // `Map.groupBy` conserva el orden de inserción dentro de cada grupo.
   for (const [day, items] of Map.groupBy(screenings, (screening) => dayKey(screening.startsAt))) {

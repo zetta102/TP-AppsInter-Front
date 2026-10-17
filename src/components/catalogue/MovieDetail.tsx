@@ -4,7 +4,7 @@ import { useKeyedResource } from '../../lib/use-resource.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
 import { formatDayHeading, formatRuntime } from '../../lib/format.ts';
-import type { MovieResponse, MovieScreeningResponse } from '../../lib/types.ts';
+import type { Movie, Screening } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { GenreList, MovieMeta, Poster, ScreeningRow, groupByDay } from './MovieCard.tsx';
@@ -22,8 +22,8 @@ export default function MovieDetail() {
   const resource = useKeyedResource<
     string,
     {
-      readonly movie: MovieResponse;
-      readonly screenings: readonly MovieScreeningResponse[];
+      readonly movie: Movie;
+      readonly screenings: readonly Screening[];
     }
   >(movieId, async (id, signal) => {
     const [movie, screenings] = await Promise.all([

@@ -8,13 +8,13 @@ import {
 } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type {
-  BulkCreateSeatsRequest,
-  CreateScreenRoomRequest,
+  BulkSeatsRequest,
+  RoomRequest,
   GenerateSeatsRequest,
   Page,
-  ScreenRoomResponse,
-  SeatLayoutResponse,
-  SeatResponse,
+  Room,
+  SeatLayout,
+  Seat,
   Uuid,
 } from '../types.ts';
 
@@ -31,35 +31,35 @@ export type ListRoomsParams = PageParams<RoomSortField> & {
 export function listRooms(
   params: ListRoomsParams = {},
   options: CallOptions = {},
-): Promise<Page<ScreenRoomResponse>> {
-  return getPage<ScreenRoomResponse>('/api/rooms', params, options);
+): Promise<Page<Room>> {
+  return getPage<Room>('/api/rooms', params, options);
 }
 
-export function getRoom(uuid: Uuid, options: CallOptions = {}): Promise<ScreenRoomResponse> {
-  return requestJson<ScreenRoomResponse>(`/api/rooms/${uuid}`, options);
+export function getRoom(uuid: Uuid, options: CallOptions = {}): Promise<Room> {
+  return requestJson<Room>(`/api/rooms/${uuid}`, options);
 }
 
 /** Devuelve un **array plano**, no un contenedor paginado. */
-export function getRoomSeats(uuid: Uuid, options: CallOptions = {}): Promise<SeatResponse[]> {
-  return requestJson<SeatResponse[]>(`/api/rooms/${uuid}/seats`, options);
+export function getRoomSeats(uuid: Uuid, options: CallOptions = {}): Promise<Seat[]> {
+  return requestJson<Seat[]>(`/api/rooms/${uuid}/seats`, options);
 }
 
 /** La grilla sin disponibilidad, para el editor de salas de admin. */
-export function getRoomLayout(uuid: Uuid, options: CallOptions = {}): Promise<SeatLayoutResponse> {
-  return requestJson<SeatLayoutResponse>(`/api/rooms/${uuid}/layout`, options);
+export function getRoomLayout(uuid: Uuid, options: CallOptions = {}): Promise<SeatLayout> {
+  return requestJson<SeatLayout>(`/api/rooms/${uuid}/layout`, options);
 }
 
 /** `409 "Screen room '…' already exists"` ante un choque de nombre sin distinguir mayúsculas. */
-export function createRoom(body: CreateScreenRoomRequest) {
-  return requestCreated<ScreenRoomResponse>('/api/rooms', { body, auth: true });
+export function createRoom(body: RoomRequest) {
+  return requestCreated<Room>('/api/rooms', { body, auth: true });
 }
 
 /** La unicidad se vuelve a verificar excluyéndose a sí misma, así que conservar el nombre funciona. */
 export function updateRoom(
   uuid: Uuid,
-  body: CreateScreenRoomRequest,
-): Promise<ScreenRoomResponse> {
-  return requestJson<ScreenRoomResponse>(`/api/rooms/${uuid}`, {
+  body: RoomRequest,
+): Promise<Room> {
+  return requestJson<Room>(`/api/rooms/${uuid}`, {
     method: 'PUT',
     body,
     auth: true,
@@ -67,8 +67,8 @@ export function updateRoom(
 }
 
 /** `409 RESOURCE_IN_USE` si la sala tiene funciones vigentes que no terminaron. */
-export function setRoomArchived(uuid: Uuid, archived: boolean): Promise<ScreenRoomResponse> {
-  return setArchived<ScreenRoomResponse>(`/api/rooms/${uuid}`, archived);
+export function setRoomArchived(uuid: Uuid, archived: boolean): Promise<Room> {
+  return setArchived<Room>(`/api/rooms/${uuid}`, archived);
 }
 
 export function deleteRoom(uuid: Uuid): Promise<void> {
@@ -85,8 +85,8 @@ export function deleteRoom(uuid: Uuid): Promise<void> {
  * Se prefiere la ruta con dos puntos; `…/seats/bulk` es el mismo endpoint publicado
  * bajo un alias con barra para clientes/proxies que alteran `:` en un segmento de ruta.
  */
-export function bulkCreateSeats(uuid: Uuid, body: BulkCreateSeatsRequest) {
-  return requestCreated<SeatLayoutResponse>(`/api/rooms/${uuid}/seats:bulk`, {
+export function bulkCreateSeats(uuid: Uuid, body: BulkSeatsRequest) {
+  return requestCreated<SeatLayout>(`/api/rooms/${uuid}/seats:bulk`, {
     body,
     auth: true,
   });
@@ -98,7 +98,7 @@ export function bulkCreateSeats(uuid: Uuid, body: BulkCreateSeatsRequest) {
  * deja vacías coordenadas individuales estilo `"E5"` como pasillos.
  */
 export function generateSeats(uuid: Uuid, body: GenerateSeatsRequest) {
-  return requestCreated<SeatLayoutResponse>(`/api/rooms/${uuid}/seats:generate`, {
+  return requestCreated<SeatLayout>(`/api/rooms/${uuid}/seats:generate`, {
     body,
     auth: true,
   });

@@ -1,4 +1,4 @@
-import type { SeatMapResponse, SeatMapSeat } from '../../lib/types.ts';
+import type { SeatMap as SeatMapData, SeatAvailability } from '../../lib/types.ts';
 import { cx } from '../../lib/cx.ts';
 import { SeatType } from '../../lib/enums.ts';
 import { formatMoney, seatLabel } from '../../lib/format.ts';
@@ -21,23 +21,23 @@ type CoordKey = `${string}-${string}`;
 
 const coordKey = (row: string, column: string): CoordKey => `${row}-${column}`;
 
-export function indexSeats(seats: readonly SeatMapSeat[]): ReadonlyMap<CoordKey, SeatMapSeat> {
+export function indexSeats(seats: readonly SeatAvailability[]): ReadonlyMap<CoordKey, SeatAvailability> {
   return new Map(seats.map((seat) => [coordKey(seat.row, seat.column), seat]));
 }
 
 /** Índice por `seatId`, para resolver una selección (lista de ids) contra el mapa. */
-export function indexSeatsById(seats: readonly SeatMapSeat[]): ReadonlyMap<string, SeatMapSeat> {
+export function indexSeatsById(seats: readonly SeatAvailability[]): ReadonlyMap<string, SeatAvailability> {
   return new Map(seats.map((seat) => [seat.seatId, seat]));
 }
 
 export interface SeatMapProps {
-  readonly seatMap: SeatMapResponse;
+  readonly seatMap: SeatMapData;
   readonly basePrice: number;
   /** `premiumSeatMultiplier` de `GET /api/metadata/config`; el valor documentado es solo el fallback. */
   readonly premiumMultiplier?: number;
   /** IDs de asientos seleccionados, en el orden de selección. */
   readonly selected: readonly string[];
-  readonly onToggle?: (seat: SeatMapSeat) => void;
+  readonly onToggle?: (seat: SeatAvailability) => void;
   /**
    * Asientos perdidos a manos de otro cliente desde el último renderizado; se resaltan después de un
    * `409` para que el usuario vea exactamente qué cambió.
@@ -146,7 +146,7 @@ function seatClass({
   readonly isSelected: boolean;
   readonly isLost: boolean;
   readonly isPremium: boolean;
-  readonly seat: SeatMapSeat;
+  readonly seat: SeatAvailability;
   readonly interactive: boolean;
 }): string {
   // `scroll-mb-32`: al enfocar con teclado, el asiento queda por encima de la barra fija inferior

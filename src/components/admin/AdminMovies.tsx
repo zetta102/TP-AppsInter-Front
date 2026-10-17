@@ -11,7 +11,7 @@ import { useResource } from '../../lib/use-resource.ts';
 import { toFieldErrors } from '../../lib/problem.ts';
 import { isEnumValue, movieGenreLabels, movieGenreValues } from '../../lib/enums.ts';
 import { formatRuntime } from '../../lib/format.ts';
-import type { CreateMovieRequest, MovieResponse, Page } from '../../lib/types.ts';
+import type { MovieRequest, Movie, Page } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
@@ -51,11 +51,11 @@ export default function AdminMovies() {
   const [search, setSearch] = useState('');
   // La tabla sigue al texto con prioridad baja: escribir no espera a cada respuesta.
   const deferredSearch = useDeferredValue(search.trim());
-  const [editing, setEditing] = useState<MovieResponse | null>(null);
+  const [editing, setEditing] = useState<Movie | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const resource = useResource<Page<MovieResponse>>(
+  const resource = useResource<Page<Movie>>(
     (signal) =>
       listMovies(
         {
@@ -70,7 +70,7 @@ export default function AdminMovies() {
     [page, sort, deferredSearch, showArchived],
   );
 
-  const actions = useArchiveActions<MovieResponse>({
+  const actions = useArchiveActions<Movie>({
     remove: deleteMovie,
     setArchived: setMovieArchived,
     refetch: resource.refetch,
@@ -78,7 +78,7 @@ export default function AdminMovies() {
     name: (movie) => movie.movieName,
   });
 
-  const columns: readonly Column<MovieResponse, MovieSortField>[] = [
+  const columns: readonly Column<Movie, MovieSortField>[] = [
     {
       key: 'movieName',
       header: 'Título',
@@ -220,7 +220,7 @@ function MovieFormModal({
   onClose,
   onSaved,
 }: {
-  readonly movie: MovieResponse | null;
+  readonly movie: Movie | null;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
@@ -233,7 +233,7 @@ function MovieFormModal({
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-    const body: CreateMovieRequest = {
+    const body: MovieRequest = {
       movieName: String(formData.get('movieName') ?? '').trim(),
       genres,
       runtime: Number(formData.get('runtime') ?? 0),

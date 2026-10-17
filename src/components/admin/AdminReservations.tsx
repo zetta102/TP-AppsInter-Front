@@ -12,7 +12,7 @@ import {
   reservationStatusValues,
 } from '../../lib/enums.ts';
 import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
-import type { Page, ReservationResponse } from '../../lib/types.ts';
+import type { Page, Reservation } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
@@ -33,7 +33,7 @@ export default function AdminReservations() {
   const [status, setStatus] = useState<ReservationStatus | ''>('');
   const [rowError, setRowError] = useState<unknown>(null);
 
-  const resource = useResource<Page<ReservationResponse>>(
+  const resource = useResource<Page<Reservation>>(
     (signal) =>
       listAllReservations(
         { page, size: PAGE_SIZE, sort, ...(status ? { status } : {}) },
@@ -42,7 +42,7 @@ export default function AdminReservations() {
     [page, sort, status],
   );
 
-  const columns: readonly Column<ReservationResponse, ReservationSortField>[] = [
+  const columns: readonly Column<Reservation, ReservationSortField>[] = [
     {
       key: 'reference',
       header: 'Reserva',
@@ -160,7 +160,7 @@ function CancelButton({
   onError,
   onDone,
 }: {
-  readonly reservation: ReservationResponse;
+  readonly reservation: Reservation;
   readonly onError: (error: unknown) => void;
   readonly onDone: () => void;
 }) {

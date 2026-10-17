@@ -22,11 +22,11 @@ import {
   toDateTimeLocalValue,
 } from '../../lib/format.ts';
 import type {
-  CreateMovieScreeningRequest,
-  MovieResponse,
-  MovieScreeningResponse,
+  ScreeningRequest,
+  Movie,
+  Screening,
   Page,
-  ScreenRoomResponse,
+  Room,
 } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
@@ -71,15 +71,15 @@ export default function AdminScreenings() {
   const [movieId, setMovieId] = useState('');
   const [roomId, setRoomId] = useState('');
   const [upcomingOnly, setUpcomingOnly] = useState(true);
-  const [editing, setEditing] = useState<MovieScreeningResponse | null>(null);
+  const [editing, setEditing] = useState<Screening | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const movies = useResource<Page<MovieResponse>>(
+  const movies = useResource<Page<Movie>>(
     (signal) => listMovies({ size: OPTIONS_PAGE_SIZE, sort: 'movieName,asc' }, { signal }),
     [],
   );
-  const rooms = useResource<Page<ScreenRoomResponse>>(
+  const rooms = useResource<Page<Room>>(
     (signal) => listRooms({ size: OPTIONS_PAGE_SIZE, sort: 'roomName,asc' }, { signal }),
     [],
   );
@@ -90,7 +90,7 @@ export default function AdminScreenings() {
   const turnoverMinutes = config.data?.screeningTurnoverMinutes ?? TURNOVER_MINUTES;
   const premiumMultiplier = config.data?.premiumSeatMultiplier ?? PREMIUM_MULTIPLIER;
 
-  const resource = useResource<Page<MovieScreeningResponse>>(
+  const resource = useResource<Page<Screening>>(
     (signal) =>
       listScreenings(
         {
@@ -107,7 +107,7 @@ export default function AdminScreenings() {
     [page, sort, movieId, roomId, upcomingOnly, showArchived],
   );
 
-  const actions = useArchiveActions<MovieScreeningResponse>({
+  const actions = useArchiveActions<Screening>({
     remove: deleteScreening,
     setArchived: setScreeningArchived,
     refetch: resource.refetch,
@@ -115,7 +115,7 @@ export default function AdminScreenings() {
     name: (screening) => `${screening.movieName} · ${formatDateTime(screening.startsAt)}`,
   });
 
-  const columns: readonly Column<MovieScreeningResponse, ScreeningSortField>[] = [
+  const columns: readonly Column<Screening, ScreeningSortField>[] = [
     {
       key: 'movie',
       header: 'Película',
@@ -300,9 +300,9 @@ function ScreeningFormModal({
   onClose,
   onSaved,
 }: {
-  readonly screening: MovieScreeningResponse | null;
-  readonly movies: readonly MovieResponse[];
-  readonly rooms: readonly ScreenRoomResponse[];
+  readonly screening: Screening | null;
+  readonly movies: readonly Movie[];
+  readonly rooms: readonly Room[];
   readonly turnoverMinutes: number;
   readonly premiumMultiplier: number;
   readonly onClose: () => void;
@@ -327,7 +327,7 @@ function ScreeningFormModal({
   const startsInPast = startsAt !== '' && new Date(startsAt).getTime() <= now;
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
-    const body: CreateMovieScreeningRequest = {
+    const body: ScreeningRequest = {
       movieId: String(formData.get('movieId') ?? ''),
       screenRoomId: String(formData.get('screenRoomId') ?? ''),
       startsAt: fromDateTimeLocalValue(String(formData.get('startsAt') ?? '')),

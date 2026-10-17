@@ -5,7 +5,7 @@ import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
 import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import { ReservationStatus, seatTypeLabels } from '../../lib/enums.ts';
-import type { ReservationResponse } from '../../lib/types.ts';
+import type { Reservation } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
@@ -35,7 +35,7 @@ function DetailPanel() {
   const [cancelError, setCancelError] = useState<unknown>(null);
   const [busy, startCancel] = useTransition();
 
-  const resource = useKeyedResource<string, ReservationResponse>(reservationId, (id, signal) =>
+  const resource = useKeyedResource<string, Reservation>(reservationId, (id, signal) =>
     getReservation(id, { signal }),
   );
   useDocumentTitle(resource.data && `Reserva · ${resource.data.movieName}`);

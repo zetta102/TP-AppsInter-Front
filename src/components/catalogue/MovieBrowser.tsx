@@ -7,7 +7,7 @@ import {
   movieGenreValues,
   type MovieGenre,
 } from '../../lib/enums.ts';
-import type { MovieResponse, Page } from '../../lib/types.ts';
+import type { Movie, Page } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
@@ -41,7 +41,7 @@ export default function MovieBrowser() {
   // Mantiene la escritura fluida sin lanzar una petición por cada tecla.
   const deferredSearch = useDeferredValue(search);
 
-  const resource = useResource<Page<MovieResponse>>(
+  const resource = useResource<Page<Movie>>(
     (signal) =>
       listMovies(
         {

@@ -9,9 +9,9 @@ import {
 import type { PageParams } from '../query.ts';
 import type { MovieGenre } from '../enums.ts';
 import type {
-  CreateMovieRequest,
-  MovieResponse,
-  NowShowingResponse,
+  MovieRequest,
+  Movie,
+  NowShowing,
   Page,
   Uuid,
 } from '../types.ts';
@@ -47,8 +47,8 @@ export type ListMoviesParams = PageParams<MovieSortField> & MovieFilters;
 export function listMovies(
   params: ListMoviesParams = {},
   options: CallOptions = {},
-): Promise<Page<MovieResponse>> {
-  return getPage<MovieResponse>('/api/movies', params, options);
+): Promise<Page<Movie>> {
+  return getPage<Movie>('/api/movies', params, options);
 }
 
 export type NowShowingParams = PageParams<NowShowingSortField> & {
@@ -65,24 +65,24 @@ export type NowShowingParams = PageParams<NowShowingSortField> & {
 export function listNowShowing(
   params: NowShowingParams = {},
   options: CallOptions = {},
-): Promise<Page<NowShowingResponse>> {
-  return getPage<NowShowingResponse>('/api/movies/now-showing', params, {
+): Promise<Page<NowShowing>> {
+  return getPage<NowShowing>('/api/movies/now-showing', params, {
     ...options,
     auth: 'optional',
   });
 }
 
-export function getMovie(uuid: Uuid, options: CallOptions = {}): Promise<MovieResponse> {
-  return requestJson<MovieResponse>(`/api/movies/${uuid}`, options);
+export function getMovie(uuid: Uuid, options: CallOptions = {}): Promise<Movie> {
+  return requestJson<Movie>(`/api/movies/${uuid}`, options);
 }
 
-export function createMovie(body: CreateMovieRequest) {
-  return requestCreated<MovieResponse>('/api/movies', { body, auth: true });
+export function createMovie(body: MovieRequest) {
+  return requestCreated<Movie>('/api/movies', { body, auth: true });
 }
 
 /** `PUT` es un reemplazo completo: envía todos los campos, no solo los que cambiaron. */
-export function updateMovie(uuid: Uuid, body: CreateMovieRequest): Promise<MovieResponse> {
-  return requestJson<MovieResponse>(`/api/movies/${uuid}`, {
+export function updateMovie(uuid: Uuid, body: MovieRequest): Promise<Movie> {
+  return requestJson<Movie>(`/api/movies/${uuid}`, {
     method: 'PUT',
     body,
     auth: true,
@@ -90,8 +90,8 @@ export function updateMovie(uuid: Uuid, body: CreateMovieRequest): Promise<Movie
 }
 
 /** `409 RESOURCE_IN_USE` si la película tiene funciones vigentes que no terminaron. */
-export function setMovieArchived(uuid: Uuid, archived: boolean): Promise<MovieResponse> {
-  return setArchived<MovieResponse>(`/api/movies/${uuid}`, archived);
+export function setMovieArchived(uuid: Uuid, archived: boolean): Promise<Movie> {
+  return setArchived<Movie>(`/api/movies/${uuid}`, archived);
 }
 
 /** `409 RESOURCE_IN_USE` cuando funciones existentes todavía referencian la película: archivala. */

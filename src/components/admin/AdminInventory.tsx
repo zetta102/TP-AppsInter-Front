@@ -24,7 +24,7 @@ import {
   type ProductCategory,
 } from '../../lib/enums.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
-import type { CreateInventoryRequest, InventoryResponse, Page } from '../../lib/types.ts';
+import type { InventoryItemRequest, InventoryItem, Page } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
@@ -61,12 +61,12 @@ export default function AdminInventory() {
   const [search, setSearch] = useState('');
   // La tabla sigue al texto con prioridad baja: escribir no espera a cada respuesta.
   const deferredSearch = useDeferredValue(search.trim());
-  const [editing, setEditing] = useState<InventoryResponse | null>(null);
-  const [adjusting, setAdjusting] = useState<InventoryResponse | null>(null);
+  const [editing, setEditing] = useState<InventoryItem | null>(null);
+  const [adjusting, setAdjusting] = useState<InventoryItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const resource = useResource<Page<InventoryResponse>>(
+  const resource = useResource<Page<InventoryItem>>(
     (signal) =>
       listInventory(
         {
@@ -83,7 +83,7 @@ export default function AdminInventory() {
   );
 
   // Un producto ya vendido no se puede borrar (409): se archiva y deja de ofrecerse.
-  const actions = useArchiveActions<InventoryResponse>({
+  const actions = useArchiveActions<InventoryItem>({
     remove: deleteInventoryItem,
     setArchived: setInventoryArchived,
     refetch: resource.refetch,
@@ -91,7 +91,7 @@ export default function AdminInventory() {
     name: (item) => item.productName,
   });
 
-  const columns: readonly Column<InventoryResponse, InventorySortField>[] = [
+  const columns: readonly Column<InventoryItem, InventorySortField>[] = [
     {
       key: 'productName',
       header: 'Producto',
@@ -263,17 +263,17 @@ function InventoryFormModal({
   onSaved,
   onRefreshed,
 }: {
-  readonly item: InventoryResponse | null;
+  readonly item: InventoryItem | null;
   readonly onClose: () => void;
   readonly onSaved: () => void;
-  readonly onRefreshed: (item: InventoryResponse) => void;
+  readonly onRefreshed: (item: InventoryItem) => void;
 }) {
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
     const category = formData.get('category');
     if (!isEnumValue(productCategoryValues, category)) {
       return { error: null, fieldErrors: { category: 'Elegí una categoría.' }, conflict: false };
     }
-    const body: CreateInventoryRequest = {
+    const body: InventoryItemRequest = {
       productName: String(formData.get('productName') ?? '').trim(),
       category,
       cost: Number(formData.get('cost') ?? 0),
@@ -403,7 +403,7 @@ function AdjustStockModal({
   onClose,
   onAdjusted,
 }: {
-  readonly item: InventoryResponse;
+  readonly item: InventoryItem;
   readonly onClose: () => void;
   readonly onAdjusted: () => void;
 }) {

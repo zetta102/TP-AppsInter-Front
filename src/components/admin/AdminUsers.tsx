@@ -4,7 +4,7 @@ import { deleteUser, listUsers, updateUserRole, type UserSortField } from '../..
 import { useResource } from '../../lib/use-resource.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import { isEnumValue, Role, roleLabels, roleValues } from '../../lib/enums.ts';
-import type { Page, UserResponse } from '../../lib/types.ts';
+import type { Page, User } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
@@ -37,7 +37,7 @@ export default function AdminUsers() {
   const deferredName = useDeferredValue(name.trim());
   const [rowError, setRowError] = useState<unknown>(null);
 
-  const resource = useResource<Page<UserResponse>>(
+  const resource = useResource<Page<User>>(
     (signal) =>
       listUsers(
         {
@@ -53,7 +53,7 @@ export default function AdminUsers() {
     [page, sort, role, deferredEmail, deferredName],
   );
 
-  const columns: readonly Column<UserResponse, UserSortField>[] = [
+  const columns: readonly Column<User, UserSortField>[] = [
     {
       key: 'email',
       header: 'Email',
@@ -179,7 +179,7 @@ function UserRowActions({
   onError,
   onDone,
 }: {
-  readonly user: UserResponse;
+  readonly user: User;
   readonly isSelf: boolean;
   readonly onError: (error: unknown) => void;
   readonly onDone: () => void;

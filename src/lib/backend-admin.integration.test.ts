@@ -31,7 +31,7 @@ import { estimateTotal } from './pricing.ts';
 import { ApiError } from './problem.ts';
 import { apiBaseUrl, requestJson } from './http.ts';
 import { readSse } from './sse.ts';
-import type { SeatHoldResponse, SeatMapResponse, SeatState, Uuid } from './types.ts';
+import type { SeatHold, SeatMap, SeatState, Uuid } from './types.ts';
 
 /**
  * Flujo completo de admin + cliente contra el backend real:
@@ -69,8 +69,8 @@ async function expectApiError(promise: Promise<unknown>, status: number, code?: 
 }
 
 /** El mapa de asientos visto sin sesión (como lo ve un visitante anónimo). */
-function anonymousSeatMap(screeningId: Uuid): Promise<SeatMapResponse> {
-  return requestJson<SeatMapResponse>(`/api/screenings/${screeningId}/seats`);
+function anonymousSeatMap(screeningId: Uuid): Promise<SeatMap> {
+  return requestJson<SeatMap>(`/api/screenings/${screeningId}/seats`);
 }
 
 describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente', () => {
@@ -80,7 +80,7 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
   let productId: Uuid;
   let normalSeat: Uuid;
   let premiumSeat: Uuid;
-  let hold: SeatHoldResponse;
+  let hold: SeatHold;
   let reservationId: Uuid;
   let customerId: Uuid;
 

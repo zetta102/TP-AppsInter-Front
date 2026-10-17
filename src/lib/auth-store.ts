@@ -1,7 +1,7 @@
 import { navigate } from 'astro:transitions/client';
 import { ApiError } from './problem.ts';
 import { apiFetch, registerAuthHooks, requestJson } from './http.ts';
-import type { AuthResponse, LoginRequest, RegisterRequest, UserResponse } from './types.ts';
+import type { AuthTokens, LoginRequest, RegisterRequest, User } from './types.ts';
 import { Role } from './enums.ts';
 
 /**
@@ -19,17 +19,9 @@ import { Role } from './enums.ts';
 
 const STORAGE_KEY = 'cine.auth.tokens';
 
-export interface AuthTokens {
-  readonly token: string;
-  readonly tokenType: string;
-  readonly expiresAt: string;
-  readonly refreshToken: string;
-  readonly refreshExpiresAt: string;
-}
-
 export interface AuthState {
   readonly tokens: AuthTokens | null;
-  readonly user: UserResponse | null;
+  readonly user: User | null;
   /** Permanece en false hasta que el store lea `localStorage` y resuelva el perfil. */
   readonly ready: boolean;
 }
@@ -90,7 +82,8 @@ function writeStoredTokens(tokens: AuthTokens | null): void {
   }
 }
 
-function fromAuthResponse(response: AuthResponse): AuthTokens {
+/** Copia solo los campos conocidos: lo que se persiste en `localStorage` no depende de extras del servidor. */
+function pickTokens(response: AuthTokens): AuthTokens {
   return {
     token: response.token,
     tokenType: response.tokenType,
@@ -129,12 +122,12 @@ export function refreshTokens(): Promise<boolean> {
         return;
       }
 
-      const next = await requestJson<AuthResponse>('/api/auth/refresh', {
+      const next = await requestJson<AuthTokens>('/api/auth/refresh', {
         method: 'POST',
         body: { refreshToken: current.refreshToken },
       });
       // Reemplaza *ambos* tokens: el refresh token consumido ya quedó revocado.
-      applyTokens(fromAuthResponse(next));
+      applyTokens(pickTokens(next));
       resolve(true);
     } catch {
       resolve(false);
@@ -168,13 +161,13 @@ export function clearSession(): void {
 }
 
 /** Aplica un perfil recién actualizado sin hacer un viaje de ida y vuelta por `fetchProfile`. */
-export function setUser(user: UserResponse): void {
+export function setUser(user: User): void {
   setState({ user });
 }
 
-export async function fetchProfile(): Promise<UserResponse | null> {
+export async function fetchProfile(): Promise<User | null> {
   try {
-    const user = await requestJson<UserResponse>('/api/users/me', { auth: true });
+    const user = await requestJson<User>('/api/users/me', { auth: true });
     setState({ user });
     return user;
   } catch (error) {
@@ -183,12 +176,12 @@ export async function fetchProfile(): Promise<UserResponse | null> {
   }
 }
 
-export async function login(credentials: LoginRequest): Promise<UserResponse> {
-  const response = await requestJson<AuthResponse>('/api/auth/login', {
+export async function login(credentials: LoginRequest): Promise<User> {
+  const response = await requestJson<AuthTokens>('/api/auth/login', {
     method: 'POST',
     body: credentials,
   });
-  applyTokens(fromAuthResponse(response));
+  applyTokens(pickTokens(response));
 
   const user = await fetchProfile();
   if (!user) {

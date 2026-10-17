@@ -2,10 +2,10 @@ import { getPage, requestCreated, requestJson, type CallOptions } from './shared
 import type { PageParams } from '../query.ts';
 import type { ReservationStatus } from '../enums.ts';
 import type {
-  CreateReservationRequest,
+  ReservationRequest,
   Page,
-  ReservationQuoteResponse,
-  ReservationResponse,
+  Quote,
+  Reservation,
   Uuid,
 } from '../types.ts';
 
@@ -55,24 +55,24 @@ export type ListAllReservationsParams = PageParams<ReservationSortField> & Admin
 export function listMyReservations(
   params: ListReservationsParams = {},
   options: CallOptions = {},
-): Promise<Page<ReservationResponse>> {
-  return getPage<ReservationResponse>('/api/reservations', params, { ...options, auth: true });
+): Promise<Page<Reservation>> {
+  return getPage<Reservation>('/api/reservations', params, { ...options, auth: true });
 }
 
 /** Solo ADMIN; `403` para clientes. */
 export function listAllReservations(
   params: ListAllReservationsParams = {},
   options: CallOptions = {},
-): Promise<Page<ReservationResponse>> {
-  return getPage<ReservationResponse>('/api/reservations/all', params, { ...options, auth: true });
+): Promise<Page<Reservation>> {
+  return getPage<Reservation>('/api/reservations/all', params, { ...options, auth: true });
 }
 
 /** `404` —no `403`— cuando la reserva pertenece a otra persona. */
 export function getReservation(
   uuid: Uuid,
   options: CallOptions = {},
-): Promise<ReservationResponse> {
-  return requestJson<ReservationResponse>(`/api/reservations/${uuid}`, { ...options, auth: true });
+): Promise<Reservation> {
+  return requestJson<Reservation>(`/api/reservations/${uuid}`, { ...options, auth: true });
 }
 
 /**
@@ -80,8 +80,8 @@ export function getReservation(
  * combinan del lado del servidor. La cadena de validación está ordenada, así que un
  * error de asiento siempre se informa antes que un error de producto.
  */
-export function createReservation(body: CreateReservationRequest) {
-  return requestCreated<ReservationResponse>('/api/reservations', { body, auth: true });
+export function createReservation(body: ReservationRequest) {
+  return requestCreated<Reservation>('/api/reservations', { body, auth: true });
 }
 
 /**
@@ -91,10 +91,10 @@ export function createReservation(body: CreateReservationRequest) {
  * porque es exactamente el mismo camino de código que usará el cobro real y nunca puede divergir.
  */
 export function quoteReservation(
-  body: CreateReservationRequest,
+  body: ReservationRequest,
   options: CallOptions = {},
-): Promise<ReservationQuoteResponse> {
-  return requestJson<ReservationQuoteResponse>('/api/reservations:quote', {
+): Promise<Quote> {
+  return requestJson<Quote>('/api/reservations:quote', {
     ...options,
     method: 'POST',
     body,
@@ -110,8 +110,8 @@ export function quoteReservation(
  * cancelada devuelve `422 ALREADY_CANCELLED`; un cliente que cancela después del inicio
  * recibe `422 SCREENING_STARTED` (los admins pueden cancelar en cualquier momento).
  */
-export function cancelReservation(uuid: Uuid): Promise<ReservationResponse> {
-  return requestJson<ReservationResponse>(`/api/reservations/${uuid}/cancellation`, {
+export function cancelReservation(uuid: Uuid): Promise<Reservation> {
+  return requestJson<Reservation>(`/api/reservations/${uuid}/cancellation`, {
     method: 'POST',
     auth: true,
   });

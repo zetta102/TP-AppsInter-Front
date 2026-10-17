@@ -1,7 +1,7 @@
 import { getPage, requestJson, type CallOptions } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type { ProductCategory } from '../enums.ts';
-import type { Page, ProductResponse, Uuid } from '../types.ts';
+import type { Page, Product, Uuid } from '../types.ts';
 
 /**
  * `/api/products`: la proyección **pública** del inventario orientada al cliente
@@ -25,10 +25,10 @@ export type ListProductsParams = PageParams<ProductSortField> & ProductFilters;
 export function listProducts(
   params: ListProductsParams = {},
   options: CallOptions = {},
-): Promise<Page<ProductResponse>> {
-  return getPage<ProductResponse>('/api/products', params, options);
+): Promise<Page<Product>> {
+  return getPage<Product>('/api/products', params, options);
 }
 
-export function getProduct(uuid: Uuid, options: CallOptions = {}): Promise<ProductResponse> {
-  return requestJson<ProductResponse>(`/api/products/${uuid}`, options);
+export function getProduct(uuid: Uuid, options: CallOptions = {}): Promise<Product> {
+  return requestJson<Product>(`/api/products/${uuid}`, options);
 }

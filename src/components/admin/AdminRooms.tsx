@@ -10,7 +10,7 @@ import {
 import { useResource } from '../../lib/use-resource.ts';
 import { toFieldErrors } from '../../lib/problem.ts';
 import { isEnumValue, screenRoomTypeLabels, screenRoomTypeValues } from '../../lib/enums.ts';
-import type { CreateScreenRoomRequest, Page, ScreenRoomResponse } from '../../lib/types.ts';
+import type { RoomRequest, Page, Room } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
@@ -34,18 +34,18 @@ const initialFormState: FormState = { error: null, fieldErrors: {} };
 export default function AdminRooms() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<RoomSortField>>('roomName,asc');
-  const [editing, setEditing] = useState<ScreenRoomResponse | null>(null);
+  const [editing, setEditing] = useState<Room | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const resource = useResource<Page<ScreenRoomResponse>>(
+  const resource = useResource<Page<Room>>(
     (signal) =>
       listRooms({ page, size: PAGE_SIZE, sort, includeArchived: showArchived }, { signal }),
     [page, sort, showArchived],
   );
 
   // Una sala con funciones o entradas vendidas no se puede borrar (409): se archiva.
-  const actions = useArchiveActions<ScreenRoomResponse>({
+  const actions = useArchiveActions<Room>({
     remove: deleteRoom,
     setArchived: setRoomArchived,
     refetch: resource.refetch,
@@ -53,7 +53,7 @@ export default function AdminRooms() {
     name: (room) => room.roomName,
   });
 
-  const columns: readonly Column<ScreenRoomResponse, RoomSortField>[] = [
+  const columns: readonly Column<Room, RoomSortField>[] = [
     {
       key: 'roomName',
       header: 'Sala',
@@ -168,7 +168,7 @@ function RoomFormModal({
   onClose,
   onSaved,
 }: {
-  readonly room: ScreenRoomResponse | null;
+  readonly room: Room | null;
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
@@ -180,7 +180,7 @@ function RoomFormModal({
     const body = {
       roomName: String(formData.get('roomName') ?? '').trim(),
       screenRoomType,
-    } satisfies CreateScreenRoomRequest;
+    } satisfies RoomRequest;
 
     try {
       if (room) await updateRoom(room.uuid, body);

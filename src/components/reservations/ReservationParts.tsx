@@ -1,7 +1,7 @@
 import { Badge } from '../ui/Modal.tsx';
 import { ReservationStatus, reservationStatusLabels } from '../../lib/enums.ts';
 import { formatMoney, seatLabel } from '../../lib/format.ts';
-import type { ReservationResponse } from '../../lib/types.ts';
+import type { Reservation } from '../../lib/types.ts';
 
 /** Presentación compartida para reservas, usada tanto en vistas de cliente como de admin. */
 
@@ -16,7 +16,7 @@ export function StatusBadge({ status }: { readonly status: ReservationStatus }) 
 }
 
 /** Lista compacta de butacas — se conserva incluso tras cancelar (la cancelación lógica mantiene las entradas). */
-export function TicketSummary({ reservation }: { readonly reservation: ReservationResponse }) {
+export function TicketSummary({ reservation }: { readonly reservation: Reservation }) {
   if (reservation.tickets.length === 0) {
     return <span className="text-sm text-ink-500">Sin entradas</span>;
   }
@@ -31,7 +31,7 @@ export function TicketSummary({ reservation }: { readonly reservation: Reservati
  * Las líneas renderizan `productName` y `unitPrice` **capturados en la compra** —
  * editar el catálogo después nunca debe reescribir una compra pasada.
  */
-export function ItemLines({ reservation }: { readonly reservation: ReservationResponse }) {
+export function ItemLines({ reservation }: { readonly reservation: Reservation }) {
   if (reservation.items.length === 0) return null;
 
   return (

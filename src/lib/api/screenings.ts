@@ -9,10 +9,10 @@ import {
 import { DEFAULT_METADATA_CONFIG } from './metadata.ts';
 import type { PageParams } from '../query.ts';
 import type {
-  CreateMovieScreeningRequest,
-  MovieScreeningResponse,
+  ScreeningRequest,
+  Screening,
   Page,
-  SeatMapResponse,
+  SeatMap,
   Uuid,
 } from '../types.ts';
 
@@ -42,8 +42,8 @@ export type ListScreeningsParams = PageParams<ScreeningSortField> & ScreeningFil
 export function listScreenings(
   params: ListScreeningsParams = {},
   options: CallOptions = {},
-): Promise<Page<MovieScreeningResponse>> {
-  return getPage<MovieScreeningResponse>('/api/screenings', params, { ...options, auth: 'optional' });
+): Promise<Page<Screening>> {
+  return getPage<Screening>('/api/screenings', params, { ...options, auth: 'optional' });
 }
 
 export interface GetScreeningOptions extends CallOptions {
@@ -56,16 +56,16 @@ export interface GetScreeningOptions extends CallOptions {
 export function getScreening(
   uuid: Uuid,
   options: GetScreeningOptions = {},
-): Promise<MovieScreeningResponse> {
+): Promise<Screening> {
   const { includeAvailability, include, ...callOptions } = options;
-  return requestJson<MovieScreeningResponse>(`/api/screenings/${uuid}`, {
+  return requestJson<Screening>(`/api/screenings/${uuid}`, {
     ...callOptions,
     query: { includeAvailability, include },
     auth: 'optional',
   });
 }
 
-export type ScreeningWithSeatMap = MovieScreeningResponse & { readonly seatMap: SeatMapResponse };
+export type ScreeningWithSeatMap = Screening & { readonly seatMap: SeatMap };
 
 /** Función + mapa de asientos en una sola llamada (`include=seatMap`). */
 export async function getScreeningWithSeatMap(
@@ -85,24 +85,24 @@ export async function getScreeningWithSeatMap(
 export function getScreeningSeatMap(
   uuid: Uuid,
   options: CallOptions = {},
-): Promise<SeatMapResponse> {
-  return requestJson<SeatMapResponse>(`/api/screenings/${uuid}/seats`, {
+): Promise<SeatMap> {
+  return requestJson<SeatMap>(`/api/screenings/${uuid}/seats`, {
     ...options,
     auth: 'optional',
   });
 }
 
 /** `409` cuando la ventana `[startsAt, endsAt)` se superpone con otra función en la sala. */
-export function createScreening(body: CreateMovieScreeningRequest) {
-  return requestCreated<MovieScreeningResponse>('/api/screenings', { body, auth: true });
+export function createScreening(body: ScreeningRequest) {
+  return requestCreated<Screening>('/api/screenings', { body, auth: true });
 }
 
 /** Recalcula `endsAt` y vuelve a verificar superposición **excluyéndose a sí misma**. */
 export function updateScreening(
   uuid: Uuid,
-  body: CreateMovieScreeningRequest,
-): Promise<MovieScreeningResponse> {
-  return requestJson<MovieScreeningResponse>(`/api/screenings/${uuid}`, {
+  body: ScreeningRequest,
+): Promise<Screening> {
+  return requestJson<Screening>(`/api/screenings/${uuid}`, {
     method: 'PUT',
     body,
     auth: true,
@@ -117,8 +117,8 @@ export function updateScreening(
 export function setScreeningArchived(
   uuid: Uuid,
   archived: boolean,
-): Promise<MovieScreeningResponse> {
-  return setArchived<MovieScreeningResponse>(`/api/screenings/${uuid}`, archived);
+): Promise<Screening> {
+  return setArchived<Screening>(`/api/screenings/${uuid}`, archived);
 }
 
 /** `409 RESOURCE_IN_USE` si tiene entradas (incluso canceladas): archivala. */

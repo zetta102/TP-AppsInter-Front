@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createHold, releaseHold, replaceHold } from './api/holds.ts';
 import { isApiErrorWithStatus, toUserMessage } from './problem.ts';
 import { useNow } from './use-now.ts';
-import type { SeatHoldResponse, Uuid } from './types.ts';
+import type { SeatHold, Uuid } from './types.ts';
 
 /**
  * Gestiona el ciclo de vida de una retención de asientos para la página de compra
@@ -23,7 +23,7 @@ import type { SeatHoldResponse, Uuid } from './types.ts';
 
 export interface SeatHoldState {
   /** La retención que cubre exactamente la selección actual; `null` mientras se crea o reemplaza. */
-  readonly hold: SeatHoldResponse | null;
+  readonly hold: SeatHold | null;
   /** Segundos restantes, acotados a 0; `null` mientras no haya una retención activa. */
   readonly secondsLeft: number | null;
   readonly expired: boolean;
@@ -40,11 +40,11 @@ interface Keyed<T> {
   readonly value: T;
 }
 
-function release(hold: SeatHoldResponse | null): Promise<void> {
+function release(hold: SeatHold | null): Promise<void> {
   return hold ? releaseHold(hold.uuid).catch(() => undefined) : Promise.resolve();
 }
 
-function isLive(hold: SeatHoldResponse, screeningId: Uuid): boolean {
+function isLive(hold: SeatHold, screeningId: Uuid): boolean {
   return hold.screeningId === screeningId && new Date(hold.expiresAt).getTime() > Date.now();
 }
 
@@ -57,11 +57,11 @@ export function useSeatHold(
   // (o si se pidió renovarla).
   const key = screeningId ? `${screeningId}|${seatIds.toSorted().join(',')}#${generation}` : '';
 
-  const [created, setCreated] = useState<Keyed<SeatHoldResponse> | null>(null);
+  const [created, setCreated] = useState<Keyed<SeatHold> | null>(null);
   const [failure, setFailure] = useState<Keyed<string> | null>(null);
   const consumedRef = useRef(false);
   // La retención vigente en el servidor según la última operación terminada.
-  const liveRef = useRef<SeatHoldResponse | null>(null);
+  const liveRef = useRef<SeatHold | null>(null);
   // Cola de operaciones: cada una espera a que termine la anterior.
   const queueRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -89,7 +89,7 @@ export function useSeatHold(
       if (cancelled) return;
       const live = liveRef.current;
       try {
-        let data: SeatHoldResponse | null = null;
+        let data: SeatHold | null = null;
         if (live && isLive(live, screeningId)) {
           try {
             data = await replaceHold(live.uuid, { seatIds: ids });

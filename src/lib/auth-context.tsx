@@ -11,7 +11,7 @@ import {
   subscribeAuth,
   type AuthState,
 } from './auth-store.ts';
-import type { LoginRequest, RegisterRequest, UserResponse } from './types.ts';
+import type { LoginRequest, RegisterRequest, User } from './types.ts';
 import { Role } from './enums.ts';
 
 /**
@@ -26,12 +26,12 @@ import { Role } from './enums.ts';
 export interface AuthContextValue extends AuthState {
   readonly isAuthenticated: boolean;
   readonly isAdmin: boolean;
-  readonly login: (credentials: LoginRequest) => Promise<UserResponse>;
+  readonly login: (credentials: LoginRequest) => Promise<User>;
   readonly register: (payload: RegisterRequest) => Promise<void>;
   readonly logout: () => Promise<void>;
   readonly clear: () => void;
   /** Applies a freshly updated profile without a round trip through `/me`. */
-  readonly setUser: (user: UserResponse) => void;
+  readonly setUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -55,7 +55,7 @@ const actions = {
   register: (payload: RegisterRequest) => storeRegister(payload),
   logout: () => storeLogout(),
   clear: () => clearSession(),
-  setUser: (user: UserResponse) => storeSetUser(user),
+  setUser: (user: User) => storeSetUser(user),
 } as const;
 
 function useStoreBackedValue(): AuthContextValue {
