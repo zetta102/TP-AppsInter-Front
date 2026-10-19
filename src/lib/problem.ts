@@ -54,6 +54,7 @@ export const apiErrorCodes = [
   'LAST_ADMIN',
   'WRONG_PASSWORD',
   'RESOURCE_ARCHIVED',
+  'MESSAGE_ALREADY_READ',
   'INTERNAL_ERROR',
 ] as const;
 export type ApiErrorCode = (typeof apiErrorCodes)[number];
@@ -120,6 +121,7 @@ const codeMessages: Partial<Record<ApiErrorCode, string>> = {
   LAST_ADMIN: 'No se puede quitar al último administrador ni degradarte a vos mismo.',
   WRONG_PASSWORD: 'La contraseña actual no es correcta.',
   RESOURCE_ARCHIVED: 'Ya no está disponible porque fue archivado.',
+  MESSAGE_ALREADY_READ: 'Un administrador ya leyó este mensaje, así que no se puede editar.',
   METHOD_NOT_ALLOWED: fallbackMessages.request,
   NOT_ACCEPTABLE: fallbackMessages.request,
   UNSUPPORTED_MEDIA_TYPE: fallbackMessages.request,

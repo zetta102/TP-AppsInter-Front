@@ -15,3 +15,4 @@ export * as reservations from './reservations.ts';
 export * as holds from './holds.ts';
 export * as users from './users.ts';
 export * as metadata from './metadata.ts';
+export * as contactMessages from './contact-messages.ts';

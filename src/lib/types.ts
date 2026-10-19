@@ -8,6 +8,7 @@
  */
 
 import type {
+  ContactCategory,
   MovieGenre,
   ProductCategory,
   ReservationStatus,
@@ -434,6 +435,7 @@ export interface MetadataEnums {
   readonly seatType: readonly EnumValue[];
   readonly productCategory: readonly EnumValue[];
   readonly reservationStatus: readonly EnumValue[];
+  readonly contactCategory: readonly EnumValue[];
 }
 
 /** `GET /api/metadata/config`: los valores vigentes de constantes de negocio de primera mano. */
@@ -539,4 +541,40 @@ export interface Quote {
   readonly ticketsTotal: Money;
   readonly itemsTotal: Money;
   readonly totalPrice: Money;
+}
+
+// ---------------------------------------------------------------------------
+// Mensajes de contacto
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /api/contact-messages` y `PUT /api/contact-messages/{uuid}` (reemplazo completo).
+ * El autor sale de la sesión: no se envía nombre ni email.
+ */
+export interface ContactMessageRequest {
+  readonly category: ContactCategory;
+  /** No vacío, máximo 150 caracteres. */
+  readonly subject: string;
+  /** No vacío, máximo 5000 caracteres. */
+  readonly body: string;
+}
+
+export interface ContactMessageAuthor {
+  readonly uuid: Uuid;
+  readonly email: string;
+  readonly firstName: string;
+  readonly lastName: string;
+}
+
+export interface ContactMessage {
+  readonly uuid: Uuid;
+  readonly author: ContactMessageAuthor;
+  readonly category: ContactCategory;
+  readonly subject: string;
+  readonly body: string;
+  readonly createdAt: OffsetDateTimeString;
+  /** Última edición del autor; `null` si nunca lo editó. */
+  readonly updatedAt: OffsetDateTimeString | null;
+  /** Primera apertura de un admin. Una vez seteado, el autor ya no puede editarlo. */
+  readonly readAt: OffsetDateTimeString | null;
 }

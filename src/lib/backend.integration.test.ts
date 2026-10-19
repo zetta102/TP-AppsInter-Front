@@ -25,11 +25,15 @@ import {
   userSortFields,
 } from './api/users.ts';
 import { adjustmentSortFields, inventorySortFields, listInventory } from './api/inventory.ts';
+import {
+  adminContactMessageSortFields,
+  contactMessageSortFields,
+} from './api/contact-messages.ts';
 import { collectAllPages } from './api/shared.ts';
 import { getAuthState, login, logout, refreshTokens, register } from './auth-store.ts';
 import { ApiError, apiErrorCodes } from './problem.ts';
 import { apiBaseUrl, requestJson } from './http.ts';
-import { movieGenreValues } from './enums.ts';
+import { contactCategoryValues, movieGenreValues } from './enums.ts';
 
 /**
  * Pruebas de integración contra el backend real (`PUBLIC_API_BASE_URL`, por defecto
@@ -74,6 +78,8 @@ const clientSortFields: Record<string, readonly string[]> = {
   '/api/reservations': reservationSortFields,
   '/api/reservations/all': reservationSortFields,
   '/api/users': userSortFields,
+  '/api/contact-messages': contactMessageSortFields,
+  '/api/admin/contact-messages': adminContactMessageSortFields,
 };
 /** Alias que el servidor acepta y el cliente no necesita usar. */
 const SORT_ALIASES = new Set(['screeningStartsAt']);
@@ -134,6 +140,9 @@ describe('catálogo público', () => {
     const enums = await getMetadataEnums();
     expect(enums.movieGenre.map((entry) => entry.value).toSorted()).toEqual(
       [...movieGenreValues].toSorted(),
+    );
+    expect(enums.contactCategory.map((entry) => entry.value).toSorted()).toEqual(
+      [...contactCategoryValues].toSorted(),
     );
   });
 

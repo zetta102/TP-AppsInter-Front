@@ -57,6 +57,14 @@ export const ProductCategory = {
 } as const;
 export type ProductCategory = (typeof ProductCategory)[keyof typeof ProductCategory];
 
+export const ContactCategory = {
+  GENERAL: 'GENERAL',
+  RESERVATION: 'RESERVATION',
+  COMPLAINT: 'COMPLAINT',
+  SUGGESTION: 'SUGGESTION',
+} as const;
+export type ContactCategory = (typeof ContactCategory)[keyof typeof ContactCategory];
+
 /** Asocia cada miembro de una unión tipo enum con su texto visible. */
 type LabelMap<T extends string> = Readonly<Record<T, string>>;
 
@@ -101,6 +109,13 @@ export const productCategoryLabels = {
   MERCHANDISE: 'Merchandising',
 } as const satisfies LabelMap<ProductCategory>;
 
+export const contactCategoryLabels = {
+  GENERAL: 'Consulta general',
+  RESERVATION: 'Reservas',
+  COMPLAINT: 'Reclamo',
+  SUGGESTION: 'Sugerencia',
+} as const satisfies LabelMap<ContactCategory>;
+
 /** Listas ordenadas de valores, para opciones de `<select>` y chips de filtro. */
 export const movieGenreValues = Object.keys(movieGenreLabels) as readonly MovieGenre[];
 export const screenRoomTypeValues = Object.keys(screenRoomTypeLabels) as readonly ScreenRoomType[];
@@ -112,6 +127,9 @@ export const productCategoryValues = Object.keys(
   productCategoryLabels,
 ) as readonly ProductCategory[];
 export const roleValues = Object.keys(roleLabels) as readonly Role[];
+export const contactCategoryValues = Object.keys(
+  contactCategoryLabels,
+) as readonly ContactCategory[];
 
 /**
  * Type guard para valores que llegan como `string` (un `<select>`, `FormData`): reemplaza el

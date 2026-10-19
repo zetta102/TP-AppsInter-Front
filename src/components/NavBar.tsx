@@ -14,6 +14,7 @@ import { cx } from '../lib/cx.ts';
 const publicLinks = [
   { href: '/', label: 'En cartelera' },
   { href: '/movies', label: 'Películas' },
+  { href: '/contact', label: 'Contacto' },
 ] as const;
 
 const adminLinks = [
@@ -23,6 +24,7 @@ const adminLinks = [
   { href: '/admin/inventory', label: 'Confitería' },
   { href: '/admin/reservations', label: 'Reservas' },
   { href: '/admin/users', label: 'Usuarios' },
+  { href: '/admin/contact', label: 'Mensajes' },
 ] as const;
 
 export default function NavBar({ pathname }: { readonly pathname: string }) {

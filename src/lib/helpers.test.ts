@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cx } from './cx.ts';
 import { delay } from './delay.ts';
-import { isEnumValue, movieGenreValues } from './enums.ts';
+import { contactCategoryValues, isEnumValue, movieGenreValues } from './enums.ts';
 
 describe('cx', () => {
   it('une las clases e ignora los valores falsy sin dejar espacios sobrantes', () => {
@@ -16,6 +16,8 @@ describe('isEnumValue', () => {
     expect(isEnumValue(movieGenreValues, 'drama')).toBe(false);
     expect(isEnumValue(movieGenreValues, 42)).toBe(false);
     expect(isEnumValue(movieGenreValues, null)).toBe(false);
+    expect(isEnumValue(contactCategoryValues, 'COMPLAINT')).toBe(true);
+    expect(isEnumValue(contactCategoryValues, 'complaint')).toBe(false);
   });
 });
 

@@ -1,0 +1,13 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminContactMessages from '../../../components/admin/AdminContactMessages.tsx';
+import { LoadingBlock } from '../../../components/ui/SubmitButton.tsx';
+---
+
+<Layout title="Mensajes · Admin" description="Mensajes de contacto de los clientes." wide>
+  <AdminContactMessages client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando los mensajes…" />
+    </div>
+  </AdminContactMessages>
+</Layout>

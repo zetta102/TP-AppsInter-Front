@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Contact from '../components/contact/Contact.tsx';
+import { LoadingBlock } from '../components/ui/SubmitButton.tsx';
+---
+
+<Layout title="Contacto" description="Escribinos una consulta, un reclamo o una sugerencia.">
+  <h1 class="mb-6 text-2xl font-bold">Contacto</h1>
+  <Contact client:only="react">
+    <div slot="fallback">
+      <LoadingBlock label="Cargando el formulario…" />
+    </div>
+  </Contact>
+</Layout>

@@ -117,4 +117,12 @@ describe('violations', () => {
       'Ya no está disponible porque fue archivado.',
     );
   });
+
+  it('nombra el código nuevo MESSAGE_ALREADY_READ como regla de negocio', () => {
+    const error = new ApiError(422, { code: 'MESSAGE_ALREADY_READ' });
+    expect(error.kind).toBe('businessRule');
+    expect(error.userMessage).toBe(
+      'Un administrador ya leyó este mensaje, así que no se puede editar.',
+    );
+  });
 });
