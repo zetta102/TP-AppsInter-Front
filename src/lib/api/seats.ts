@@ -1,22 +1,13 @@
-import { requestCreated, requestJson, requestVoid } from './shared.ts';
-import type { CallOptions } from './shared.ts';
-import type { SeatRequest, Seat, Uuid } from '../types.ts';
+import { requestJson, requestVoid } from './shared.ts';
+import type { Seat, SeatRequest, Uuid } from '../types.ts';
 
 /**
- * `/api/seats`: las lecturas son públicas y las escrituras son ADMIN (backend-status-for-frontend.md §5.7).
+ * `/api/seats`: escrituras ADMIN sobre asientos individuales (la grilla completa se arma con
+ * `generateSeats` en `rooms.ts`).
  *
- * Normalización: `row` se recorta y se convierte a mayúsculas, `column` se recorta. Envía
- * `"a"` y recibe `"A"`. Los valores vacíos se rechazan con `400`.
+ * Normalización: `row` se recorta y se convierte a mayúsculas, `column` se recorta. Se envía
+ * `"a"` y se recibe `"A"`. Los valores vacíos se rechazan con `400`.
  */
-
-export function getSeat(uuid: Uuid, options: CallOptions = {}): Promise<Seat> {
-  return requestJson<Seat>(`/api/seats/${uuid}`, options);
-}
-
-/** `409 "Seat A1 already exists in room …"` ante una posición duplicada. */
-export function createSeat(body: SeatRequest) {
-  return requestCreated<Seat>('/api/seats', { body, auth: true });
-}
 
 /** La unicidad de la posición se vuelve a verificar excluyéndose a sí misma. */
 export function updateSeat(uuid: Uuid, body: SeatRequest): Promise<Seat> {

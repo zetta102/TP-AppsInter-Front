@@ -4,7 +4,7 @@ import { useResource } from '../../lib/use-resource.ts';
 import { formatCount } from '../../lib/format.ts';
 import type { Movie, NowShowing as NowShowingEntry } from '../../lib/types.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
+import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { MovieCard } from './MovieCard.tsx';
 
 /**
@@ -44,7 +44,7 @@ export default function NowShowing() {
   if (showing.length === 0 && rest.length === 0) {
     return (
       <EmptyState
-        title="Aún no hay películas"
+        title="Todavía no hay películas"
         description="El catálogo está vacío. Un administrador debe agregar películas y programar funciones."
       />
     );

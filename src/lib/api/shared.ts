@@ -5,7 +5,7 @@ import {
   type AuthMode,
   type CreatedResource,
 } from '../http.ts';
-import type { PageParams, QueryParams, SortSpec } from '../query.ts';
+import type { QueryParams, SortSpec } from '../query.ts';
 import type { ArchiveRequest, Page } from '../types.ts';
 
 /**
@@ -19,21 +19,15 @@ import type { ArchiveRequest, Page } from '../types.ts';
 export type { CreatedResource, SortSpec };
 export { requestJson, requestVoid, requestCreated };
 
-/** El backend recorta en silencio cualquier `size` mayor (backend-status-for-frontend.md §3). */
+/** El backend recorta en silencio cualquier `size` mayor. */
 export const MAX_PAGE_SIZE = 100;
-
-/** Query params comunes a cada endpoint de lista, más filtros específicos del endpoint. */
-export type ListParams<
-  Field extends string,
-  Filters extends QueryParams = QueryParams,
-> = PageParams<Field> & Filters;
 
 export interface CallOptions {
   readonly signal?: AbortSignal;
 }
 
 /**
- * `PATCH {path}` con `{ archived }` (backend-status-for-frontend.md §3.7): archivar oculta el
+ * `PATCH {path}` con `{ archived }`: archivar oculta el
  * recurso de los listados sin borrarlo; `false` lo restaura. Devuelve el recurso actualizado.
  */
 export function setArchived<T>(path: string, archived: boolean): Promise<T> {

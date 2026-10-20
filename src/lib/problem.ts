@@ -1,14 +1,15 @@
 import type { ProblemPayload, Violation } from './types.ts';
 
 /**
- * El contrato de errores de cara al frontend (backend-status-for-frontend.md §3.4, §8).
+ * El contrato de errores de cara al frontend.
  *
  * 409 siempre permite reintentar después de un refetch; 422 nunca sin cambiar
  * la solicitud. Nunca hagas matching sobre `detail` ni sobre los valores de
  * `errors`: guiate por `code`, el estado HTTP y los nombres de campo.
  *
- * El backend solo emite mensajes en inglés (§9 "i18n"), así que el texto visible
- * se traduce en el cliente a partir de `code` y, en su defecto, del estado.
+ * El texto del servidor (`detail`, `errors`) nunca se muestra tal cual: el texto visible se
+ * traduce en el cliente a partir de `code` (y de `violations` para los campos) y, en su defecto,
+ * del estado.
  */
 export type ApiErrorKind =
   | 'validation' // 400
@@ -23,7 +24,7 @@ export type ApiErrorKind =
   | 'unknown';
 
 /**
- * El registro completo de `code` (backend-status-for-frontend.md §8).
+ * El registro completo de `code`.
  *
  * Tratá cualquier cadena `code` que no esté en esta unión según su estado HTTP:
  * los códigos nuevos nunca deben romper el cliente.
@@ -97,8 +98,11 @@ const fallbackMessages = {
   unknown: 'Algo salió mal. Intentá de nuevo.',
 } as const satisfies Readonly<Record<ApiErrorKind, string>>;
 
-/** Mensajes en español por `code`; tienen prioridad sobre el `detail` (en inglés) del servidor. */
-const codeMessages: Partial<Record<ApiErrorCode, string>> = {
+/**
+ * Mensajes en español por `code`; tienen prioridad sobre el `detail` del servidor. El `satisfies`
+ * exige un mensaje para cada código del registro.
+ */
+const codeMessages = {
   VALIDATION_FAILED: fallbackMessages.validation,
   BAD_REQUEST: 'La solicitud no es válida. Revisá los datos e intentá de nuevo.',
   INVALID_SORT_PROPERTY: 'No se puede ordenar por ese campo.',
@@ -111,7 +115,8 @@ const codeMessages: Partial<Record<ApiErrorCode, string>> = {
   NAME_TAKEN: 'Ya existe un elemento con ese nombre o posición.',
   SEATS_UNAVAILABLE: 'Uno o más asientos ya no están disponibles. Elegí otros e intentá de nuevo.',
   SCREENING_OVERLAP: 'La sala ya tiene una función en ese horario.',
-  RESOURCE_IN_USE: 'No se puede modificar ni eliminar porque está en uso. Si querés ocultarlo, archivalo.',
+  RESOURCE_IN_USE:
+    'No se puede modificar ni eliminar porque está en uso. Si querés ocultarlo, archivalo.',
   OPTIMISTIC_LOCK: fallbackMessages.conflict,
   CONFLICT: fallbackMessages.conflict,
   INSUFFICIENT_STOCK: 'No hay stock suficiente para esa cantidad.',
@@ -126,7 +131,11 @@ const codeMessages: Partial<Record<ApiErrorCode, string>> = {
   NOT_ACCEPTABLE: fallbackMessages.request,
   UNSUPPORTED_MEDIA_TYPE: fallbackMessages.request,
   INTERNAL_ERROR: fallbackMessages.server,
-};
+} as const satisfies Readonly<Record<ApiErrorCode, string>>;
+
+function isKnownCode(code: string | undefined): code is ApiErrorCode {
+  return code !== undefined && (apiErrorCodes as readonly string[]).includes(code);
+}
 
 /**
  * Una llamada fallida a la API. Envuelve el payload RFC 7807 y, cuando el fallo
@@ -179,31 +188,25 @@ export class ApiError extends Error {
   /** Texto en español, seguro para renderizar directamente al usuario. */
   get userMessage(): string {
     if (this.kind === 'network') return this.message;
-    const byCode = this.code === undefined ? undefined : codeMessages[this.code as ApiErrorCode];
-    return byCode ?? fallbackMessages[this.kind];
-  }
-
-  /** Mensaje genérico según el estado, para espacios inline breves. */
-  get genericMessage(): string {
-    return fallbackMessages[this.kind];
+    return isKnownCode(this.code) ? codeMessages[this.code] : fallbackMessages[this.kind];
   }
 
   fieldError(field: string): string | undefined {
     return this.fieldErrors[field];
   }
 
-  get hasFieldErrors(): boolean {
-    return Object.keys(this.fieldErrors).length > 0;
-  }
-
-  /** 409 significa "refetch y dejar reintentar al usuario"; nada más admite reintento ciego. */
+  /**
+   * Reintentable sin cambiar la solicitud: `409` (refetch y dejar reintentar al usuario), un fallo
+   * de red o un `5xx`. Un `4xx` distinto solo se resuelve cambiando lo que se envía.
+   */
   get isRetryable(): boolean {
     return this.kind === 'conflict' || this.kind === 'network' || this.kind === 'server';
   }
 
   static network(cause: unknown): ApiError {
     const aborted =
-      cause instanceof DOMException && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
+      cause instanceof DOMException &&
+      (cause.name === 'AbortError' || cause.name === 'TimeoutError');
     return new ApiError(
       0,
       {
@@ -231,14 +234,19 @@ export function violationMessage(violation: Violation): string | undefined {
       const max = num('max');
       if (min !== undefined && min > 0 && max !== undefined && max < 2_147_483_647)
         return `Tiene que tener entre ${min} y ${max} caracteres.`;
-      if (max !== undefined && max < 2_147_483_647) return `Tiene que tener como máximo ${max} caracteres.`;
+      if (max !== undefined && max < 2_147_483_647)
+        return `Tiene que tener como máximo ${max} caracteres.`;
       if (min !== undefined && min > 0) return `Tiene que tener al menos ${min} caracteres.`;
       return 'La longitud no es válida.';
     }
     case 'Min':
-      return num('value') === undefined ? 'El valor es demasiado chico.' : `Tiene que ser como mínimo ${num('value')}.`;
+      return num('value') === undefined
+        ? 'El valor es demasiado chico.'
+        : `Tiene que ser como mínimo ${num('value')}.`;
     case 'Max':
-      return num('value') === undefined ? 'El valor es demasiado grande.' : `Tiene que ser como máximo ${num('value')}.`;
+      return num('value') === undefined
+        ? 'El valor es demasiado grande.'
+        : `Tiene que ser como máximo ${num('value')}.`;
     case 'Positive':
       return 'Tiene que ser mayor que cero.';
     case 'PositiveOrZero':

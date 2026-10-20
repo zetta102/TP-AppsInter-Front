@@ -1,10 +1,5 @@
-import { useState, useTransition } from 'react';
-import {
-  cancelReservation,
-  listAllReservations,
-  type ReservationSortField,
-} from '../../lib/api/reservations.ts';
-import { useResource } from '../../lib/use-resource.ts';
+import { useState } from 'react';
+import { listAllReservations, type ReservationSortField } from '../../lib/api/reservations.ts';
 import {
   isEnumValue,
   ReservationStatus,
@@ -12,26 +7,27 @@ import {
   reservationStatusValues,
 } from '../../lib/enums.ts';
 import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
-import type { Page, Reservation } from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import type { Page, Reservation } from '../../lib/types.ts';
+import { useResource } from '../../lib/use-resource.ts';
+import { StatusBadge, useCancelReservation } from '../reservations/ReservationParts.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { SelectInput } from '../ui/Field.tsx';
-import { StatusBadge } from '../reservations/ReservationParts.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 
 const PAGE_SIZE = 20;
+
 /**
  * `/admin/reservations` — todas las reservas del sistema mediante
  * `GET /api/reservations/all`. Los administradores pueden cancelar cualquier
- * reserva, no solo las propias.
+ * reserva, no solo las propias, y en cualquier momento.
  */
 export default function AdminReservations() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<ReservationSortField>>('createdAt,desc');
   const [status, setStatus] = useState<ReservationStatus | ''>('');
-  const [rowError, setRowError] = useState<unknown>(null);
 
   const resource = useResource<Page<Reservation>>(
     (signal) =>
@@ -41,6 +37,8 @@ export default function AdminReservations() {
       ),
     [page, sort, status],
   );
+
+  const cancellation = useCancelReservation({ onSettled: resource.refetch });
 
   const columns: readonly Column<Reservation, ReservationSortField>[] = [
     {
@@ -101,7 +99,14 @@ export default function AdminReservations() {
       className: 'text-right',
       cell: (reservation) =>
         reservation.status === ReservationStatus.CANCELLED ? null : (
-          <CancelButton reservation={reservation} onError={setRowError} onDone={resource.refetch} />
+          <button
+            type="button"
+            disabled={cancellation.isPending}
+            className="cine-btn cine-btn-danger"
+            onClick={() => cancellation.cancel(reservation)}
+          >
+            {cancellation.cancellingId === reservation.uuid ? 'Cancelando…' : 'Cancelar'}
+          </button>
         ),
     },
   ];
@@ -111,6 +116,8 @@ export default function AdminReservations() {
       title="Reservas"
       description="Todas las reservas del sistema. Al cancelar se liberan los asientos y se repone el stock de confitería."
     >
+      {cancellation.dialog}
+
       <AdminToolbar>
         <SelectInput
           label="Estado"
@@ -131,7 +138,9 @@ export default function AdminReservations() {
         </SelectInput>
       </AdminToolbar>
 
-      {rowError !== null && <ErrorBanner error={rowError} onRetry={resource.refetch} />}
+      {cancellation.error !== null && (
+        <ErrorBanner error={cancellation.error} onRetry={resource.refetch} />
+      )}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -151,50 +160,5 @@ export default function AdminReservations() {
 
       <Pagination page={resource.data} onPageChange={setPage} />
     </AdminPage>
-  );
-}
-
-/** Cancelación de una fila, con su propia transición: solo esa fila queda pendiente. */
-function CancelButton({
-  reservation,
-  onError,
-  onDone,
-}: {
-  readonly reservation: Reservation;
-  readonly onError: (error: unknown) => void;
-  readonly onDone: () => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-
-  const cancel = () => {
-    if (
-      !window.confirm(
-        `¿Cancelar la reserva ${reservation.uuid.slice(0, 8)}? Los asientos se liberarán.`,
-      )
-    ) {
-      return;
-    }
-    onError(null);
-    startTransition(async () => {
-      try {
-        await cancelReservation(reservation.uuid);
-      } catch (error) {
-        // 422 cuando ya estaba cancelada.
-        onError(error);
-      } finally {
-        onDone();
-      }
-    });
-  };
-
-  return (
-    <button
-      type="button"
-      disabled={isPending}
-      className="cine-btn cine-btn-danger"
-      onClick={cancel}
-    >
-      {isPending ? 'Cancelando…' : 'Cancelar'}
-    </button>
   );
 }

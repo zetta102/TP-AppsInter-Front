@@ -1,20 +1,21 @@
 import { useState, useTransition } from 'react';
 import { generateSeats, getRoom, getRoomLayout } from '../../lib/api/rooms.ts';
 import { deleteSeat, updateSeat } from '../../lib/api/seats.ts';
-import { useKeyedResource, useResource } from '../../lib/use-resource.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
-import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
-import { SeatType, seatTypeLabels } from '../../lib/enums.ts';
 import { cx } from '../../lib/cx.ts';
+import { SeatType, seatTypeLabels } from '../../lib/enums.ts';
 import { formatMultiplier, seatLabel } from '../../lib/format.ts';
-import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
-import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
-import type { SeatLayout, Seat } from '../../lib/types.ts';
-import { AdminPage } from './AdminPage.tsx';
+import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
+import type { Seat, SeatLayout } from '../../lib/types.ts';
+import { useMetadataConfig } from '../../lib/use-metadata-config.ts';
+import { useQueryParam } from '../../lib/use-query-param.ts';
+import { useKeyedResource } from '../../lib/use-resource.ts';
+import { Badge } from '../ui/Badge.tsx';
+import { useConfirm } from '../ui/ConfirmDialog.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
-import { Badge, Modal } from '../ui/Modal.tsx';
+import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { TextInput } from '../ui/Field.tsx';
+import { Modal } from '../ui/Modal.tsx';
+import { AdminPage } from './AdminPage.tsx';
 
 /** Letras de fila A, B, … Z, AA, AB: el mismo formato que suele usar una sala de cine. */
 function rowName(index: number): string {
@@ -38,9 +39,8 @@ function isStringArray(value: unknown): value is readonly string[] {
  *
  * Generar una grilla llama a `POST /api/rooms/{id}/seats:generate` en una única
  * transacción, de modo que o bien existe toda la distribución solicitada o no
- * cambia nada (backend-status-for-frontend.md §5.6). Se usa
- * `onConflict: 'SKIP'` para que volver a ejecutar el generador al ampliar una
- * sala nunca falle por las filas que ya existen.
+ * cambia nada. Se usa `onConflict: 'SKIP'` para que volver a ejecutar el generador al
+ * ampliar una sala nunca falle por las filas que ya existen.
  */
 export default function AdminRoomSeats() {
   const roomId = useQueryParam('id');
@@ -51,11 +51,9 @@ export default function AdminRoomSeats() {
     getRoomLayout(id, { signal }),
   );
 
-  // Si falla, vuelve al valor documentado: el texto de ayuda nunca bloquea la pantalla.
-  const config = useResource((signal) => getMetadataConfigOrDefault({ signal }), []);
-  const premiumMultiplier = formatMultiplier(
-    config.data?.premiumSeatMultiplier ?? PREMIUM_MULTIPLIER,
-  );
+  // El valor documentado mientras carga o si falla: el texto de ayuda nunca bloquea la pantalla.
+  const premiumMultiplier = formatMultiplier(useMetadataConfig().premiumSeatMultiplier);
+  const { confirm, dialog } = useConfirm();
 
   // Transiciones async de React 19: el estado pendiente lo lleva React, sin flags manuales.
   const [generating, startGenerate] = useTransition();
@@ -119,8 +117,14 @@ export default function AdminRoomSeats() {
     });
   };
 
-  const remove = (seat: Seat) => {
-    if (!window.confirm(`¿Eliminar el asiento ${seatLabel(seat.row, seat.column)}?`)) return;
+  const remove = async (seat: Seat) => {
+    const confirmed = await confirm({
+      title: 'Eliminar asiento',
+      message: `¿Eliminar el asiento ${seatLabel(seat.row, seat.column)}?`,
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setRowError(null);
     startSeatAction(async () => {
       try {
@@ -175,6 +179,8 @@ export default function AdminRoomSeats() {
         </div>
       }
     >
+      {dialog}
+
       {rowError !== null && <ErrorBanner error={rowError} />}
 
       {generating && <div className="cine-card p-4 text-sm">Generando la distribución…</div>}
@@ -289,7 +295,7 @@ export default function AdminRoomSeats() {
                 onClick={() => {
                   const seat = editing;
                   setEditing(null);
-                  remove(seat);
+                  void remove(seat);
                 }}
               >
                 Eliminar asiento

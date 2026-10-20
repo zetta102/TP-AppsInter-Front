@@ -14,8 +14,8 @@ export default defineConfig({
     defaultStrategy: 'hover',
   },
   server: {
-    // Port 3000 is taken by the backend's observability compose service, and 5173
-    // is already in the backend's default CINE_CORS_ALLOWED_ORIGINS.
+    // El 3000 lo usa el stack de observabilidad compose del backend, y el 5173 ya está en el
+    // CINE_CORS_ALLOWED_ORIGINS por defecto del backend.
     port: 5173,
     host: true,
   },

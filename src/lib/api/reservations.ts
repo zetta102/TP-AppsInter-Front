@@ -1,16 +1,10 @@
 import { getPage, requestCreated, requestJson, type CallOptions } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type { ReservationStatus } from '../enums.ts';
-import type {
-  ReservationRequest,
-  Page,
-  Quote,
-  Reservation,
-  Uuid,
-} from '../types.ts';
+import type { ReservationRequest, Page, Quote, Reservation, Uuid } from '../types.ts';
 
 /**
- * `/api/reservations` (backend-status-for-frontend.md §5.12).
+ * `/api/reservations`.
  *
  * El propietario se toma del JWT: no existe `userId` ni en la solicitud ni en
  * ningún parámetro de query.
@@ -42,7 +36,7 @@ export type ReservationFilters = {
 
 export type ListReservationsParams = PageParams<ReservationSortField> & ReservationFilters;
 
-/** Filtros de admin. Ojo: aquí `from`/`to` se comparan contra la **fecha de compra**. */
+/** Filtros de admin. Ojo: acá `from`/`to` se comparan contra la **fecha de compra**. */
 export type AdminReservationFilters = ReservationFilters & {
   readonly userId?: Uuid;
   /** Coincidencia parcial sobre el email del cliente. */
@@ -68,10 +62,7 @@ export function listAllReservations(
 }
 
 /** `404` —no `403`— cuando la reserva pertenece a otra persona. */
-export function getReservation(
-  uuid: Uuid,
-  options: CallOptions = {},
-): Promise<Reservation> {
+export function getReservation(uuid: Uuid, options: CallOptions = {}): Promise<Reservation> {
   return requestJson<Reservation>(`/api/reservations/${uuid}`, { ...options, auth: true });
 }
 

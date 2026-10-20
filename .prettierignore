@@ -2,4 +2,6 @@ dist/
 .astro/
 node_modules/
 package-lock.json
-backend-status-for-frontend.md
+# Documentos de trabajo en la raíz: solo el README sigue el formato del proyecto.
+/*.md
+!README.md

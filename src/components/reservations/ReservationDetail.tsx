@@ -1,15 +1,14 @@
-import { useState, useTransition } from 'react';
-import { cancelReservation, getReservation } from '../../lib/api/reservations.ts';
-import { useKeyedResource } from '../../lib/use-resource.ts';
+import { getReservation } from '../../lib/api/reservations.ts';
+import { ReservationStatus, seatTypeLabels } from '../../lib/enums.ts';
+import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
+import type { Reservation } from '../../lib/types.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useQueryParam } from '../../lib/use-query-param.ts';
-import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
-import { ReservationStatus, seatTypeLabels } from '../../lib/enums.ts';
-import type { Reservation } from '../../lib/types.ts';
+import { useKeyedResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
+import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
-import { StatusBadge } from './ReservationParts.tsx';
+import { ItemLines, StatusBadge, useCancelReservation } from './ReservationParts.tsx';
 
 /**
  * Detalle de entradas y líneas de la reserva.
@@ -17,10 +16,9 @@ import { StatusBadge } from './ReservationParts.tsx';
  * Una reserva que pertenece a otra persona devuelve `404`, no `403`, así que
  * el texto de no encontrado debe cubrir tanto "ya no existe" como "no es tuya".
  *
- * La cancelación es una cancelación lógica (backend-status-for-frontend.md §7.5): se conservan
- * entradas y productos, `totalPrice` pasa a `0` (lo que queda pendiente) y
- * `originalTotalPrice` registra lo que se cobró — ya no hace falta una
- * instantánea en cliente.
+ * La cancelación es una cancelación lógica: se conservan entradas y productos,
+ * `totalPrice` pasa a `0` (lo que queda pendiente) y `originalTotalPrice` registra
+ * lo que se cobró.
  */
 export default function ReservationDetail() {
   return (
@@ -32,13 +30,13 @@ export default function ReservationDetail() {
 
 function DetailPanel() {
   const reservationId = useQueryParam('id');
-  const [cancelError, setCancelError] = useState<unknown>(null);
-  const [busy, startCancel] = useTransition();
 
   const resource = useKeyedResource<string, Reservation>(reservationId, (id, signal) =>
     getReservation(id, { signal }),
   );
   useDocumentTitle(resource.data && `Reserva · ${resource.data.movieName}`);
+
+  const cancellation = useCancelReservation({ onSettled: resource.refetch });
 
   if (!reservationId) {
     return (
@@ -60,21 +58,10 @@ function DetailPanel() {
   const reservation = resource.data;
   const cancelled = reservation.status === ReservationStatus.CANCELLED;
 
-  const cancel = () => {
-    setCancelError(null);
-    startCancel(async () => {
-      try {
-        await cancelReservation(reservation.uuid);
-      } catch (error) {
-        setCancelError(error);
-      } finally {
-        resource.refetch();
-      }
-    });
-  };
-
   return (
     <article className="flex flex-col gap-6">
+      {cancellation.dialog}
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{reservation.movieName}</h1>
@@ -89,13 +76,13 @@ function DetailPanel() {
         <StatusBadge status={reservation.status} />
       </header>
 
-      {cancelError !== null && <ErrorBanner error={cancelError} />}
+      {cancellation.error !== null && <ErrorBanner error={cancellation.error} />}
 
       {cancelled && (
         <p className="rounded-lg border border-ink-800 bg-ink-900 px-4 py-3 text-sm text-ink-300">
           Esta reserva se canceló
-          {reservation.cancelledAt && ` el ${formatDateTime(reservation.cancelledAt)}`}. Las butacas
-          se liberaron y cualquier producto adicional volvió al stock.
+          {reservation.cancelledAt && ` el ${formatDateTime(reservation.cancelledAt)}`}. Los
+          asientos se liberaron y cualquier producto adicional volvió al stock.
         </p>
       )}
 
@@ -108,7 +95,7 @@ function DetailPanel() {
             {reservation.tickets.map((ticket) => (
               <li key={ticket.uuid} className="flex justify-between gap-3 py-2">
                 <span>
-                  Butaca {seatLabel(ticket.row, ticket.column)}
+                  Asiento {seatLabel(ticket.row, ticket.column)}
                   <span className="text-ink-500"> · {seatTypeLabels[ticket.seatType]}</span>
                 </span>
                 <span className="tabular-nums">{formatMoney(ticket.price)}</span>
@@ -121,20 +108,7 @@ function DetailPanel() {
       {reservation.items.length > 0 && (
         <section className="cine-card p-5">
           <h2 className="mb-3 text-sm font-semibold">Productos adicionales</h2>
-          <ul className="divide-y divide-ink-800 text-sm">
-            {reservation.items.map((item) => (
-              <li key={item.uuid} className="flex justify-between gap-3 py-2">
-                <span>
-                  {item.productName}
-                  <span className="text-ink-500">
-                    {' '}
-                    × {item.quantity} a {formatMoney(item.unitPrice)}
-                  </span>
-                </span>
-                <span className="tabular-nums">{formatMoney(item.lineTotal)}</span>
-              </li>
-            ))}
-          </ul>
+          <ItemLines reservation={reservation} />
         </section>
       )}
 
@@ -164,11 +138,11 @@ function DetailPanel() {
         {!cancelled && (
           <button
             type="button"
-            disabled={busy}
-            onClick={cancel}
+            disabled={cancellation.isPending}
+            onClick={() => cancellation.cancel(reservation)}
             className="cine-btn cine-btn-danger"
           >
-            {busy ? 'Cancelando…' : 'Cancelar reserva'}
+            {cancellation.isPending ? 'Cancelando…' : 'Cancelar reserva'}
           </button>
         )}
       </div>

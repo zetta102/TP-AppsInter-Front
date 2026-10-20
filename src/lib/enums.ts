@@ -1,12 +1,12 @@
 /**
- * Enums del contrato del backend (backend-status-for-frontend.md §6).
+ * Enums del contrato del backend.
  *
  * Se modelan como objetos `as const` más uniones derivadas: `erasableSyntaxOnly`
  * prohíbe la palabra clave `enum`, y las uniones dan chequeo exhaustivo en `switch`
  * sin emitir construcciones que TypeScript no pueda borrar.
  *
- * SIEMPRE enviá y compará el nombre de la constante. Las etiquetas del backend están
- * en inglés (§9), así que las de abajo son la traducción del cliente. Ojo con
+ * SIEMPRE enviá y compará el nombre de la constante. Las etiquetas del backend no se
+ * muestran: las de abajo son la traducción del cliente. Ojo con
  * `THREED`/`FOURD`: el valor en el cable NO es `3D`/`4D`.
  */
 

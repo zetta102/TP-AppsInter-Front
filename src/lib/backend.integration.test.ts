@@ -25,10 +25,7 @@ import {
   userSortFields,
 } from './api/users.ts';
 import { adjustmentSortFields, inventorySortFields, listInventory } from './api/inventory.ts';
-import {
-  adminContactMessageSortFields,
-  contactMessageSortFields,
-} from './api/contact-messages.ts';
+import { adminContactMessageSortFields, contactMessageSortFields } from './api/contact-messages.ts';
 import { collectAllPages } from './api/shared.ts';
 import { getAuthState, login, logout, refreshTokens, register } from './auth-store.ts';
 import { ApiError, apiErrorCodes } from './problem.ts';
@@ -85,7 +82,10 @@ const clientSortFields: Record<string, readonly string[]> = {
 const SORT_ALIASES = new Set(['screeningStartsAt']);
 
 interface OpenApiDoc {
-  readonly paths: Record<string, Record<string, { parameters?: { name: string; schema?: unknown }[] }>>;
+  readonly paths: Record<
+    string,
+    Record<string, { parameters?: { name: string; schema?: unknown }[] }>
+  >;
   readonly components: { readonly schemas: Record<string, { enum?: string[] }> };
 }
 
@@ -95,7 +95,9 @@ describe('contrato OpenAPI', () => {
     const server: Record<string, string[]> = {};
     for (const [path, operations] of Object.entries(doc.paths)) {
       const sort = operations['get']?.parameters?.find((parameter) => parameter.name === 'sort');
-      const fields = (sort as { 'x-sort-properties'?: string[] } | undefined)?.['x-sort-properties'];
+      const fields = (sort as { 'x-sort-properties'?: string[] } | undefined)?.[
+        'x-sort-properties'
+      ];
       if (fields) server[path] = fields;
     }
     expect(Object.keys(server).toSorted()).toEqual(Object.keys(clientSortFields).toSorted());
@@ -107,7 +109,9 @@ describe('contrato OpenAPI', () => {
 
   it('el registro de códigos de error del cliente coincide con el enum ErrorCode', async () => {
     const doc = (await (await fetch(`${apiBaseUrl}/v3/api-docs`)).json()) as OpenApiDoc;
-    expect([...apiErrorCodes].toSorted()).toEqual(doc.components.schemas['ErrorCode']?.enum?.toSorted());
+    expect([...apiErrorCodes].toSorted()).toEqual(
+      doc.components.schemas['ErrorCode']?.enum?.toSorted(),
+    );
   });
 
   it('todo error trae `type` derivado del código', async () => {
@@ -124,9 +128,11 @@ describe('contrato OpenAPI', () => {
       400,
       'VALIDATION_FAILED',
     );
-    expect(error.problem?.violations?.map((violation) => violation.field).toSorted()).toEqual(
-      ['email', 'firstName', 'password'],
-    );
+    expect(error.problem?.violations?.map((violation) => violation.field).toSorted()).toEqual([
+      'email',
+      'firstName',
+      'password',
+    ]);
     expect(error.fieldError('password')).toBe('Tiene que tener entre 8 y 72 caracteres.');
     expect(error.fieldError('firstName')).toBe('Completá este campo.');
   });
@@ -260,12 +266,14 @@ describe('sesión de cliente', () => {
     await expect(getCurrentUser()).resolves.toHaveProperty('email', email);
   });
 
-  it('mis reservas: todos los campos de orden del cliente funcionan', async () => {
-    for (const field of reservationSortFields) {
-      await expect(listMyReservations({ sort: `${field},desc`, size: 1 })).resolves.toHaveProperty(
-        'content',
-      );
-    }
+  // Un caso por campo: si el servidor deja de aceptar uno, el reporte dice cuál.
+  it.for(reservationSortFields)('mis reservas: se pueden ordenar por %s', async (field) => {
+    await expect(listMyReservations({ sort: `${field},desc`, size: 1 })).resolves.toHaveProperty(
+      'content',
+    );
+  });
+
+  it('mis reservas: los filtros combinados se aplican en el servidor', async () => {
     const filtered = await listMyReservations({ upcomingOnly: true, screeningId: NIL });
     expect(filtered.content).toEqual([]);
   });

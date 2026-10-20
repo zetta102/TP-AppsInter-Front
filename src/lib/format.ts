@@ -5,7 +5,7 @@ import type { Money, OffsetDateTimeString } from './types.ts';
  *
  * El backend envía `OffsetDateTime`, así que `new Date(...)` siempre parsea. No se
  * usa `Temporal` a propósito: el soporte de navegadores todavía es desparejo y el
- * contrato solo requiere parseo con offset. La moneda es siempre USD (§1 del contrato).
+ * contrato solo requiere parseo con offset. La moneda es siempre USD.
  */
 
 const locale = 'es-AR';
@@ -40,8 +40,6 @@ const dayHeading = new Intl.DateTimeFormat(locale, {
   month: 'long',
 });
 
-const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-
 const multiplier = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
 
 const integer = new Intl.NumberFormat(locale);
@@ -73,24 +71,6 @@ export function formatTime(value: OffsetDateTimeString | null | undefined): stri
 
 export function formatDayHeading(value: OffsetDateTimeString): string {
   return dayHeading.format(new Date(value));
-}
-
-/** `"dentro de 3 días"` / `"hace 2 horas"`, para horarios de funciones y antigüedad de reservas. */
-export function formatRelative(value: OffsetDateTimeString | null | undefined): string {
-  if (!value) return '—';
-  const deltaMs = new Date(value).getTime() - Date.now();
-  const units = [
-    ['year', 365 * 24 * 60 * 60 * 1000],
-    ['month', 30 * 24 * 60 * 60 * 1000],
-    ['day', 24 * 60 * 60 * 1000],
-    ['hour', 60 * 60 * 1000],
-    ['minute', 60 * 1000],
-  ] as const satisfies readonly (readonly [Intl.RelativeTimeFormatUnit, number])[];
-
-  for (const [unit, ms] of units) {
-    if (Math.abs(deltaMs) >= ms) return relative.format(Math.round(deltaMs / ms), unit);
-  }
-  return relative.format(Math.round(deltaMs / 1000), 'second');
 }
 
 /** `1.5` -> `"1,5×"`, para mostrar el multiplicador de asientos premium. */

@@ -4,7 +4,7 @@ import type { ContactCategory } from '../enums.ts';
 import type { ContactMessage, ContactMessageRequest, Page, Uuid } from '../types.ts';
 
 /**
- * Formulario de contacto (backend-status-for-frontend.md §5.13): el autor bajo
+ * Formulario de contacto: el autor bajo
  * `/api/contact-messages` y la bandeja de admin bajo `/api/admin/contact-messages`.
  *
  * El autor se toma de la sesión: la solicitud no lleva nombre ni email. Listar nunca
@@ -87,7 +87,7 @@ export function listAdminContactMessages(
 
 /**
  * Solo ADMIN. **Marca el mensaje como leído** en la primera apertura (setea `readAt`), lo que
- * impide que el autor lo siga editando. No lo uses para precargar ni para refrescar la lista.
+ * impide que el autor lo siga editando. No sirve para precargar ni para refrescar la lista.
  */
 export function openContactMessage(uuid: Uuid, options: CallOptions = {}): Promise<ContactMessage> {
   return requestJson<ContactMessage>(`/api/admin/contact-messages/${uuid}`, {

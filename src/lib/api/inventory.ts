@@ -18,8 +18,7 @@ import type {
 } from '../types.ts';
 
 /**
- * `/api/inventory`: **solo ADMIN para todos los métodos, incluido `GET`**
- * (backend-status-for-frontend.md §5.11).
+ * `/api/inventory`: **solo ADMIN para todos los métodos, incluido `GET`**.
  *
  * El catálogo público de confitería para clientes es `/api/products` (ver `products.ts`).
  */
@@ -46,10 +45,7 @@ export function listInventory(
   return getPage<InventoryItem>('/api/inventory', params, { ...options, auth: true });
 }
 
-export function getInventoryItem(
-  uuid: Uuid,
-  options: CallOptions = {},
-): Promise<InventoryItem> {
+export function getInventoryItem(uuid: Uuid, options: CallOptions = {}): Promise<InventoryItem> {
   return requestJson<InventoryItem>(`/api/inventory/${uuid}`, { ...options, auth: true });
 }
 

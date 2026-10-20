@@ -26,6 +26,7 @@ import {
 } from './api/inventory.ts';
 import { deleteUser, listUsers } from './api/users.ts';
 import { getMetadataConfig } from './api/metadata.ts';
+import { MAX_PAGE_SIZE } from './api/shared.ts';
 import { getAuthState, login, logout, register } from './auth-store.ts';
 import { estimateTotal } from './pricing.ts';
 import { ApiError } from './problem.ts';
@@ -92,9 +93,16 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
     await login({ email: adminEmail!, password: adminPassword! });
     expect(getAuthState().user?.role).toBe('ADMIN');
 
-    const { data: room } = await createRoom({ roomName: `QA Sala ${stamp}`, screenRoomType: 'NORMAL' });
+    const { data: room } = await createRoom({
+      roomName: `QA Sala ${stamp}`,
+      screenRoomType: 'NORMAL',
+    });
     roomId = room.uuid;
-    const { data: layout } = await generateSeats(roomId, { rows: 2, columns: 3, premiumRows: ['B'] });
+    const { data: layout } = await generateSeats(roomId, {
+      rows: 2,
+      columns: 3,
+      premiumRows: ['B'],
+    });
     expect(layout.seats).toHaveLength(6);
 
     const fresh = await getRoomLayout(roomId);
@@ -153,7 +161,12 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
   });
 
   it('cliente: registro y login', async () => {
-    await register({ firstName: 'QA', lastName: 'Flujo', email: customerEmail, password: customerPassword });
+    await register({
+      firstName: 'QA',
+      lastName: 'Flujo',
+      email: customerEmail,
+      password: customerPassword,
+    });
     const user = await login({ email: customerEmail, password: customerPassword });
     customerId = user.uuid;
   });
@@ -189,10 +202,12 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
   });
 
   it('cliente: ve sus retenciones disponibles, otros las ven retenidas', async () => {
-
     // Con token (auth: 'optional'), las retenciones propias siguen disponibles.
     const mine = await getScreeningSeatMap(screeningId);
-    expect(mine.seats.find((s) => s.seatId === normalSeat)).toMatchObject({ available: true, held: false });
+    expect(mine.seats.find((s) => s.seatId === normalSeat)).toMatchObject({
+      available: true,
+      held: false,
+    });
 
     // Sin token, el backend las informa como retenidas por otro cliente.
     const anonymous = await anonymousSeatMap(screeningId);
@@ -272,7 +287,7 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
 
     const byEmail = await listUsers({ email: customerEmail.toUpperCase() });
     expect(byEmail.content.map((u) => u.uuid)).toEqual([customerId]);
-    const byName = await listUsers({ name: 'qa flujo', size: 100 });
+    const byName = await listUsers({ name: 'qa flujo', size: MAX_PAGE_SIZE });
     expect(byName.content.map((u) => u.uuid)).toContain(customerId);
 
     await deleteUser(customerId);
@@ -283,11 +298,17 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
     await expectApiError(deleteScreening(screeningId), 409, 'RESOURCE_IN_USE');
     expect((await setScreeningArchived(screeningId, true)).archived).toBe(true);
 
-    expect((await listScreenings({ movieId })).content.map((s) => s.uuid)).not.toContain(screeningId);
+    expect((await listScreenings({ movieId })).content.map((s) => s.uuid)).not.toContain(
+      screeningId,
+    );
     expect(
       (await listScreenings({ movieId, includeArchived: true })).content.map((s) => s.uuid),
     ).toContain(screeningId);
-    await expectApiError(createHold(screeningId, { seatIds: [normalSeat] }), 422, 'RESOURCE_ARCHIVED');
+    await expectApiError(
+      createHold(screeningId, { seatIds: [normalSeat] }),
+      422,
+      'RESOURCE_ARCHIVED',
+    );
 
     expect((await setScreeningArchived(screeningId, false)).archived).toBe(false);
   });
@@ -299,7 +320,7 @@ describe.skipIf(!adminEmail || !adminPassword)('flujo completo admin + cliente',
     expect((await setRoomArchived(roomId, true)).archived).toBe(true);
     expect((await setInventoryArchived(productId, true)).archived).toBe(true);
 
-    const showing = await listNowShowing({ size: 100 });
+    const showing = await listNowShowing({ size: MAX_PAGE_SIZE });
     expect(showing.content.map((entry) => entry.movie.uuid)).not.toContain(movieId);
   });
 });

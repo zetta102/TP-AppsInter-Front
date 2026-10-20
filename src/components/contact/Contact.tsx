@@ -4,29 +4,32 @@ import {
   sendContactMessage,
   updateContactMessage,
 } from '../../lib/api/contact-messages.ts';
-import { useResource, type Resource } from '../../lib/use-resource.ts';
-import { formatDateTime, formatNumber } from '../../lib/format.ts';
 import {
   ContactCategory,
   contactCategoryLabels,
   contactCategoryValues,
   isEnumValue,
 } from '../../lib/enums.ts';
-import { isApiErrorWithCode, toFieldErrors } from '../../lib/problem.ts';
+import { formError, formText, initialFormState, type FormState } from '../../lib/form.ts';
+import { formatDateTime, formatNumber } from '../../lib/format.ts';
+import { isApiErrorWithCode } from '../../lib/problem.ts';
 import type { ContactMessage, ContactMessageRequest, Page } from '../../lib/types.ts';
+import { useResource, type Resource } from '../../lib/use-resource.ts';
+import { Badge } from '../ui/Badge.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
+import { EmptyState, LoadingBlock, Spinner } from '../ui/Feedback.tsx';
 import { SelectInput, TextArea, TextInput } from '../ui/Field.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
-import { Badge, Modal } from '../ui/Modal.tsx';
+import { Modal } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
-import { EmptyState, LoadingBlock, Spinner, SubmitButton } from '../ui/SubmitButton.tsx';
+import { SubmitButton } from '../ui/SubmitButton.tsx';
 
 const PAGE_SIZE = 10;
 const SUBJECT_MAX = 150;
 const BODY_MAX = 5000;
 
 /**
- * `/contact` (backend-status-for-frontend.md §5.13) — formulario de contacto y mensajes propios.
+ * `/contact` — formulario de contacto y mensajes propios.
  *
  * El autor sale de la sesión, así que hace falta iniciar sesión para escribir. Un mensaje se
  * puede editar hasta que un admin lo abre (`readAt`); desde ahí queda bloqueado y un `PUT`
@@ -40,12 +43,10 @@ export default function Contact() {
   );
 }
 
-interface FormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
+interface ContactFormState extends FormState {
   /**
    * Lo enviado. React resetea el formulario al terminar cada Action, también ante un error; los
-   * `defaultValue` salen de aquí para no perder lo escrito cuando el servidor rechaza el envío.
+   * `defaultValue` salen de acá para no perder lo escrito cuando el servidor rechaza el envío.
    */
   readonly values: ContactMessageRequest;
   readonly success: boolean;
@@ -62,8 +63,8 @@ function readValues(formData: FormData): ContactMessageRequest {
   return {
     // El `<select>` solo ofrece valores válidos; el fallback cubre un valor manipulado.
     category: isEnumValue(contactCategoryValues, category) ? category : ContactCategory.GENERAL,
-    subject: String(formData.get('subject') ?? '').trim(),
-    body: String(formData.get('body') ?? '').trim(),
+    subject: formText(formData, 'subject'),
+    body: formText(formData, 'body'),
   };
 }
 
@@ -164,17 +165,17 @@ function ContactMessageFields({
 
 function ContactForm({ onSent }: { readonly onSent: () => void }) {
   const [state, formAction] = useActionState(
-    async (_prev: FormState, formData: FormData): Promise<FormState> => {
+    async (_prev: ContactFormState, formData: FormData): Promise<ContactFormState> => {
       const values = readValues(formData);
       try {
         await sendContactMessage(values);
         onSent();
-        return { error: null, fieldErrors: {}, values: emptyValues, success: true };
+        return { ...initialFormState, values: emptyValues, success: true };
       } catch (error) {
-        return { error, fieldErrors: toFieldErrors(error), values, success: false };
+        return { ...formError(error), values, success: false };
       }
     },
-    { error: null, fieldErrors: {}, values: emptyValues, success: false },
+    { ...initialFormState, values: emptyValues, success: false },
   );
 
   return (
@@ -229,9 +230,11 @@ function MyMessages({
     content = (
       <EmptyState
         title={category ? 'No tenés mensajes con este motivo' : 'Todavía no nos escribiste'}
-        {...(category
-          ? { description: 'Probá con otro motivo o mostrá todos.' }
-          : { description: 'Los mensajes que envíes aparecerán aquí.' })}
+        description={
+          category
+            ? 'Probá con otro motivo o mostrá todos.'
+            : 'Los mensajes que envíes van a aparecer acá.'
+        }
       />
     );
   } else {
@@ -345,18 +348,18 @@ function EditMessageModal({
   };
 
   const [state, formAction] = useActionState(
-    async (_prev: FormState, formData: FormData): Promise<FormState> => {
+    async (_prev: ContactFormState, formData: FormData): Promise<ContactFormState> => {
       const values = readValues(formData);
       try {
         await updateContactMessage(message.uuid, values);
         onSaved();
-        return { error: null, fieldErrors: {}, values, success: true };
+        return { ...initialFormState, values, success: true };
       } catch (error) {
         if (isApiErrorWithCode(error, 'MESSAGE_ALREADY_READ')) onLocked();
-        return { error, fieldErrors: toFieldErrors(error), values, success: false };
+        return { ...formError(error), values, success: false };
       }
     },
-    { error: null, fieldErrors: {}, values: initialValues, success: false },
+    { ...initialFormState, values: initialValues, success: false },
   );
 
   const locked = isApiErrorWithCode(state.error, 'MESSAGE_ALREADY_READ');

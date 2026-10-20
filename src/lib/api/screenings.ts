@@ -6,19 +6,15 @@ import {
   setArchived,
   type CallOptions,
 } from './shared.ts';
-import { DEFAULT_METADATA_CONFIG } from './metadata.ts';
 import type { PageParams } from '../query.ts';
-import type {
-  ScreeningRequest,
-  Screening,
-  Page,
-  SeatMap,
-  Uuid,
-} from '../types.ts';
+import type { Page, Screening, ScreeningRequest, SeatMap, Uuid } from '../types.ts';
 
-/** `/api/screenings`: las lecturas son públicas y las escrituras son ADMIN (backend-status-for-frontend.md §5.8).
+/**
+ * `/api/screenings`: las lecturas son públicas y las escrituras son ADMIN.
+ *
  * Las lecturas envían el token si hay sesión (`auth: 'optional'`): así la disponibilidad
- * no descuenta las retenciones propias del usuario. */
+ * no descuenta las retenciones propias del usuario.
+ */
 
 export const screeningSortFields = ['startsAt', 'endsAt', 'basePrice'] as const;
 export type ScreeningSortField = (typeof screeningSortFields)[number];
@@ -31,7 +27,7 @@ export type ScreeningFilters = {
   readonly to?: string;
   /** Atajo para "desde ahora". Nunca sobrescribe un `from` explícito. */
   readonly upcomingOnly?: boolean;
-  /** En el servidor vale `true` por defecto; usa `false` para omitir la agregación de disponibilidad. */
+  /** En el servidor vale `true` por defecto; `false` omite la agregación de disponibilidad. */
   readonly includeAvailability?: boolean;
   /** Incluye las archivadas (pantallas de admin). */
   readonly includeArchived?: boolean;
@@ -53,10 +49,7 @@ export interface GetScreeningOptions extends CallOptions {
 }
 
 /** La función también se lee cuando está archivada (`archived: true`). */
-export function getScreening(
-  uuid: Uuid,
-  options: GetScreeningOptions = {},
-): Promise<Screening> {
+export function getScreening(uuid: Uuid, options: GetScreeningOptions = {}): Promise<Screening> {
   const { includeAvailability, include, ...callOptions } = options;
   return requestJson<Screening>(`/api/screenings/${uuid}`, {
     ...callOptions,
@@ -82,10 +75,7 @@ export async function getScreeningWithSeatMap(
  * asientos retenidos por el propio usuario aparecen como disponibles; los retenidos por
  * otros llegan con `held: true`. Siempre hay que estar listo para un `409` al comprar.
  */
-export function getScreeningSeatMap(
-  uuid: Uuid,
-  options: CallOptions = {},
-): Promise<SeatMap> {
+export function getScreeningSeatMap(uuid: Uuid, options: CallOptions = {}): Promise<SeatMap> {
   return requestJson<SeatMap>(`/api/screenings/${uuid}/seats`, {
     ...options,
     auth: 'optional',
@@ -98,10 +88,7 @@ export function createScreening(body: ScreeningRequest) {
 }
 
 /** Recalcula `endsAt` y vuelve a verificar superposición **excluyéndose a sí misma**. */
-export function updateScreening(
-  uuid: Uuid,
-  body: ScreeningRequest,
-): Promise<Screening> {
+export function updateScreening(uuid: Uuid, body: ScreeningRequest): Promise<Screening> {
   return requestJson<Screening>(`/api/screenings/${uuid}`, {
     method: 'PUT',
     body,
@@ -114,10 +101,7 @@ export function updateScreening(
  * `409 SCREENING_OVERLAP` si el horario se ocupó, `422 RESOURCE_ARCHIVED` si la película o la sala
  * están archivadas.
  */
-export function setScreeningArchived(
-  uuid: Uuid,
-  archived: boolean,
-): Promise<Screening> {
+export function setScreeningArchived(uuid: Uuid, archived: boolean): Promise<Screening> {
   return setArchived<Screening>(`/api/screenings/${uuid}`, archived);
 }
 
@@ -125,10 +109,3 @@ export function setScreeningArchived(
 export function deleteScreening(uuid: Uuid): Promise<void> {
   return requestVoid(`/api/screenings/${uuid}`, { method: 'DELETE', auth: true });
 }
-
-/**
- * Valor por defecto documentado. El valor real se sirve en `GET /api/metadata/config`
- * como `screeningTurnoverMinutes`: conviene usarlo en el planificador de admin; esta
- * constante es solo el fallback.
- */
-export const TURNOVER_MINUTES = DEFAULT_METADATA_CONFIG.screeningTurnoverMinutes;

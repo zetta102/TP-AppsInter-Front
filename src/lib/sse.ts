@@ -1,7 +1,6 @@
 /**
  * Parser mínimo de Server-Sent Events (formato de WHATWG), para leer el stream de asientos con
- * `fetch` en lugar de `EventSource`, que no puede enviar el header `Authorization`
- * (backend-status-for-frontend.md §7.6).
+ * `fetch` en lugar de `EventSource`, que no puede enviar el header `Authorization`.
  *
  * Se alimenta con fragmentos de texto arbitrarios: una línea o un evento pueden llegar
  * partidos entre dos fragmentos. Soporta `\n`, `\r\n` y `\r`, `data:` en varias líneas y

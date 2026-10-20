@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { LoadingBlock, EmptyState } from './SubmitButton.tsx';
+import { LoadingBlock, EmptyState } from './Feedback.tsx';
 import { ErrorBanner } from './ErrorBanner.tsx';
 import { cx } from '../../lib/cx.ts';
 

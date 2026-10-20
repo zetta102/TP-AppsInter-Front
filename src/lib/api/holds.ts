@@ -2,7 +2,7 @@ import { requestCreated, requestJson, requestVoid, type CallOptions } from './sh
 import type { SeatHoldRequest, SeatHold, Uuid } from '../types.ts';
 
 /**
- * Retenciones de asientos (backend-status-for-frontend.md §5.9, §7.3).
+ * Retenciones de asientos.
  *
  * Una retención reserva asientos por algunos minutos mientras se completa la compra. El TTL es
  * `CINE_SEAT_HOLD_TTL_SECONDS` (300 s por defecto, publicado en
@@ -12,7 +12,7 @@ import type { SeatHoldRequest, SeatHold, Uuid } from '../types.ts';
  * Flujo recomendado: seleccionar asientos -> `createHold` -> mostrar la cuenta regresiva ->
  * `replaceHold` en cada cambio posterior de la selección ->
  * `quoteReservation` para el total -> `createReservation` con `holdId`.
- * Si se abandona, llama a `releaseHold` o simplemente deja que expire.
+ * Si se abandona, se llama a `releaseHold` o simplemente se deja que expire.
  */
 
 /** `201` + `Location: /api/holds/{uuid}`. `404` por función/asiento desconocido, `422 SCREENING_STARTED`,

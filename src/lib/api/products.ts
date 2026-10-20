@@ -1,15 +1,13 @@
-import { getPage, requestJson, type CallOptions } from './shared.ts';
+import { getPage, type CallOptions } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type { ProductCategory } from '../enums.ts';
-import type { Page, Product, Uuid } from '../types.ts';
+import type { Page, Product } from '../types.ts';
 
 /**
- * `/api/products`: la proyección **pública** del inventario orientada al cliente
- * (backend-status-for-frontend.md §5.10). Publica `price` y `available`; el stock bruto en
- * `quantity` no se expone deliberadamente.
+ * `/api/products`: la proyección **pública** del inventario orientada al cliente.
+ * Publica `price` y `available`; el stock bruto en `quantity` no se expone deliberadamente.
  *
- * Reemplaza el viejo workaround de llamar al `GET /api/inventory` solo para admin
- * y ocultar el panel de confitería ante un `403`.
+ * Es lo que usa la confitería del checkout; `/api/inventory` queda solo para admin.
  */
 
 export const productSortFields = ['productName', 'category', 'price'] as const;
@@ -27,8 +25,4 @@ export function listProducts(
   options: CallOptions = {},
 ): Promise<Page<Product>> {
   return getPage<Product>('/api/products', params, options);
-}
-
-export function getProduct(uuid: Uuid, options: CallOptions = {}): Promise<Product> {
-  return requestJson<Product>(`/api/products/${uuid}`, options);
 }

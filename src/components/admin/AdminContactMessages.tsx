@@ -1,28 +1,32 @@
-import { useDeferredValue, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import {
   deleteContactMessage,
   listAdminContactMessages,
   openContactMessage,
   type AdminContactMessageSortField,
 } from '../../lib/api/contact-messages.ts';
-import { useKeyedResource, useResource } from '../../lib/use-resource.ts';
-import { formatDateTime } from '../../lib/format.ts';
-import { toUserMessage } from '../../lib/problem.ts';
 import {
   contactCategoryLabels,
   contactCategoryValues,
   isEnumValue,
   type ContactCategory,
 } from '../../lib/enums.ts';
-import type { ContactMessage, Page, Uuid } from '../../lib/types.ts';
+import { formatDateTime } from '../../lib/format.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import type { ContactMessage, Page, Uuid } from '../../lib/types.ts';
+import { useDebouncedSearch } from '../../lib/use-debounced-search.ts';
+import { useKeyedResource, useResource } from '../../lib/use-resource.ts';
+import { Badge } from '../ui/Badge.tsx';
+import { useConfirm, type ConfirmOptions } from '../ui/ConfirmDialog.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Badge, Modal } from '../ui/Modal.tsx';
-import { Pagination } from '../ui/Pagination.tsx';
+import { LoadingBlock } from '../ui/Feedback.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
-import { LoadingBlock } from '../ui/SubmitButton.tsx';
+import { Modal } from '../ui/Modal.tsx';
+import { Pagination } from '../ui/Pagination.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+
+type Confirm = (options: ConfirmOptions) => Promise<boolean>;
 
 const PAGE_SIZE = 20;
 
@@ -35,7 +39,7 @@ const readFilterLabels = {
 } as const satisfies Readonly<Record<ReadFilter, string>>;
 
 /**
- * `/admin/contact` — bandeja de mensajes de contacto (backend-status-for-frontend.md §5.13).
+ * `/admin/contact` — bandeja de mensajes de contacto.
  *
  * Listar no marca nada como leído; abrir un mensaje sí (`GET /api/admin/contact-messages/{id}`
  * setea `readAt` la primera vez), y desde ese momento el autor ya no puede editarlo. Por eso el
@@ -47,10 +51,11 @@ export default function AdminContactMessages() {
   const [category, setCategory] = useState<ContactCategory | ''>('');
   const [read, setRead] = useState<ReadFilter>('');
   const [email, setEmail] = useState('');
-  // Se difiere para no disparar una petición por cada tecla mientras se escribe.
-  const deferredEmail = useDeferredValue(email.trim());
+  // Una sola petición cuando se deja de escribir, no una por tecla.
+  const debouncedEmail = useDebouncedSearch(email);
   const [openId, setOpenId] = useState<Uuid | null>(null);
   const [rowError, setRowError] = useState<unknown>(null);
+  const { confirm, dialog } = useConfirm();
 
   const resource = useResource<Page<ContactMessage>>(
     (signal) =>
@@ -61,11 +66,11 @@ export default function AdminContactMessages() {
           sort,
           ...(category ? { category } : {}),
           ...(read ? { read: read === 'true' } : {}),
-          ...(deferredEmail ? { email: deferredEmail } : {}),
+          ...(debouncedEmail ? { email: debouncedEmail } : {}),
         },
         { signal },
       ),
-    [page, sort, category, read, deferredEmail],
+    [page, sort, category, read, debouncedEmail],
   );
   const { refetch } = resource;
 
@@ -125,6 +130,7 @@ export default function AdminContactMessages() {
         <MessageRowActions
           message={message}
           onOpen={() => setOpenId(message.uuid)}
+          confirm={confirm}
           onError={setRowError}
           onDone={refetch}
         />
@@ -186,11 +192,7 @@ export default function AdminContactMessages() {
         </SelectInput>
       </AdminToolbar>
 
-      {rowError !== null && (
-        <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
-          {toUserMessage(rowError)}
-        </div>
-      )}
+      {rowError !== null && <ErrorBanner error={rowError} onRetry={refetch} />}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -213,6 +215,7 @@ export default function AdminContactMessages() {
       {openId !== null && (
         <MessageModal
           uuid={openId}
+          confirm={confirm}
           onClose={() => {
             setOpenId(null);
             // Abrirlo seteó `readAt`: la fila tiene que pasar a "Leído".
@@ -224,32 +227,40 @@ export default function AdminContactMessages() {
           }}
         />
       )}
+
+      {/* Después del detalle: la confirmación queda arriba en la pila de diálogos. */}
+      {dialog}
     </AdminPage>
   );
 }
 
-function confirmDelete(message: ContactMessage): boolean {
-  return window.confirm(
-    `¿Eliminar el mensaje “${message.subject}” de ${message.author.email}? No se puede deshacer.`,
-  );
+function confirmDelete(confirm: Confirm, message: ContactMessage): Promise<boolean> {
+  return confirm({
+    title: 'Eliminar mensaje',
+    message: `¿Eliminar el mensaje “${message.subject}” de ${message.author.email}? No se puede deshacer.`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  });
 }
 
 /** Acciones de una fila, con su propia transición: solo esa fila queda pendiente. */
 function MessageRowActions({
   message,
   onOpen,
+  confirm,
   onError,
   onDone,
 }: {
   readonly message: ContactMessage;
   readonly onOpen: () => void;
+  readonly confirm: Confirm;
   readonly onError: (error: unknown) => void;
   readonly onDone: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
 
-  const remove = () => {
-    if (!confirmDelete(message)) return;
+  const remove = async () => {
+    if (!(await confirmDelete(confirm, message))) return;
     onError(null);
     startTransition(async () => {
       try {
@@ -276,7 +287,7 @@ function MessageRowActions({
         type="button"
         className="cine-btn cine-btn-danger px-2 py-1 text-xs"
         disabled={isPending}
-        onClick={remove}
+        onClick={() => void remove()}
       >
         Eliminar
       </button>
@@ -286,10 +297,12 @@ function MessageRowActions({
 
 function MessageModal({
   uuid,
+  confirm,
   onClose,
   onDeleted,
 }: {
   readonly uuid: Uuid;
+  readonly confirm: Confirm;
   readonly onClose: () => void;
   readonly onDeleted: () => void;
 }) {
@@ -299,8 +312,8 @@ function MessageModal({
   const [isDeleting, startTransition] = useTransition();
   const message = resource.data;
 
-  const remove = () => {
-    if (!message || !confirmDelete(message)) return;
+  const remove = async () => {
+    if (!message || !(await confirmDelete(confirm, message))) return;
     setDeleteError(null);
     startTransition(async () => {
       try {
@@ -371,7 +384,7 @@ function MessageModal({
             type="button"
             className="cine-btn cine-btn-danger"
             disabled={!message || isDeleting}
-            onClick={remove}
+            onClick={() => void remove()}
           >
             Eliminar
           </button>

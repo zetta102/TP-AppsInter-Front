@@ -1,19 +1,21 @@
-import type { SeatMap as SeatMapData, SeatAvailability } from '../../lib/types.ts';
 import { cx } from '../../lib/cx.ts';
 import { SeatType } from '../../lib/enums.ts';
 import { formatMoney, seatLabel } from '../../lib/format.ts';
 import { PREMIUM_MULTIPLIER, ticketPrice } from '../../lib/pricing.ts';
+import type { SeatAvailability, SeatMap as SeatMapData } from '../../lib/types.ts';
 
 /**
- * Contrato del componente de mapa de asientos (backend-status-for-frontend.md §7.3).
+ * Contrato del componente de mapa de asientos.
  *
  * Reglas de renderizado que no deben violarse:
  *  - `rows` y `columns` ya están ordenados de forma natural (`A2` va antes que `A10`),
- *    por lo que la grilla se construye directamente con esos arreglos, sin volver a ordenarlos aquí.
+ *    por lo que la grilla se construye directamente con esos arreglos, sin volver a ordenarlos acá.
  *  - La grilla es **dispersa**: un par `(row, column)` sin asiento asociado es un
  *    pasillo o espacio y se renderiza como una celda vacía.
- *  - `available: false` significa que ya existe una entrada. El mapa es una instantánea,
- *    no un bloqueo: los asientos solo se retienen en `POST /api/reservations`.
+ *  - `available: false` con `held: false` es un asiento vendido; con `held: true`, otro cliente
+ *    lo tiene retenido. Con sesión, las retenciones propias llegan como disponibles.
+ *  - El mapa es una instantánea, no un bloqueo: solo una retención
+ *    (`POST /api/screenings/{id}/holds`) reserva asientos durante el checkout.
  */
 
 /** `${row}-${column}`: clave de coordenada usada para indexar una grilla dispersa. */
@@ -21,12 +23,16 @@ type CoordKey = `${string}-${string}`;
 
 const coordKey = (row: string, column: string): CoordKey => `${row}-${column}`;
 
-export function indexSeats(seats: readonly SeatAvailability[]): ReadonlyMap<CoordKey, SeatAvailability> {
+export function indexSeats(
+  seats: readonly SeatAvailability[],
+): ReadonlyMap<CoordKey, SeatAvailability> {
   return new Map(seats.map((seat) => [coordKey(seat.row, seat.column), seat]));
 }
 
 /** Índice por `seatId`, para resolver una selección (lista de ids) contra el mapa. */
-export function indexSeatsById(seats: readonly SeatAvailability[]): ReadonlyMap<string, SeatAvailability> {
+export function indexSeatsById(
+  seats: readonly SeatAvailability[],
+): ReadonlyMap<string, SeatAvailability> {
   return new Map(seats.map((seat) => [seat.seatId, seat]));
 }
 

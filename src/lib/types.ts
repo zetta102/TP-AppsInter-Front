@@ -1,6 +1,6 @@
 /**
- * Espejo solo de tipos de los DTO del backend (backend-status-for-frontend.md §6). Los nombres
- * coinciden uno a uno con §6 y con los schemas de `/v3/api-docs` (`Screening`, `SeatMap`,
+ * Espejo solo de tipos de los DTO del backend. Los nombres
+ * coinciden uno a uno con los schemas de `/v3/api-docs` (`Screening`, `SeatMap`,
  * `AuthTokens`…), así que se pueden comparar o reemplazar por tipos generados sin traducir.
  *
  * Nada en este módulo emite código de runtime, así que desaparece por completo
@@ -44,8 +44,8 @@ export interface Page<T> {
 }
 
 /**
- * RFC 7807 `application/problem+json` tal como lo emite el backend
- * (backend-status-for-frontend.md §3.4, §6). Todo error usa esta forma, incluidos
+ * RFC 7807 `application/problem+json` tal como lo emite el backend.
+ * Todo error usa esta forma, incluidos
  * los 401/403 emitidos por la cadena de filtros de seguridad.
  */
 export interface Problem {
@@ -62,7 +62,7 @@ export interface Problem {
   readonly errors?: Readonly<Record<string, string>>;
   /** Presente en `VALIDATION_FAILED`: cada restricción violada, legible por máquina, para traducir en el cliente. */
   readonly violations?: readonly Violation[];
-  /** Código de fallo legible por máquina (backend-status-for-frontend.md §8): ramifica con esto, nunca con `detail`. */
+  /** Código de fallo legible por máquina: ramifica con esto, nunca con `detail`. */
   readonly code: string;
   /** Datos extra estructurados cuyas claves dependen de `code`; ausentes cuando no hay nada que agregar. */
   readonly context?: Readonly<Record<string, unknown>>;
@@ -75,7 +75,7 @@ export interface Problem {
 export type ProblemPayload = Partial<Problem>;
 
 /**
- * Una restricción violada (backend-status-for-frontend.md §3.4): `code` es el nombre de la
+ * Una restricción violada: `code` es el nombre de la
  * restricción (`NotBlank`, `Size`, `HttpUrl`…) y `params` sus atributos (`{ min: 8, max: 72 }`).
  */
 export interface Violation {
@@ -309,7 +309,7 @@ export interface SeatMap {
   readonly seats: readonly SeatAvailability[];
 }
 
-/** El `data` de un evento `seats` del stream SSE: solo los asientos que cambiaron (§7.6). */
+/** El `data` de un evento `seats` del stream SSE: solo los asientos que cambiaron. */
 export interface SeatState {
   readonly seatId: Uuid;
   readonly available: boolean;
@@ -336,22 +336,10 @@ export interface SeatHold {
 }
 
 // ---------------------------------------------------------------------------
-// Creación masiva de asientos
+// Generación de la grilla de asientos
 // ---------------------------------------------------------------------------
 
 export type SeatConflictPolicy = 'FAIL' | 'SKIP' | 'REPLACE';
-
-export interface SeatDefinition {
-  readonly row: string;
-  readonly column: string;
-  readonly seatType: SeatType;
-}
-
-/** `POST /api/rooms/{id}/seats:bulk` (alias `…/seats/bulk`). */
-export interface BulkSeatsRequest {
-  readonly seats: readonly SeatDefinition[];
-  readonly onConflict?: SeatConflictPolicy;
-}
 
 /** `POST /api/rooms/{id}/seats:generate` (alias `…/seats/generate`). */
 export interface GenerateSeatsRequest {

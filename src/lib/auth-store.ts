@@ -1,12 +1,12 @@
 import { navigate } from 'astro:transitions/client';
-import { ApiError } from './problem.ts';
+import { ApiError, isApiErrorWithStatus } from './problem.ts';
 import { apiFetch, registerAuthHooks, requestJson } from './http.ts';
-import type { AuthTokens, LoginRequest, RegisterRequest, User } from './types.ts';
-import { Role } from './enums.ts';
+import { currentPath, loginHref } from './login-redirect.ts';
+import type { AuthTokens, LoginRequest, RefreshRequest, RegisterRequest, User } from './types.ts';
 
 /**
  * El único propietario de ambos tokens, el mutex de refresh y el perfil de
- * `/api/users/me` (backend-status-for-frontend.md §7.1).
+ * `/api/users/me`.
  *
  * Los tokens viven en memoria con un espejo en `localStorage` para sobrevivir a una recarga.
  * No existe flujo de cookies ni de CSRF.
@@ -124,7 +124,7 @@ export function refreshTokens(): Promise<boolean> {
 
       const next = await requestJson<AuthTokens>('/api/auth/refresh', {
         method: 'POST',
-        body: { refreshToken: current.refreshToken },
+        body: { refreshToken: current.refreshToken } satisfies RefreshRequest,
       });
       // Reemplaza *ambos* tokens: el refresh token consumido ya quedó revocado.
       applyTokens(pickTokens(next));
@@ -148,10 +148,9 @@ export function refreshTokens(): Promise<boolean> {
 /** Adónde enviar al usuario después de un cierre de sesión forzado. */
 function redirectToLogin(): void {
   if (!isBrowser) return;
-  const { pathname, search } = window.location;
+  const { pathname } = window.location;
   if (pathname === '/login' || pathname === '/register') return;
-  const next = encodeURIComponent(`${pathname}${search}`);
-  void navigate(`/login?next=${next}`);
+  void navigate(loginHref(currentPath()));
 }
 
 /** Limpia todo rastro de la sesión sin llamar a la API. */
@@ -165,13 +164,13 @@ export function setUser(user: User): void {
   setState({ user });
 }
 
-export async function fetchProfile(): Promise<User | null> {
+async function fetchProfile(): Promise<User | null> {
   try {
     const user = await requestJson<User>('/api/users/me', { auth: true });
     setState({ user });
     return user;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) clearSession();
+    if (isApiErrorWithStatus(error, 401)) clearSession();
     return null;
   }
 }
@@ -206,7 +205,8 @@ export async function logout(): Promise<void> {
   const refreshToken = state.tokens?.refreshToken;
   try {
     if (refreshToken) {
-      await apiFetch('/api/auth/logout', { method: 'POST', body: { refreshToken } });
+      const body: RefreshRequest = { refreshToken };
+      await apiFetch('/api/auth/logout', { method: 'POST', body });
     }
   } catch {
     // Un revoke fallido nunca debe dejar al usuario atrapado en una interfaz con sesión iniciada.
@@ -239,19 +239,6 @@ export function initAuth(): Promise<AuthState> {
   })();
 
   return initialization;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers derivados
-// ---------------------------------------------------------------------------
-
-export function isAuthenticated(): boolean {
-  return state.tokens !== null;
-}
-
-export function isAdmin(): boolean {
-  // Las decisiones de autorización vienen de `/api/users/me`, nunca de decodificar el JWT.
-  return state.user?.role === Role.ADMIN;
 }
 
 // Conecta el store con la capa HTTP. Registrarlo en el scope del módulo garantiza que

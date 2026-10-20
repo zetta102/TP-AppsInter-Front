@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildQuery, parseSort, readPageParams, sortBy, toggleSort } from './query.ts';
+import { buildQuery, parseSort, sortBy, toggleSort } from './query.ts';
 
 describe('buildQuery', () => {
   it('devuelve una cadena vacía cuando no hay nada que anexar', () => {
@@ -29,20 +29,6 @@ describe('sortBy', () => {
   it('construye la forma `campo,dirección` que espera Spring', () => {
     expect(sortBy('movieName')).toBe('movieName,asc');
     expect(sortBy('createdAt', 'desc')).toBe('createdAt,desc');
-  });
-});
-
-describe('readPageParams', () => {
-  it('usa los valores por defecto ante entradas ausentes o inválidas', () => {
-    expect(readPageParams(new URLSearchParams(''))).toEqual({ page: 0, size: 20 });
-    expect(readPageParams(new URLSearchParams('page=-1&size=0'), { size: 10 })).toEqual({
-      page: 0,
-      size: 10,
-    });
-  });
-
-  it('lee página y tamaño válidos', () => {
-    expect(readPageParams(new URLSearchParams('page=3&size=50'))).toEqual({ page: 3, size: 50 });
   });
 });
 

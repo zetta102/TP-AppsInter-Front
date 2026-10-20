@@ -1,18 +1,19 @@
-import { useDeferredValue, useState } from 'react';
+import { useState } from 'react';
 import { listMovies, type MovieSortField } from '../../lib/api/movies.ts';
-import { useResource } from '../../lib/use-resource.ts';
 import {
   isEnumValue,
   movieGenreLabels,
   movieGenreValues,
   type MovieGenre,
 } from '../../lib/enums.ts';
-import type { Movie, Page } from '../../lib/types.ts';
 import type { SortSpec } from '../../lib/query.ts';
+import type { Movie, Page } from '../../lib/types.ts';
+import { useDebouncedSearch } from '../../lib/use-debounced-search.ts';
+import { useResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
-import { Pagination } from '../ui/Pagination.tsx';
+import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
+import { Pagination } from '../ui/Pagination.tsx';
 import { MovieCard } from './MovieCard.tsx';
 
 const PAGE_SIZE = 12;
@@ -38,8 +39,8 @@ export default function MovieBrowser() {
   const [sort, setSort] = useState<SortSpec<MovieSortField>>('movieName,asc');
   const [page, setPage] = useState(0);
 
-  // Mantiene la escritura fluida sin lanzar una petición por cada tecla.
-  const deferredSearch = useDeferredValue(search);
+  // Una sola petición cuando se deja de escribir, no una por tecla.
+  const debouncedSearch = useDebouncedSearch(search);
 
   const resource = useResource<Page<Movie>>(
     (signal) =>
@@ -48,12 +49,12 @@ export default function MovieBrowser() {
           page,
           size: PAGE_SIZE,
           sort,
-          ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
           ...(genre ? { genre } : {}),
         },
         { signal },
       ),
-    [page, sort, deferredSearch, genre],
+    [page, sort, debouncedSearch, genre],
   );
 
   const resetTo = (mutate: () => void) => {

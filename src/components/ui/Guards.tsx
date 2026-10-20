@@ -1,27 +1,23 @@
 import type { ReactNode } from 'react';
-import { useAuth } from '../../lib/auth-context.tsx';
-import { LoadingBlock } from './SubmitButton.tsx';
+import { currentPath, loginHref } from '../../lib/login-redirect.ts';
+import { useAuth } from '../../lib/use-auth.ts';
+import { LoadingBlock } from './Feedback.tsx';
 
 /**
  * Protección de rutas del lado del cliente.
  *
  * El backend es la única barrera real: estos guards existen para evitar renderizar
  * solicitudes condenadas al fallo y para ofrecer una experiencia razonable al cerrar sesión.
- * Cada pantalla sigue manejando `403` de forma defensiva, porque la verificación de rol aquí
+ * Cada pantalla sigue manejando `403` de forma defensiva, porque la verificación de rol acá
  * viene de `GET /api/users/me` y puede estar desactualizada.
  */
 
 function SignInPrompt({ message }: { readonly message: string }) {
-  const next =
-    typeof window === 'undefined'
-      ? '/'
-      : `${window.location.pathname}${window.location.search}`;
-
   return (
-    <div className="cine-card mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-12 text-center">
-      <p className="text-ink-100 text-lg font-semibold">Iniciá sesión para continuar</p>
-      <p className="text-ink-500 text-sm">{message}</p>
-      <a href={`/login?next=${encodeURIComponent(next)}`} className="cine-btn cine-btn-primary">
+    <div className="mx-auto flex max-w-md flex-col items-center gap-4 cine-card px-6 py-12 text-center">
+      <p className="text-lg font-semibold text-ink-100">Iniciá sesión para continuar</p>
+      <p className="text-sm text-ink-500">{message}</p>
+      <a href={loginHref(currentPath())} className="cine-btn cine-btn-primary">
         Iniciar sesión
       </a>
     </div>
@@ -51,12 +47,12 @@ export function AdminGuard({ children }: { readonly children: ReactNode }) {
   }
   if (!isAdmin) {
     return (
-      <div className="cine-card mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-12 text-center">
-        <p className="text-ink-100 text-lg font-semibold">No permitido</p>
-        <p className="text-ink-500 text-sm">
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 cine-card px-6 py-12 text-center">
+        <p className="text-lg font-semibold text-ink-100">No permitido</p>
+        <p className="text-sm text-ink-500">
           Esta consola está restringida a administradores. No existe un alta de administrador de
-          autoservicio: un admin solo se crea al iniciar a partir de{' '}
-          <code>CINE_ADMIN_EMAIL</code> y <code>CINE_ADMIN_PASSWORD</code>.
+          autoservicio: un admin solo se crea al iniciar a partir de <code>CINE_ADMIN_EMAIL</code> y{' '}
+          <code>CINE_ADMIN_PASSWORD</code>.
         </p>
         <a href="/" className="cine-btn cine-btn-secondary">
           Volver al cine

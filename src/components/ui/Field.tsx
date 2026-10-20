@@ -2,12 +2,12 @@ import { useId } from 'react';
 import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from 'react';
 
 /**
- * Primitivas de formulario que vinculan el mapa plano `errors` del backend con los inputs.
+ * Primitivas de formulario que muestran los errores por campo (`ApiError.fieldErrors`) junto a
+ * cada input.
  *
- * La vinculación se hace **solo por nombre de campo**. Los mensajes de bean validation se localizan
- * del lado del servidor (un servidor con locale español devuelve `"no debe estar vacío"`), así que
- * nunca se comparan por texto: mostramos la cadena del servidor como detalle complementario debajo
- * de nuestro propio texto cuando resulta útil, y usamos la clave para ubicarla.
+ * La vinculación se hace **solo por nombre de campo**. El texto sale de `problem.ts`, que lo arma
+ * en español a partir de `violations` (`{ field, code, params }`); el texto de `errors` del
+ * servidor depende de su idioma y solo se usa como respaldo para restricciones desconocidas.
  */
 
 export interface FieldProps {

@@ -1,8 +1,8 @@
-import type { Movie, Screening } from '../../lib/types.ts';
-import { movieGenreLabels, type MovieGenre } from '../../lib/enums.ts';
 import { cx } from '../../lib/cx.ts';
-import { formatMoney, formatRuntime, formatTime, dayKey } from '../../lib/format.ts';
-import { Badge } from '../ui/Modal.tsx';
+import { movieGenreLabels, type MovieGenre } from '../../lib/enums.ts';
+import { dayKey, formatMoney, formatRuntime, formatTime } from '../../lib/format.ts';
+import type { Movie, Screening } from '../../lib/types.ts';
+import { Badge } from '../ui/Badge.tsx';
 
 /**
  * Piezas de presentación del catálogo compartidas por la cuadrícula de inicio,
@@ -22,8 +22,8 @@ export function GenreList({ genres }: { readonly genres: readonly MovieGenre[] }
   );
 }
 
-/** Sustituto determinista del póster: hoy el backend no tiene un campo de imagen. */
-export function PosterPlaceholder({ title }: { readonly title: string }) {
+/** Sustituto determinista del póster para películas sin `posterUrl`. */
+function PosterPlaceholder({ title }: { readonly title: string }) {
   const hue = [...title].reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 360, 7);
   const initials = title
     .split(/\s+/)
@@ -160,11 +160,7 @@ export function MovieCard({
  * omitió la agregación (`includeAvailability=false`), nunca `0`/`false` —
  * muestra siempre "—" en lugar de asumir que está agotado o vacío.
  */
-export function ScreeningAvailability({
-  screening,
-}: {
-  readonly screening: Screening;
-}) {
+export function ScreeningAvailability({ screening }: { readonly screening: Screening }) {
   if (
     screening.soldOut === null ||
     screening.availableSeats === null ||
@@ -176,7 +172,7 @@ export function ScreeningAvailability({
     return <Badge tone="danger">Agotado</Badge>;
   }
   if (screening.availableSeats === 0) {
-    // Quedan asientos sin vender, pero otros clientes los tienen retenidos (§5.8).
+    // Quedan asientos sin vender, pero otros clientes los tienen retenidos.
     return (
       <Badge tone="warning">
         <span title="Otros clientes están comprando estos asientos. Volvé a mirar en unos minutos.">

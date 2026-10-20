@@ -1,49 +1,38 @@
 import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
-import { useAuth } from '../../lib/auth-context.tsx';
-import { toFieldErrors } from '../../lib/problem.ts';
+import { formError, formRaw, formText, initialFormState, type FormState } from '../../lib/form.ts';
+import { safeNext } from '../../lib/login-redirect.ts';
+import { useAuth } from '../../lib/use-auth.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { TextInput } from '../ui/Field.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
 
-interface FormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-}
-
-const initialState: FormState = { error: null, fieldErrors: {} };
-
-/** A dónde volver tras iniciar sesión; por defecto, al área de la cuenta. */
+/** Adónde volver tras iniciar sesión: el `?next=` validado o, por defecto, las reservas. */
 function nextDestination(): string {
-  if (typeof window === 'undefined') return '/reservations';
-  const next = new URLSearchParams(window.location.search).get('next');
-  // Solo rutas relativas del mismo origen, para que `?next=` no pueda convertirse en una redirección abierta.
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/reservations';
+  if (typeof window === 'undefined') return safeNext(null);
+  return safeNext(new URLSearchParams(window.location.search).get('next'));
 }
 
 export default function LoginForm() {
   const { login } = useAuth();
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
-    const email = String(formData.get('email') ?? '');
-    const password = String(formData.get('password') ?? '');
-
     try {
-      await login({ email, password });
+      await login({ email: formText(formData, 'email'), password: formRaw(formData, 'password') });
       void navigate(nextDestination());
-      return initialState;
+      return initialFormState;
     } catch (error) {
-      // El 400 se vincula a los campos; el 401 "Invalid credentials" aparece en el banner.
-      return { error, fieldErrors: toFieldErrors(error) };
+      // El 400 se vincula a los campos; el 401 `INVALID_CREDENTIALS` aparece en el banner.
+      return formError(error);
     }
-  }, initialState);
+  }, initialFormState);
 
   return (
-    <form action={formAction} className="cine-card flex flex-col gap-4 p-6" noValidate>
+    <form action={formAction} className="flex flex-col gap-4 cine-card p-6" noValidate>
       <ErrorBanner error={state.error} />
 
       <TextInput
-        label="Correo electrónico"
+        label="Email"
         name="email"
         type="email"
         autoComplete="email"
@@ -62,7 +51,7 @@ export default function LoginForm() {
 
       <SubmitButton pendingLabel="Iniciando sesión…">Iniciar sesión</SubmitButton>
 
-      <p className="text-ink-500 text-center text-sm">
+      <p className="text-center text-sm text-ink-500">
         ¿No tenés cuenta?{' '}
         <a href="/register" className="text-brand-400 hover:underline">
           Creá una

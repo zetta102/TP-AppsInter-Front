@@ -4,7 +4,7 @@ import { clearSession, getAuthState, login, refreshTokens } from './auth-store.t
 import { ApiError } from './problem.ts';
 
 /**
- * Cubre las invariantes de sesión de backend-status-for-frontend.md §7.1:
+ * Cubre las invariantes de sesión:
  * un solo refresh en vuelo, refresh solo ante `TOKEN_EXPIRED` y lecturas públicas que
  * envían el token sin refrescar nunca.
  */
@@ -23,7 +23,13 @@ const authResponse = (n: number) => ({
   refreshExpiresAt: '2099-01-01T00:00:00Z',
 });
 
-const user = { uuid: 'u1', firstName: 'Ana', lastName: 'Paz', email: 'ana@x.com', role: 'CUSTOMER' };
+const user = {
+  uuid: 'u1',
+  firstName: 'Ana',
+  lastName: 'Paz',
+  email: 'ana@x.com',
+  role: 'CUSTOMER',
+};
 
 type Route = (request: Request) => Response | Promise<Response>;
 
@@ -59,17 +65,16 @@ afterEach(() => {
 
 describe('refreshTokens', () => {
   it('serializa refreshes concurrentes en una sola rotación', async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
+    const gate = Promise.withResolvers<void>();
     const calls = installFetch({
       'POST /api/auth/refresh': async () => {
-        await gate;
+        await gate.promise;
         return json(200, authResponse(2));
       },
     });
 
     const results = Promise.all([refreshTokens(), refreshTokens(), refreshTokens()]);
-    release();
+    gate.resolve();
 
     expect(await results).toEqual([true, true, true]);
     expect(calls.filter((c) => c.url.endsWith('/api/auth/refresh'))).toHaveLength(1);
@@ -117,7 +122,7 @@ describe('apiFetch con auth: true', () => {
 
     const failure = apiFetch('/api/reservations', { auth: true });
     await expect(failure).rejects.toBeInstanceOf(ApiError);
-    await failure.catch((error: ApiError) => expect(error.code).toBe('INVALID_CREDENTIALS'));
+    await expect(failure).rejects.toMatchObject({ status: 401, code: 'INVALID_CREDENTIALS' });
     expect(calls).toHaveLength(1);
     expect(getAuthState().tokens).toBeNull();
   });

@@ -1,21 +1,27 @@
-import { useOptimistic, useState, useTransition } from 'react';
-import { cancelReservation, listMyReservations } from '../../lib/api/reservations.ts';
+import { useOptimistic, useState } from 'react';
 import { listMovies } from '../../lib/api/movies.ts';
-import { useResource } from '../../lib/use-resource.ts';
-import { formatDateTime, formatMoney } from '../../lib/format.ts';
+import { listMyReservations } from '../../lib/api/reservations.ts';
+import { collectAllPages } from '../../lib/api/shared.ts';
 import {
   isEnumValue,
   ReservationStatus,
   reservationStatusLabels,
   reservationStatusValues,
 } from '../../lib/enums.ts';
-import type { Movie, Page, Reservation } from '../../lib/types.ts';
+import { formatDateTime, formatMoney } from '../../lib/format.ts';
+import type { Page, Reservation } from '../../lib/types.ts';
+import { useResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock, Spinner } from '../ui/SubmitButton.tsx';
-import { Pagination } from '../ui/Pagination.tsx';
-import { AuthGuard } from '../ui/Guards.tsx';
+import { EmptyState, LoadingBlock, Spinner } from '../ui/Feedback.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
-import { ItemLines, StatusBadge, TicketSummary } from './ReservationParts.tsx';
+import { AuthGuard } from '../ui/Guards.tsx';
+import { Pagination } from '../ui/Pagination.tsx';
+import {
+  ItemLines,
+  StatusBadge,
+  TicketSummary,
+  useCancelReservation,
+} from './ReservationParts.tsx';
 
 const PAGE_SIZE = 10;
 
@@ -46,12 +52,13 @@ function ReservationList() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [movieId, setMovieId] = useState('');
-  const [cancelError, setCancelError] = useState<unknown>(null);
-  const [isCancelling, startTransition] = useTransition();
 
-  // Para el selector de película; no es paginado, alcanza con una sola página amplia.
-  const movies = useResource<Page<Movie>>(
-    (signal) => listMovies({ page: 0, size: 100, sort: 'movieName,asc' }, { signal }),
+  // Para el selector de película: el catálogo completo, aunque supere el `size` máximo.
+  const movies = useResource(
+    (signal) =>
+      collectAllPages((pageIndex, size) =>
+        listMovies({ page: pageIndex, size, sort: 'movieName,asc' }, { signal }),
+      ),
     [],
   );
 
@@ -100,21 +107,7 @@ function ReservationList() {
       ),
   );
 
-  const cancel = (reservation: Reservation) => {
-    setCancelError(null);
-
-    startTransition(async () => {
-      markCancelling(reservation.uuid);
-      try {
-        await cancelReservation(reservation.uuid);
-      } catch (error) {
-        // 422 cuando ya estaba cancelada; cualquier otra cosa es inesperada.
-        setCancelError(error);
-      } finally {
-        refetch();
-      }
-    });
-  };
+  const cancellation = useCancelReservation({ onSettled: refetch, onCancelling: markCancelling });
 
   const hasActiveFilters = Boolean(status || upcomingOnly || from || to || movieId);
 
@@ -144,7 +137,7 @@ function ReservationList() {
         onChange={(event) => resetToFirstPage(setMovieId)(event.target.value)}
       >
         <option value="">Todas las películas</option>
-        {(movies.data?.content ?? []).map((movie) => (
+        {(movies.data ?? []).map((movie) => (
           <option key={movie.uuid} value={movie.uuid}>
             {movie.movieName}
           </option>
@@ -223,12 +216,12 @@ function ReservationList() {
           description={
             hasActiveFilters
               ? 'Probá ajustar o limpiar los filtros para ver más resultados.'
-              : 'Cuando reserves butacas aparecerán aquí, con tus entradas y cualquier producto adicional.'
+              : 'Cuando reserves asientos van a aparecer acá, con tus entradas y cualquier producto adicional.'
           }
           action={
             hasActiveFilters ? undefined : (
               <a href="/" className="cine-btn cine-btn-primary">
-                Buscar una sesión
+                Buscar una función
               </a>
             )
           }
@@ -240,7 +233,8 @@ function ReservationList() {
   return (
     <div className="flex flex-col gap-4">
       {filterBar}
-      {cancelError !== null && <ErrorBanner error={cancelError} />}
+      {cancellation.dialog}
+      {cancellation.error !== null && <ErrorBanner error={cancellation.error} />}
 
       <ul className="flex flex-col gap-3">
         {optimisticRows.map((reservation) => {
@@ -271,7 +265,7 @@ function ReservationList() {
 
               <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-ink-300">
                 <span>
-                  <span className="text-ink-500">Butacas: </span>
+                  <span className="text-ink-500">Asientos: </span>
                   <TicketSummary reservation={reservation} />
                 </span>
                 <span>
@@ -294,8 +288,8 @@ function ReservationList() {
                     type="button"
                     className="cine-btn cine-btn-danger"
                     // Una cancelación a la vez; la fila ya se muestra cancelada de forma optimista.
-                    disabled={isCancelling}
-                    onClick={() => cancel(reservation)}
+                    disabled={cancellation.isPending}
+                    onClick={() => cancellation.cancel(reservation)}
                   >
                     Cancelar
                   </button>

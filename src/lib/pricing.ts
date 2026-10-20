@@ -2,17 +2,17 @@ import type { Money } from './types.ts';
 import { SeatType } from './enums.ts';
 
 /**
- * Espejo del lado del cliente de las reglas de precios del backend (backend-status-for-frontend.md §7.2).
+ * Espejo del lado del cliente de las reglas de precios del backend.
  *
  * El valor del servidor siempre es el autoritativo: esto solo alimenta la vista previa
  * de compra y debe coincidir con `totalPrice` hasta el último centavo.
  */
 
 /**
- * Valor por defecto documentado: 1.50×. El valor real se sirve en
- * `GET /api/metadata/config` como `premiumSeatMultiplier`: pásalo explícitamente
- * donde esté disponible (ver `lib/api/metadata.ts`); esta constante es solo el
- * fallback usado antes de que ese valor cargue.
+ * Valor por defecto documentado: 1.50×, y la fuente de `DEFAULT_METADATA_CONFIG`. El valor real
+ * se sirve en `GET /api/metadata/config` como `premiumSeatMultiplier` y se pasa explícitamente
+ * donde está disponible (ver `lib/api/metadata.ts`); esta constante es solo el fallback usado
+ * antes de que ese valor cargue.
  */
 export const PREMIUM_MULTIPLIER = 1.5;
 

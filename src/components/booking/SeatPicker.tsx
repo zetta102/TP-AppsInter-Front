@@ -1,37 +1,41 @@
 import { useState } from 'react';
-import { getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
-import { useKeyedResource } from '../../lib/use-resource.ts';
-import { useDocumentTitle } from '../../lib/use-document-title.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
-import { useNow } from '../../lib/use-now.ts';
-import { usePolling } from '../../lib/use-polling.ts';
-import { patchSeatMap, useSeatStream } from '../../lib/use-seat-stream.ts';
-import { useAuth } from '../../lib/auth-context.tsx';
+import { getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
+import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
+import { loginHref } from '../../lib/login-redirect.ts';
+import { estimateTotal } from '../../lib/pricing.ts';
 import type {
   MetadataConfig,
   Screening,
-  SeatMap as SeatMapData,
   SeatAvailability,
+  SeatMap as SeatMapData,
 } from '../../lib/types.ts';
-import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
-import { estimateTotal } from '../../lib/pricing.ts';
+import { useAuth } from '../../lib/use-auth.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
+import { useLiveSeatMap } from '../../lib/use-live-seat-map.ts';
+import { useNow } from '../../lib/use-now.ts';
+import { useQueryParam } from '../../lib/use-query-param.ts';
+import { useKeyedResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
+import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
+import { isScreeningClosed, ScreeningClosedNotice } from './ScreeningClosedNotice.tsx';
 import { indexSeatsById, SeatMap } from './SeatMap.tsx';
+
+interface SeatPickerData {
+  readonly screening: Screening;
+  readonly seatMap: SeatMapData;
+  readonly config: MetadataConfig;
+}
 
 /**
  * Selector público de asientos para una función.
  *
  * Cualquier persona puede ver y seleccionar; solo el envío requiere una cuenta, por lo que
- * se invita a quien navega de forma anónima a iniciar sesión y volver aquí después.
+ * se invita a quien navega de forma anónima a iniciar sesión y volver acá después.
  *
  * El mapa se mantiene al día con el stream SSE de la función; el polling queda como red de
  * seguridad (más espaciado mientras el stream está conectado).
  */
-const SEAT_MAP_POLL_MS = 15_000;
-const SEAT_MAP_SAFETY_POLL_MS = 60_000;
-
 export default function SeatPicker() {
   const screeningId = useQueryParam('id');
   const now = useNow();
@@ -40,17 +44,10 @@ export default function SeatPicker() {
   // Se conserva el orden de selección: `seatIds` se envía en el mismo orden en que se eligen.
   const [selected, setSelected] = useState<readonly string[]>([]);
 
-  const resource = useKeyedResource<
-    string,
-    {
-      readonly screening: Screening;
-      readonly seatMap: SeatMapData;
-      readonly config: MetadataConfig;
-    }
-  >(screeningId, async (id, signal) => {
+  const resource = useKeyedResource<string, SeatPickerData>(screeningId, async (id, signal) => {
     const [screening, config] = await Promise.all([
       getScreeningWithSeatMap(id, { signal }),
-      getMetadataConfigOrDefault({ signal }),
+      getMetadataConfigOrDefault(),
     ]);
     return { screening, seatMap: screening.seatMap, config };
   });
@@ -58,26 +55,15 @@ export default function SeatPicker() {
   const seatsById = indexSeatsById(resource.data?.seatMap.seats ?? []);
   useDocumentTitle(resource.data && `Asientos · ${resource.data.screening.movieName}`);
 
-  const { refetch, setData } = resource;
   // Ventas y retenciones de otros clientes, en vivo. Se espera a conocer la sesión para que el
   // stream la use desde la primera conexión.
-  const live = useSeatStream(screeningId ?? undefined, {
+  const live = useLiveSeatMap(screeningId, resource, {
     viewer: user?.uuid ?? null,
     enabled: ready,
-    onReconnect: refetch,
-    onSeats: (states) => {
-      setData(
-        (current) => current && { ...current, seatMap: patchSeatMap(current.seatMap, states) },
-      );
-      // Un asiento elegido que otra persona acaba de tomar sale de la selección.
-      const taken = new Set(
-        states.filter((state) => !state.available).map((state) => state.seatId),
-      );
-      // Los Set conservan el orden de inserción, así que el orden de selección se mantiene.
-      if (taken.size > 0) setSelected((current) => [...new Set(current).difference(taken)]);
-    },
+    // Un asiento elegido que otra persona acaba de tomar sale de la selección. Los Set conservan
+    // el orden de inserción, así que el orden de selección se mantiene.
+    onTaken: (taken) => setSelected((current) => [...new Set(current).difference(taken)]),
   });
-  usePolling(refetch, live ? SEAT_MAP_SAFETY_POLL_MS : SEAT_MAP_POLL_MS, Boolean(screeningId));
 
   const toggle = (seat: SeatAvailability) => {
     setSelected((current) =>
@@ -108,11 +94,9 @@ export default function SeatPicker() {
   const { screening, seatMap, config } = resource.data;
   const chosen = selected.map((id) => seatsById.get(id)).filter((seat) => seat !== undefined);
   const estimate = estimateTotal(screening.basePrice, chosen, [], config.premiumSeatMultiplier);
-  const hasStarted = new Date(screening.startsAt).getTime() <= now;
-  const closed = hasStarted || screening.archived;
+  const closed = isScreeningClosed(screening, now);
 
   const checkoutHref = `/checkout?screening=${screening.uuid}&seats=${selected.join(',')}`;
-  const signInHref = `/login?next=${encodeURIComponent(checkoutHref)}`;
 
   return (
     <div className="flex flex-col gap-8">
@@ -129,13 +113,7 @@ export default function SeatPicker() {
         </a>
       </header>
 
-      {closed && (
-        <div role="alert" className="cine-alert-warning px-4 py-3 text-sm">
-          {screening.archived
-            ? 'Esta función ya no está disponible.'
-            : 'Esta función ya comenzó, por lo que ya no puede reservarse.'}
-        </div>
-      )}
+      {closed && <ScreeningClosedNotice screening={screening} />}
 
       <div className="cine-card p-5">
         <SeatMap
@@ -189,7 +167,7 @@ export default function SeatPicker() {
             )
           ) : (
             <a
-              href={selected.length === 0 ? '/login' : signInHref}
+              href={loginHref(selected.length === 0 ? null : checkoutHref)}
               className="cine-btn cine-btn-primary"
             >
               Iniciá sesión para reservar

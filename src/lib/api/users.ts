@@ -6,11 +6,13 @@ import type {
   Page,
   UpdateProfileRequest,
   UpdateRoleRequest,
-  Uuid,
   User,
+  Uuid,
 } from '../types.ts';
 
-/** `/api/users`: `me` requiere autenticación; el resto es ADMIN. */
+/**
+ * `/api/users`: `me` requiere autenticación; el resto es ADMIN.
+ */
 
 export const userSortFields = ['email', 'firstName', 'lastName', 'role'] as const;
 export type UserSortField = (typeof userSortFields)[number];
@@ -25,7 +27,7 @@ export type UserFilters = {
 
 export type ListUsersParams = PageParams<UserSortField> & UserFilters;
 
-/** La fuente autoritativa para el control por roles: nunca decodifiques el JWT. */
+/** La fuente autoritativa para el control por roles: nunca se decodifica el JWT. */
 export function getCurrentUser(options: CallOptions = {}): Promise<User> {
   return requestJson<User>('/api/users/me', { ...options, auth: true });
 }
@@ -36,11 +38,10 @@ export function updateMyProfile(body: UpdateProfileRequest): Promise<User> {
 }
 
 /**
- * `422 WRONG_PASSWORD` cuando `currentPassword` es incorrecta (la sesión sigue válida: no
- * hay que cerrarla). Revoca cada refresh token que
- * posee el llamador excepto `refreshToken`: pasa el token de la sesión actual para
- * seguir con sesión iniciada aquí mientras se cierran las demás, u omítelo para
- * cerrar sesión en todas partes, incluida la pestaña actual.
+ * `422 WRONG_PASSWORD` cuando `currentPassword` es incorrecta (la sesión sigue válida: no hay que
+ * cerrarla). Revoca cada refresh token del llamador excepto `refreshToken`: con el token de la
+ * sesión actual se sigue con sesión iniciada acá mientras se cierran las demás; sin él se cierra
+ * la sesión en todas partes, incluida la pestaña actual.
  */
 export function changeMyPassword(body: ChangePasswordRequest): Promise<void> {
   return requestVoid('/api/users/me/password', { method: 'POST', body, auth: true });
@@ -53,11 +54,7 @@ export function listUsers(
   return getPage<User>('/api/users', params, { ...options, auth: true });
 }
 
-export function getUser(uuid: Uuid, options: CallOptions = {}): Promise<User> {
-  return requestJson<User>(`/api/users/${uuid}`, { ...options, auth: true });
-}
-
-/** `422 LAST_ADMIN` al degradarte a ti mismo o al último admin que queda. */
+/** `422 LAST_ADMIN` al degradarse a uno mismo o al último admin que queda. */
 export function updateUserRole(uuid: Uuid, body: UpdateRoleRequest): Promise<User> {
   return requestJson<User>(`/api/users/${uuid}/role`, {
     method: 'PATCH',

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_METADATA_CONFIG } from './api/metadata.ts';
 import { SeatType } from './enums.ts';
-import { estimateTotal, lineTotal, roundHalfUp, ticketPrice } from './pricing.ts';
+import {
+  estimateTotal,
+  lineTotal,
+  PREMIUM_MULTIPLIER,
+  roundHalfUp,
+  ticketPrice,
+} from './pricing.ts';
 
 describe('roundHalfUp', () => {
   it('redondea .5 hacia arriba, como BigDecimal HALF_UP', () => {
@@ -44,5 +51,11 @@ describe('estimateTotal', () => {
 
   it('devuelve ceros sin asientos ni productos', () => {
     expect(estimateTotal(10, [])).toEqual({ seatsTotal: 0, productsTotal: 0, total: 0 });
+  });
+});
+
+describe('valores por defecto', () => {
+  it('la configuración por defecto usa el mismo multiplicador premium que los precios', () => {
+    expect(DEFAULT_METADATA_CONFIG.premiumSeatMultiplier).toBe(PREMIUM_MULTIPLIER);
   });
 });

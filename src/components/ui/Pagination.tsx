@@ -3,11 +3,11 @@ import { formatCount, formatNumber } from '../../lib/format.ts';
 import type { Page } from '../../lib/types.ts';
 
 /**
- * Paginador para el contenedor compartido de listas (backend-status-for-frontend.md §3.3).
+ * Paginador para el contenedor compartido de listas.
  *
  * `page` es base cero en el wire; lo mostramos con base uno. La cadena `sort`
  * del contenedor es el `Sort.toString()` de Spring y es solo de visualización,
- * así que nunca se parsea aquí.
+ * así que nunca se parsea acá.
  */
 export function Pagination<T>({
   page,

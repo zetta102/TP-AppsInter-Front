@@ -23,7 +23,7 @@ export function AdminPage({
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{title}</h1>
-            {description && <p className="text-ink-500 mt-1 text-sm">{description}</p>}
+            {description && <p className="mt-1 text-sm text-ink-500">{description}</p>}
           </div>
           {action}
         </header>
@@ -35,5 +35,5 @@ export function AdminPage({
 
 /** Fila de barra de herramientas para los filtros sobre una tabla de administración. */
 export function AdminToolbar({ children }: { readonly children: ReactNode }) {
-  return <div className="cine-card flex flex-wrap items-end gap-3 p-4">{children}</div>;
+  return <div className="flex flex-wrap items-end gap-3 cine-card p-4">{children}</div>;
 }

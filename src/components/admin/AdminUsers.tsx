@@ -1,20 +1,23 @@
-import { useDeferredValue, useState, useTransition } from 'react';
-import { useAuth } from '../../lib/auth-context.tsx';
+import { useState, useTransition } from 'react';
 import { deleteUser, listUsers, updateUserRole, type UserSortField } from '../../lib/api/users.ts';
-import { useResource } from '../../lib/use-resource.ts';
-import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import { isEnumValue, Role, roleLabels, roleValues } from '../../lib/enums.ts';
-import type { Page, User } from '../../lib/types.ts';
+import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import type { Page, User } from '../../lib/types.ts';
+import { useAuth } from '../../lib/use-auth.ts';
+import { useDebouncedSearch } from '../../lib/use-debounced-search.ts';
+import { useResource } from '../../lib/use-resource.ts';
+import { Badge } from '../ui/Badge.tsx';
+import { useConfirm, type ConfirmOptions } from '../ui/ConfirmDialog.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
-import { Badge } from '../ui/Modal.tsx';
-import { Pagination } from '../ui/Pagination.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
+import { Pagination } from '../ui/Pagination.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 
 const PAGE_SIZE = 20;
+
 /**
- * `/admin/users` — cambios de rol y bajas lógicas (backend-status-for-frontend.md §5.3).
+ * `/admin/users` — cambios de rol y bajas lógicas.
  *
  * Degradarse a uno mismo o al último administrador restante, y eliminarse a sí
  * mismo o al último administrador restante, devuelve `422 LAST_ADMIN`;
@@ -32,10 +35,11 @@ export default function AdminUsers() {
   const [role, setRole] = useState<Role | ''>('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  // Se difieren para no disparar una petición por cada tecla mientras se escribe.
-  const deferredEmail = useDeferredValue(email.trim());
-  const deferredName = useDeferredValue(name.trim());
+  // Una sola petición cuando se deja de escribir, no una por tecla.
+  const debouncedEmail = useDebouncedSearch(email);
+  const debouncedName = useDebouncedSearch(name);
   const [rowError, setRowError] = useState<unknown>(null);
+  const { confirm, dialog } = useConfirm();
 
   const resource = useResource<Page<User>>(
     (signal) =>
@@ -45,12 +49,12 @@ export default function AdminUsers() {
           size: PAGE_SIZE,
           sort,
           ...(role ? { role } : {}),
-          ...(deferredEmail ? { email: deferredEmail } : {}),
-          ...(deferredName ? { name: deferredName } : {}),
+          ...(debouncedEmail ? { email: debouncedEmail } : {}),
+          ...(debouncedName ? { name: debouncedName } : {}),
         },
         { signal },
       ),
-    [page, sort, role, deferredEmail, deferredName],
+    [page, sort, role, debouncedEmail, debouncedName],
   );
 
   const columns: readonly Column<User, UserSortField>[] = [
@@ -85,6 +89,7 @@ export default function AdminUsers() {
         <UserRowActions
           user={user}
           isSelf={user.uuid === me?.uuid}
+          confirm={confirm}
           onError={setRowError}
           onDone={resource.refetch}
         />
@@ -97,6 +102,8 @@ export default function AdminUsers() {
       title="Usuarios"
       description="Cuentas registradas. Cambiá el rol para otorgar o revocar acceso de administrador; eliminar realiza una baja lógica."
     >
+      {dialog}
+
       <AdminToolbar>
         <TextInput
           label="Email"
@@ -176,19 +183,21 @@ export default function AdminUsers() {
 function UserRowActions({
   user,
   isSelf,
+  confirm,
   onError,
   onDone,
 }: {
   readonly user: User;
   readonly isSelf: boolean;
+  readonly confirm: (options: ConfirmOptions) => Promise<boolean>;
   readonly onError: (error: unknown) => void;
   readonly onDone: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const nextRole = user.role === Role.ADMIN ? Role.CUSTOMER : Role.ADMIN;
 
-  const run = (confirmation: string, action: () => Promise<unknown>) => {
-    if (!window.confirm(confirmation)) return;
+  const run = async (options: ConfirmOptions, action: () => Promise<unknown>) => {
+    if (!(await confirm(options))) return;
     onError(null);
     startTransition(async () => {
       try {
@@ -218,8 +227,13 @@ function UserRowActions({
         className="cine-btn cine-btn-ghost px-2 py-1 text-xs"
         disabled={isPending}
         onClick={() =>
-          run(`¿Cambiar el rol de ${user.email} a ${roleLabels[nextRole]}?`, () =>
-            updateUserRole(user.uuid, { role: nextRole }),
+          void run(
+            {
+              title: 'Cambiar rol',
+              message: `¿Cambiar el rol de ${user.email} a ${roleLabels[nextRole]}?`,
+              confirmLabel: 'Cambiar rol',
+            },
+            () => updateUserRole(user.uuid, { role: nextRole }),
           )
         }
       >
@@ -230,8 +244,14 @@ function UserRowActions({
         className="cine-btn cine-btn-danger px-2 py-1 text-xs"
         disabled={isPending}
         onClick={() =>
-          run(`¿Eliminar ${user.email}? Esta acción no se puede deshacer desde aquí.`, () =>
-            deleteUser(user.uuid),
+          void run(
+            {
+              title: 'Eliminar usuario',
+              message: `¿Eliminar ${user.email}? Esta acción no se puede deshacer desde acá.`,
+              confirmLabel: 'Eliminar',
+              tone: 'danger',
+            },
+            () => deleteUser(user.uuid),
           )
         }
       >

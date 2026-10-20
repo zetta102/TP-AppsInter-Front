@@ -1,12 +1,13 @@
 import { getMovie } from '../../lib/api/movies.ts';
 import { listScreenings } from '../../lib/api/screenings.ts';
-import { useKeyedResource } from '../../lib/use-resource.ts';
-import { useDocumentTitle } from '../../lib/use-document-title.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
+import { collectAllPages } from '../../lib/api/shared.ts';
 import { formatDayHeading, formatRuntime } from '../../lib/format.ts';
 import type { Movie, Screening } from '../../lib/types.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
+import { useQueryParam } from '../../lib/use-query-param.ts';
+import { useKeyedResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { EmptyState, LoadingBlock } from '../ui/SubmitButton.tsx';
+import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { GenreList, MovieMeta, Poster, ScreeningRow, groupByDay } from './MovieCard.tsx';
 
 /**
@@ -28,12 +29,14 @@ export default function MovieDetail() {
   >(movieId, async (id, signal) => {
     const [movie, screenings] = await Promise.all([
       getMovie(id, { signal }),
-      listScreenings(
-        { movieId: id, upcomingOnly: true, size: 100, sort: 'startsAt,asc' },
-        { signal },
+      collectAllPages((page, size) =>
+        listScreenings(
+          { movieId: id, upcomingOnly: true, page, size, sort: 'startsAt,asc' },
+          { signal },
+        ),
       ),
     ]);
-    return { movie, screenings: screenings.content };
+    return { movie, screenings };
   });
   useDocumentTitle(resource.data?.movie.movieName);
 

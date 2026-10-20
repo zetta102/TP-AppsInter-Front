@@ -1,19 +1,19 @@
 import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
-import { useAuth } from '../../lib/auth-context.tsx';
 import { changeMyPassword, updateMyProfile } from '../../lib/api/users.ts';
-import { isApiErrorWithCode, toFieldErrors, toUserMessage } from '../../lib/problem.ts';
+import { fieldErrors, formError, formRaw, formText, type FormState } from '../../lib/form.ts';
+import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
+import { useAuth } from '../../lib/use-auth.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { TextInput } from '../ui/Field.tsx';
-import { SubmitButton } from '../ui/SubmitButton.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
+import { SubmitButton } from '../ui/SubmitButton.tsx';
 
 /**
- * `/account` (backend-status-for-frontend.md §5.2) — perfil y contraseña en autoservicio.
+ * `/account` — perfil y contraseña en autoservicio.
  *
- * No forma parte de la tabla de rutas sugerida en §10; se añadió por decisión
- * de producto para dar a cada usuario autenticado una forma de editar su nombre
- * y cambiar su contraseña sin pasar por un administrador.
+ * Le da a cada usuario autenticado una forma de editar su nombre y cambiar su contraseña
+ * sin pasar por un administrador.
  */
 export default function Account() {
   return (
@@ -23,51 +23,42 @@ export default function Account() {
   );
 }
 
-interface ProfileState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
+/** Un formulario que, además de los errores, informa si el último envío salió bien. */
+interface SavedFormState extends FormState {
   readonly success: boolean;
 }
 
-const initialProfileState: ProfileState = { error: null, fieldErrors: {}, success: false };
-
-interface PasswordState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-  readonly success: boolean;
-}
-
-const initialPasswordState: PasswordState = { error: null, fieldErrors: {}, success: false };
+const initialState: SavedFormState = { error: null, fieldErrors: {}, success: false };
+const savedState: SavedFormState = { ...initialState, success: true };
 
 function AccountPanel() {
   const { user, tokens, setUser, logout } = useAuth();
 
   const [profileState, profileAction] = useActionState(
-    async (_prev: ProfileState, formData: FormData) => {
-      const firstName = String(formData.get('firstName') ?? '').trim();
-      const lastName = String(formData.get('lastName') ?? '').trim();
+    async (_prev: SavedFormState, formData: FormData): Promise<SavedFormState> => {
       try {
-        const updated = await updateMyProfile({ firstName, lastName });
+        const updated = await updateMyProfile({
+          firstName: formText(formData, 'firstName'),
+          lastName: formText(formData, 'lastName'),
+        });
         setUser(updated);
-        return { error: null, fieldErrors: {}, success: true };
+        return savedState;
       } catch (error) {
-        return { error, fieldErrors: toFieldErrors(error), success: false };
+        return { ...formError(error), success: false };
       }
     },
-    initialProfileState,
+    initialState,
   );
 
   const [passwordState, passwordAction] = useActionState(
-    async (_prev: PasswordState, formData: FormData) => {
-      const currentPassword = String(formData.get('currentPassword') ?? '');
-      const newPassword = String(formData.get('newPassword') ?? '');
-      const confirmPassword = String(formData.get('confirmPassword') ?? '');
+    async (_prev: SavedFormState, formData: FormData): Promise<SavedFormState> => {
+      const currentPassword = formRaw(formData, 'currentPassword');
+      const newPassword = formRaw(formData, 'newPassword');
       const signOutEverywhere = formData.get('signOutEverywhere') === 'on';
 
-      if (newPassword !== confirmPassword) {
+      if (newPassword !== formRaw(formData, 'confirmPassword')) {
         return {
-          error: null,
-          fieldErrors: { confirmPassword: 'Las contraseñas no coinciden.' },
+          ...fieldErrors({ confirmPassword: 'Las contraseñas no coinciden.' }),
           success: false,
         };
       }
@@ -76,9 +67,8 @@ function AccountPanel() {
         await changeMyPassword({
           currentPassword,
           newPassword,
-          // Pasa el refresh token de la sesión actual para seguir con la sesión
-          // iniciada aquí mientras se cierran las demás; omítelo para cerrar
-          // sesión en todas partes, incluida la pestaña actual.
+          // Con el refresh token de esta sesión, la sesión sigue iniciada acá mientras se cierran
+          // las demás; sin él, se cierra en todas partes, incluida esta pestaña.
           ...(!signOutEverywhere && tokens?.refreshToken
             ? { refreshToken: tokens.refreshToken }
             : {}),
@@ -88,21 +78,17 @@ function AccountPanel() {
           await logout();
           void navigate('/login');
         }
-        return { error: null, fieldErrors: {}, success: true };
+        return savedState;
       } catch (error) {
         // `422 WRONG_PASSWORD`: la contraseña actual es incorrecta, pero la sesión sigue
         // siendo válida. Se vincula a ese campo y no se cierra la sesión.
         if (isApiErrorWithCode(error, 'WRONG_PASSWORD')) {
-          return {
-            error: null,
-            fieldErrors: { currentPassword: toUserMessage(error) },
-            success: false,
-          };
+          return { ...fieldErrors({ currentPassword: toUserMessage(error) }), success: false };
         }
-        return { error, fieldErrors: toFieldErrors(error), success: false };
+        return { ...formError(error), success: false };
       }
     },
-    initialPasswordState,
+    initialState,
   );
 
   return (
@@ -132,7 +118,7 @@ function AccountPanel() {
               error={profileState.fieldErrors['firstName']}
             />
             <TextInput
-              label="Apellidos"
+              label="Apellido"
               name="lastName"
               autoComplete="family-name"
               defaultValue={user?.lastName}
@@ -188,8 +174,8 @@ function AccountPanel() {
             Cerrar también la sesión en este dispositivo
           </label>
           <p className="-mt-2 text-xs text-ink-500">
-            Al cambiar la contraseña siempre se cerrará la sesión en los demás dispositivos. Déjalo
-            desmarcado para seguir con la sesión iniciada aquí.
+            Al cambiar la contraseña siempre se cierra la sesión en los demás dispositivos. Dejalo
+            desmarcado para seguir con la sesión iniciada acá.
           </p>
 
           <SubmitButton pendingLabel="Cambiando…">Cambiar contraseña</SubmitButton>

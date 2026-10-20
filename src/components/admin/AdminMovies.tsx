@@ -1,4 +1,4 @@
-import { useActionState, useDeferredValue, useState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   createMovie,
   deleteMovie,
@@ -7,28 +7,33 @@ import {
   updateMovie,
   type MovieSortField,
 } from '../../lib/api/movies.ts';
-import { useResource } from '../../lib/use-resource.ts';
-import { toFieldErrors } from '../../lib/problem.ts';
 import { isEnumValue, movieGenreLabels, movieGenreValues } from '../../lib/enums.ts';
+import {
+  fieldErrors,
+  formError,
+  formOptionalText,
+  formText,
+  initialFormState,
+  type FormState,
+} from '../../lib/form.ts';
 import { formatRuntime } from '../../lib/format.ts';
-import type { MovieRequest, Movie, Page } from '../../lib/types.ts';
+import { violationMessage } from '../../lib/problem.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import type { Movie, MovieRequest, Page } from '../../lib/types.ts';
+import { useDebouncedSearch } from '../../lib/use-debounced-search.ts';
+import { useMetadataConfig } from '../../lib/use-metadata-config.ts';
+import { useResource } from '../../lib/use-resource.ts';
+import { GenreList } from '../catalogue/MovieCard.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Modal, Badge } from '../ui/Modal.tsx';
-import { TextInput, TextArea } from '../ui/Field.tsx';
-import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { TextArea, TextInput } from '../ui/Field.tsx';
+import { Modal } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
 import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 
 const PAGE_SIZE = 15;
-interface FormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-}
-
-const initialFormState: FormState = { error: null, fieldErrors: {} };
 
 const URL_FIELDS = ['posterUrl', 'backdropUrl', 'trailerUrl'] as const;
 
@@ -49,8 +54,8 @@ export default function AdminMovies() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<SortSpec<MovieSortField>>('movieName,asc');
   const [search, setSearch] = useState('');
-  // La tabla sigue al texto con prioridad baja: escribir no espera a cada respuesta.
-  const deferredSearch = useDeferredValue(search.trim());
+  // Una sola petición cuando se deja de escribir, no una por tecla.
+  const debouncedSearch = useDebouncedSearch(search);
   const [editing, setEditing] = useState<Movie | null>(null);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -63,11 +68,11 @@ export default function AdminMovies() {
           size: PAGE_SIZE,
           sort,
           includeArchived: showArchived,
-          ...(deferredSearch ? { search: deferredSearch } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
         },
         { signal },
       ),
-    [page, sort, deferredSearch, showArchived],
+    [page, sort, debouncedSearch, showArchived],
   );
 
   const actions = useArchiveActions<Movie>({
@@ -101,13 +106,7 @@ export default function AdminMovies() {
     {
       key: 'genres',
       header: 'Géneros',
-      cell: (movie) => (
-        <div className="flex flex-wrap gap-1">
-          {movie.genres.map((genre) => (
-            <Badge key={genre}>{movieGenreLabels[genre]}</Badge>
-          ))}
-        </div>
-      ),
+      cell: (movie) => <GenreList genres={movie.genres} />,
     },
     {
       key: 'runtime',
@@ -175,7 +174,7 @@ export default function AdminMovies() {
         />
       </AdminToolbar>
 
-      {actions.banner}
+      {actions.feedback}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -224,41 +223,37 @@ function MovieFormModal({
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }) {
+  const { screeningTurnoverMinutes } = useMetadataConfig();
+
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
-    const genres = formData
-      .getAll('genres')
-      .filter((value) => isEnumValue(movieGenreValues, value));
-    const cast = String(formData.get('mainCast') ?? '')
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
+    const releaseYear = formText(formData, 'releaseYear');
 
     const body: MovieRequest = {
-      movieName: String(formData.get('movieName') ?? '').trim(),
-      genres,
-      runtime: Number(formData.get('runtime') ?? 0),
-      description: String(formData.get('description') ?? '').trim() || null,
-      director: String(formData.get('director') ?? '').trim() || null,
-      mainCast: cast,
-      posterUrl: String(formData.get('posterUrl') ?? '').trim() || null,
-      backdropUrl: String(formData.get('backdropUrl') ?? '').trim() || null,
-      trailerUrl: String(formData.get('trailerUrl') ?? '').trim() || null,
-      releaseYear: (() => {
-        const raw = String(formData.get('releaseYear') ?? '').trim();
-        return raw ? Number(raw) : null;
-      })(),
-      certification: String(formData.get('certification') ?? '').trim() || null,
-      originalLanguage: String(formData.get('originalLanguage') ?? '').trim() || null,
+      movieName: formText(formData, 'movieName'),
+      genres: formData.getAll('genres').filter((value) => isEnumValue(movieGenreValues, value)),
+      runtime: Number(formText(formData, 'runtime')),
+      description: formOptionalText(formData, 'description'),
+      director: formOptionalText(formData, 'director'),
+      mainCast: formText(formData, 'mainCast')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+      posterUrl: formOptionalText(formData, 'posterUrl'),
+      backdropUrl: formOptionalText(formData, 'backdropUrl'),
+      trailerUrl: formOptionalText(formData, 'trailerUrl'),
+      releaseYear: releaseYear ? Number(releaseYear) : null,
+      certification: formOptionalText(formData, 'certification'),
+      originalLanguage: formOptionalText(formData, 'originalLanguage'),
     };
 
-    const urlErrors: Record<string, string> = {};
-    for (const field of URL_FIELDS) {
-      const value = body[field];
-      if (value && !isLoadableUrl(value)) {
-        urlErrors[field] = 'Ingresá una URL completa que empiece con http:// o https://.';
-      }
-    }
-    if (Object.keys(urlErrors).length > 0) return { error: null, fieldErrors: urlErrors };
+    // Mismo texto que la violación `HttpUrl` del servidor, para no esperar la respuesta.
+    const urlErrors = Object.fromEntries(
+      URL_FIELDS.filter((field) => {
+        const value = body[field];
+        return value ? !isLoadableUrl(value) : false;
+      }).map((field) => [field, violationMessage({ field, code: 'HttpUrl', params: {} }) ?? '']),
+    );
+    if (Object.keys(urlErrors).length > 0) return fieldErrors(urlErrors);
 
     try {
       // PUT es un reemplazo total, así que la misma carga completa sirve para ambos casos.
@@ -267,7 +262,7 @@ function MovieFormModal({
       onSaved();
       return initialFormState;
     } catch (error) {
-      return { error, fieldErrors: toFieldErrors(error) };
+      return formError(error);
     }
   }, initialFormState);
 
@@ -314,7 +309,7 @@ function MovieFormModal({
             min={1}
             required
             defaultValue={movie?.runtime ?? ''}
-            hint="Las funciones terminan en inicio + duración + 15 min de recambio."
+            hint={`Las funciones terminan en inicio + duración + ${screeningTurnoverMinutes} min de recambio.`}
             error={state.fieldErrors['runtime']}
           />
           <TextInput

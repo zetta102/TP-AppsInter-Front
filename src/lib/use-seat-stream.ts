@@ -8,7 +8,7 @@ import type { SeatMap, SeatState, Uuid } from './types.ts';
 
 /**
  * Disponibilidad de asientos en vivo por Server-Sent Events
- * (`GET /api/screenings/{id}/seats/stream`, backend-status-for-frontend.md §7.6).
+ * (`GET /api/screenings/{id}/seats/stream`).
  *
  * Cada evento `seats` trae solo los asientos que cambiaron, ya con la semántica del
  * suscriptor: con token, las retenciones propias llegan como disponibles. Los cambios

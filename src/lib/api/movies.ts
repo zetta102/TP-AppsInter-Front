@@ -8,15 +8,11 @@ import {
 } from './shared.ts';
 import type { PageParams } from '../query.ts';
 import type { MovieGenre } from '../enums.ts';
-import type {
-  MovieRequest,
-  Movie,
-  NowShowing,
-  Page,
-  Uuid,
-} from '../types.ts';
+import type { Movie, MovieRequest, NowShowing, Page, Uuid } from '../types.ts';
 
-/** `/api/movies`: las lecturas son públicas y las escrituras son ADMIN (backend-status-for-frontend.md §5.5). */
+/**
+ * `/api/movies`: las lecturas son públicas y las escrituras son ADMIN.
+ */
 
 /** Propiedades de **entidad** ordenables, no nombres de campos de respuesta. */
 export const movieSortFields = [
@@ -80,7 +76,7 @@ export function createMovie(body: MovieRequest) {
   return requestCreated<Movie>('/api/movies', { body, auth: true });
 }
 
-/** `PUT` es un reemplazo completo: envía todos los campos, no solo los que cambiaron. */
+/** `PUT` es un reemplazo completo: se envían todos los campos, no solo los que cambiaron. */
 export function updateMovie(uuid: Uuid, body: MovieRequest): Promise<Movie> {
   return requestJson<Movie>(`/api/movies/${uuid}`, {
     method: 'PUT',

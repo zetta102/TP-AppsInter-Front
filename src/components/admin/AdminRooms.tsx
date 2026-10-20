@@ -2,33 +2,33 @@ import { useActionState, useState } from 'react';
 import {
   createRoom,
   deleteRoom,
-  setRoomArchived,
   listRooms,
+  setRoomArchived,
   updateRoom,
   type RoomSortField,
 } from '../../lib/api/rooms.ts';
-import { useResource } from '../../lib/use-resource.ts';
-import { toFieldErrors } from '../../lib/problem.ts';
 import { isEnumValue, screenRoomTypeLabels, screenRoomTypeValues } from '../../lib/enums.ts';
-import type { RoomRequest, Page, Room } from '../../lib/types.ts';
+import {
+  fieldErrors,
+  formError,
+  formText,
+  initialFormState,
+  type FormState,
+} from '../../lib/form.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
-import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
+import type { Page, Room, RoomRequest } from '../../lib/types.ts';
+import { useResource } from '../../lib/use-resource.ts';
+import { Badge } from '../ui/Badge.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Badge, Modal } from '../ui/Modal.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
-import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { Modal } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 
 const PAGE_SIZE = 15;
-
-interface FormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-}
-
-const initialFormState: FormState = { error: null, fieldErrors: {} };
 
 /** `/admin/rooms` — CRUD de salas más el punto de entrada al constructor de asientos. */
 export default function AdminRooms() {
@@ -123,7 +123,7 @@ export default function AdminRooms() {
         />
       </AdminToolbar>
 
-      {actions.banner}
+      {actions.feedback}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -175,12 +175,9 @@ function RoomFormModal({
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
     const screenRoomType = formData.get('screenRoomType');
     if (!isEnumValue(screenRoomTypeValues, screenRoomType)) {
-      return { error: null, fieldErrors: { screenRoomType: 'Elegí un tipo de proyección.' } };
+      return fieldErrors({ screenRoomType: 'Elegí un tipo de proyección.' });
     }
-    const body = {
-      roomName: String(formData.get('roomName') ?? '').trim(),
-      screenRoomType,
-    } satisfies RoomRequest;
+    const body: RoomRequest = { roomName: formText(formData, 'roomName'), screenRoomType };
 
     try {
       if (room) await updateRoom(room.uuid, body);
@@ -189,7 +186,7 @@ function RoomFormModal({
       return initialFormState;
     } catch (error) {
       // 409 significa que el nombre ya existe; en PUT la validación excluye a la propia sala.
-      return { error, fieldErrors: toFieldErrors(error) };
+      return formError(error);
     }
   }, initialFormState);
 

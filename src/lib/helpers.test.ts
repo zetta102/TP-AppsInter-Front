@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cx } from './cx.ts';
 import { delay } from './delay.ts';
 import { contactCategoryValues, isEnumValue, movieGenreValues } from './enums.ts';
@@ -22,37 +22,50 @@ describe('isEnumValue', () => {
 });
 
 describe('delay', () => {
-  it('resuelve después del tiempo indicado', async () => {
-    await expect(delay(1)).resolves.toBeUndefined();
+  // Timers falsos: las esperas de 10 s no hacen esperar a la suite.
+  beforeEach(() => {
+    vi.useFakeTimers();
   });
 
-  it('rechaza con el motivo del abort y no deja el listener colgado', async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resuelve después del tiempo indicado, no antes', async () => {
+    const onResolved = vi.fn();
+    const pending = delay(10_000).then(onResolved);
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(onResolved).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(onResolved).toHaveBeenCalledOnce();
+  });
+
+  it('rechaza con el motivo del abort y limpia el timer', async () => {
     const controller = new AbortController();
     const pending = delay(10_000, controller.signal);
     controller.abort();
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('rechaza de inmediato si la señal ya estaba abortada', async () => {
     await expect(delay(10_000, AbortSignal.abort())).rejects.toMatchObject({ name: 'AbortError' });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('quita el listener de abort cuando gana el timeout', async () => {
-    const controller = new AbortController();
-    let listeners = 0;
-    const { signal } = controller;
-    const add = signal.addEventListener.bind(signal);
-    const remove = signal.removeEventListener.bind(signal);
-    signal.addEventListener = (...args: Parameters<typeof add>) => {
-      listeners++;
-      add(...args);
-    };
-    signal.removeEventListener = (...args: Parameters<typeof remove>) => {
-      listeners--;
-      remove(...args);
-    };
+    const { signal } = new AbortController();
+    const add = vi.spyOn(signal, 'addEventListener');
+    const remove = vi.spyOn(signal, 'removeEventListener');
 
-    await delay(1, signal);
-    expect(listeners).toBe(0);
+    const pending = delay(1, signal);
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+
+    expect(add).toHaveBeenCalledOnce();
+    expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0]?.[1]);
   });
 });

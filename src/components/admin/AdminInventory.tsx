@@ -1,4 +1,4 @@
-import { useActionState, useDeferredValue, useState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   adjustInventory,
   createInventoryItem,
@@ -10,41 +10,44 @@ import {
   updateInventoryItem,
   type InventorySortField,
 } from '../../lib/api/inventory.ts';
-import { useResource } from '../../lib/use-resource.ts';
-import {
-  isApiErrorWithCode,
-  isApiErrorWithStatus,
-  toFieldErrors,
-  toUserMessage,
-} from '../../lib/problem.ts';
 import {
   isEnumValue,
   productCategoryLabels,
   productCategoryValues,
   type ProductCategory,
 } from '../../lib/enums.ts';
+import {
+  fieldErrors,
+  formError,
+  formText,
+  initialFormState,
+  type FormState,
+} from '../../lib/form.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
-import type { InventoryItemRequest, InventoryItem, Page } from '../../lib/types.ts';
+import { isApiErrorWithCode, isApiErrorWithStatus, toUserMessage } from '../../lib/problem.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
-import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
+import type { InventoryItem, InventoryItemRequest, Page } from '../../lib/types.ts';
+import { useDebouncedSearch } from '../../lib/use-debounced-search.ts';
+import { useResource } from '../../lib/use-resource.ts';
+import { Badge } from '../ui/Badge.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Badge, Modal } from '../ui/Modal.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
-import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { Modal } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
+import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 
 const PAGE_SIZE = 15;
 const LOW_STOCK = 10;
-interface FormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
+
+interface InventoryFormState extends FormState {
   /** Se establece cuando un 409 por bloqueo optimista requiere un reintento explícito del usuario. */
   readonly conflict: boolean;
 }
 
-const initialFormState: FormState = { error: null, fieldErrors: {}, conflict: false };
+const initialInventoryFormState: InventoryFormState = { ...initialFormState, conflict: false };
 
 /**
  * `/admin/inventory` — CRUD de confitería.
@@ -59,8 +62,8 @@ export default function AdminInventory() {
   const [sort, setSort] = useState<SortSpec<InventorySortField>>('productName,asc');
   const [category, setCategory] = useState<ProductCategory | ''>('');
   const [search, setSearch] = useState('');
-  // La tabla sigue al texto con prioridad baja: escribir no espera a cada respuesta.
-  const deferredSearch = useDeferredValue(search.trim());
+  // Una sola petición cuando se deja de escribir, no una por tecla.
+  const debouncedSearch = useDebouncedSearch(search);
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [adjusting, setAdjusting] = useState<InventoryItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -75,11 +78,11 @@ export default function AdminInventory() {
           sort,
           includeArchived: showArchived,
           ...(category ? { category } : {}),
-          ...(deferredSearch ? { search: deferredSearch } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
         },
         { signal },
       ),
-    [page, sort, category, deferredSearch, showArchived],
+    [page, sort, category, debouncedSearch, showArchived],
   );
 
   // Un producto ya vendido no se puede borrar (409): se archiva y deja de ofrecerse.
@@ -209,7 +212,7 @@ export default function AdminInventory() {
         />
       </AdminToolbar>
 
-      {actions.banner}
+      {actions.feedback}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -268,34 +271,41 @@ function InventoryFormModal({
   readonly onSaved: () => void;
   readonly onRefreshed: (item: InventoryItem) => void;
 }) {
-  const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
-    const category = formData.get('category');
-    if (!isEnumValue(productCategoryValues, category)) {
-      return { error: null, fieldErrors: { category: 'Elegí una categoría.' }, conflict: false };
-    }
-    const body: InventoryItemRequest = {
-      productName: String(formData.get('productName') ?? '').trim(),
-      category,
-      cost: Number(formData.get('cost') ?? 0),
-      quantity: Number(formData.get('quantity') ?? 0),
-    };
+  const [state, formAction] = useActionState(
+    async (_prev: InventoryFormState, formData: FormData): Promise<InventoryFormState> => {
+      const category = formData.get('category');
+      if (!isEnumValue(productCategoryValues, category)) {
+        return { ...fieldErrors({ category: 'Elegí una categoría.' }), conflict: false };
+      }
+      const body: InventoryItemRequest = {
+        productName: formText(formData, 'productName'),
+        category,
+        cost: Number(formText(formData, 'cost')),
+        quantity: Number(formText(formData, 'quantity')),
+      };
 
-    try {
-      if (item) await updateInventoryItem(item.uuid, body);
-      else await createInventoryItem(body);
-      onSaved();
-      return initialFormState;
-    } catch (error) {
-      // Un 409 en PUT indica un nombre duplicado o un fallo de bloqueo optimista.
-      // Ambos se resuelven recargando los datos, así que se ofrece ese siguiente paso.
-      const conflict = isApiErrorWithStatus(error, 409) && item !== null;
-      return { error, fieldErrors: toFieldErrors(error), conflict };
-    }
-  }, initialFormState);
+      try {
+        if (item) await updateInventoryItem(item.uuid, body);
+        else await createInventoryItem(body);
+        onSaved();
+        return initialInventoryFormState;
+      } catch (error) {
+        // Un 409 en PUT indica un nombre duplicado o un fallo de bloqueo optimista.
+        // Ambos se resuelven recargando los datos, así que se ofrece ese siguiente paso.
+        const conflict = isApiErrorWithStatus(error, 409) && item !== null;
+        return { ...formError(error), conflict };
+      }
+    },
+    initialInventoryFormState,
+  );
 
   const reload = async () => {
     if (!item) return;
-    onRefreshed(await getInventoryItem(item.uuid));
+    try {
+      onRefreshed(await getInventoryItem(item.uuid));
+    } catch {
+      // Si la recarga falla, el aviso de conflicto sigue visible para volver a intentarlo.
+    }
   };
 
   // Se vuelve a crear la clave con los valores del producto para que una recarga
@@ -312,8 +322,8 @@ function InventoryFormModal({
         {state.conflict && (
           <div className="flex items-center justify-between gap-3 cine-alert-warning px-3 py-2 text-xs">
             <span>
-              Otra persona cambió este producto mientras lo estaba editando. Recargue los valores
-              actuales y luego vuelva a aplicar su cambio.
+              Otra persona cambió este producto mientras lo editabas. Recargá los valores actuales y
+              volvé a aplicar tu cambio.
             </span>
             <button
               type="button"
@@ -385,13 +395,6 @@ function InventoryFormModal({
   );
 }
 
-interface AdjustFormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-}
-
-const initialAdjustState: AdjustFormState = { error: null, fieldErrors: {} };
-
 /**
  * Aplica variaciones de stock de forma atómica mediante
  * `POST /api/inventory/{uuid}/adjustments` (nunca con `PUT`, que competiría en
@@ -419,20 +422,20 @@ function AdjustStockModal({
     [current.uuid],
   );
 
-  const [state, formAction] = useActionState(async (_prev: AdjustFormState, formData: FormData) => {
-    const delta = Number(formData.get('delta') ?? 0);
-    const reason = String(formData.get('reason') ?? '').trim();
+  const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
+    const delta = Number(formText(formData, 'delta'));
+    const reason = formText(formData, 'reason');
 
     try {
       const updated = await adjustInventory(current.uuid, { delta, reason });
       setCurrent(updated);
       onAdjusted();
       history.refetch();
-      return initialAdjustState;
+      return initialFormState;
     } catch (error) {
-      return { error, fieldErrors: toFieldErrors(error) };
+      return formError(error);
     }
-  }, initialAdjustState);
+  }, initialFormState);
 
   return (
     <Modal onClose={onClose} title={`Ajustar stock — ${current.productName}`}>

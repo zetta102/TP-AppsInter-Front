@@ -12,7 +12,7 @@ import { buildQuery, type QueryParams } from './query.ts';
  *    del llamador mediante `AbortSignal.any()`;
  *  - traducir respuestas no-2xx a `ApiError` a partir del body problem+json;
  *  - ante un `401 TOKEN_EXPIRED`, ejecutar el hook de refresh **una vez** y repetir
- *    la solicitud (backend-status-for-frontend.md §7.1).
+ *    la solicitud.
  *
  * Los hooks de auth los inyecta `auth-store.ts`, para que este módulo no tenga una
  * dependencia circular con el store.
@@ -198,7 +198,7 @@ export async function requestCreated<T>(
 }
 
 /**
- * Abre un stream `text/event-stream` (backend-status-for-frontend.md §7.6). Envía el token si
+ * Abre un stream `text/event-stream`. Envía el token si
  * hay sesión (`auth: 'optional'`): `EventSource` no puede mandar `Authorization`, por eso se usa
  * `fetch`. El timeout cubre solo la conexión (hasta los headers); el body vive hasta que el
  * servidor lo cierre o se aborte `signal`. Lanza `ApiError` ante un estado no 2xx.

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, isApiErrorWithCode, parseProblem, toFieldErrors, toUserMessage } from './problem.ts';
+import {
+  ApiError,
+  isApiErrorWithCode,
+  parseProblem,
+  toFieldErrors,
+  toUserMessage,
+} from './problem.ts';
 
 describe('ApiError', () => {
   it('clasifica por estado HTTP', () => {
@@ -25,7 +31,9 @@ describe('ApiError', () => {
 
   it('cae al mensaje por estado ante un `code` desconocido', () => {
     const error = new ApiError(409, { detail: 'Something new', code: 'SOMETHING_NEW' });
-    expect(error.userMessage).toBe(error.genericMessage);
+    expect(error.userMessage).toBe(
+      'Otra persona cambió esto mientras trabajabas. Actualizá e intentá de nuevo.',
+    );
     expect(error.isRetryable).toBe(true);
   });
 
@@ -35,7 +43,6 @@ describe('ApiError', () => {
       errors: { email: 'must be a well-formed email address' },
       context: { property: 'email' },
     });
-    expect(error.hasFieldErrors).toBe(true);
     expect(error.fieldError('email')).toBe('must be a well-formed email address');
     expect(toFieldErrors(error)).toEqual({ email: 'must be a well-formed email address' });
     expect(error.context).toEqual({ property: 'email' });

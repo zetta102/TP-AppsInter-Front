@@ -1,6 +1,6 @@
 import { navigate } from 'astro:transitions/client';
 import { useEffect, useId, useRef } from 'react';
-import { useAuth } from '../lib/auth-context.tsx';
+import { useAuth } from '../lib/use-auth.ts';
 import { cx } from '../lib/cx.ts';
 
 /**

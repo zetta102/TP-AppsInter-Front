@@ -5,8 +5,7 @@ import { useNow } from './use-now.ts';
 import type { SeatHold, Uuid } from './types.ts';
 
 /**
- * Gestiona el ciclo de vida de una retención de asientos para la página de compra
- * (backend-status-for-frontend.md §5.9, §7.3).
+ * Gestiona el ciclo de vida de una retención de asientos para la página de compra.
  *
  * La primera selección crea una retención; cada cambio posterior la **reemplaza** con
  * `PUT /api/holds/{id}`, que es atómico: los asientos que siguen seleccionados nunca se
@@ -38,6 +37,17 @@ export interface SeatHoldState {
 interface Keyed<T> {
   readonly key: string;
   readonly value: T;
+}
+
+/**
+ * El `holdId` que corresponde enviar con la selección actual: solo si la retención cubre todos
+ * los asientos elegidos. Mientras se reemplaza o recrea para una selección nueva, enviarla haría
+ * que el servidor respondiera `404`/`409`, así que se omite (cotizar y comprar sin retención
+ * sigue siendo válido).
+ */
+export function holdIdFor(hold: SeatHold | null, selected: readonly Uuid[]): Uuid | undefined {
+  if (!hold || selected.length === 0) return undefined;
+  return new Set(selected).isSubsetOf(new Set(hold.seatIds)) ? hold.uuid : undefined;
 }
 
 function release(hold: SeatHold | null): Promise<void> {

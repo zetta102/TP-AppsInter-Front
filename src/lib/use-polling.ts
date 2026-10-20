@@ -5,7 +5,7 @@ import { useEffect, useEffectEvent } from 'react';
  *
  * El mapa de asientos se actualiza en vivo por SSE (`use-seat-stream.ts`); esto es la red de
  * seguridad: cubre los huecos mientras el stream está caído y el caso de un backend escalado a
- * varias instancias (backend-status-for-frontend.md §7.6). Siempre se usa la versión más
+ * varias instancias. Siempre se usa la versión más
  * reciente de `callback` sin reiniciar el intervalo; cambiar `intervalMs` lo reprograma.
  */
 export function usePolling(callback: () => void, intervalMs: number, enabled = true): void {

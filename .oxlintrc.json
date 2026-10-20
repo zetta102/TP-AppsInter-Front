@@ -1,12 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "react",
-    "jsx-a11y",
-    "unicorn",
-    "import"
-  ],
+  "plugins": ["typescript", "react", "jsx-a11y", "unicorn", "import"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -21,15 +15,10 @@
     "import/no-unassigned-import": [
       "warn",
       {
-        "allow": [
-          "**/*.css"
-        ]
+        "allow": ["**/*.css"]
       }
     ],
     "react/memo-dependencies": "off"
   },
-  "ignorePatterns": [
-    "dist/**",
-    ".astro/**"
-  ]
+  "ignorePatterns": ["dist/**", ".astro/**"]
 }

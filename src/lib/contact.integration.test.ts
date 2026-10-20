@@ -14,7 +14,7 @@ import { ApiError } from './problem.ts';
 import type { Uuid } from './types.ts';
 
 /**
- * Formulario de contacto contra el backend real (backend-status-for-frontend.md §5.13):
+ * Formulario de contacto contra el backend real:
  * el cliente envía y edita, el admin abre (lo marca como leído) y desde ahí el autor ya no
  * puede editar; al final el admin borra el mensaje y da de baja al cliente desechable.
  *

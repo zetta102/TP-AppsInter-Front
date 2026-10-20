@@ -1,18 +1,23 @@
 import { useActionState, useState } from 'react';
+import { listMovies } from '../../lib/api/movies.ts';
+import { listRooms } from '../../lib/api/rooms.ts';
 import {
   createScreening,
   deleteScreening,
-  setScreeningArchived,
   listScreenings,
+  setScreeningArchived,
   updateScreening,
-  TURNOVER_MINUTES,
   type ScreeningSortField,
 } from '../../lib/api/screenings.ts';
-import { listMovies } from '../../lib/api/movies.ts';
-import { listRooms } from '../../lib/api/rooms.ts';
-import { useResource } from '../../lib/use-resource.ts';
-import { toFieldErrors } from '../../lib/problem.ts';
+import { collectAllPages } from '../../lib/api/shared.ts';
 import { screenRoomTypeLabels } from '../../lib/enums.ts';
+import {
+  fieldErrors,
+  formError,
+  formText,
+  initialFormState,
+  type FormState,
+} from '../../lib/form.ts';
 import {
   formatDateTime,
   formatMoney,
@@ -21,43 +26,28 @@ import {
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
 } from '../../lib/format.ts';
-import type {
-  ScreeningRequest,
-  Movie,
-  Screening,
-  Page,
-  Room,
-} from '../../lib/types.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
-import { PREMIUM_MULTIPLIER } from '../../lib/pricing.ts';
-import { AdminPage, AdminToolbar } from './AdminPage.tsx';
-import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
+import type { Movie, Page, Room, Screening, ScreeningRequest } from '../../lib/types.ts';
+import { useMetadataConfig } from '../../lib/use-metadata-config.ts';
+import { useNow } from '../../lib/use-now.ts';
+import { useResource } from '../../lib/use-resource.ts';
+import { ScreeningAvailability } from '../catalogue/MovieCard.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Modal } from '../ui/Modal.tsx';
 import { SelectInput, TextInput } from '../ui/Field.tsx';
-import { SubmitButton } from '../ui/SubmitButton.tsx';
-import { ScreeningAvailability } from '../catalogue/MovieCard.tsx';
-import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
+import { Modal } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
-import { useNow } from '../../lib/use-now.ts';
-import { MAX_PAGE_SIZE } from '../../lib/api/shared.ts';
+import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { AdminPage, AdminToolbar } from './AdminPage.tsx';
+import { ArchivedBadge, ShowArchivedToggle, useArchiveActions } from './archive.tsx';
 
 const PAGE_SIZE = 15;
-const OPTIONS_PAGE_SIZE = MAX_PAGE_SIZE;
-
-interface FormState {
-  readonly error: unknown;
-  readonly fieldErrors: Readonly<Record<string, string>>;
-}
-
-const initialFormState: FormState = { error: null, fieldErrors: {} };
 
 /**
  * `/admin/screenings` — el programador de funciones.
  *
- * `endsAt` se calcula del lado del servidor como `startsAt + runtime + 15 min`
- * de recambio y nunca debe enviarse. Reflejamos la misma cuenta solo como
+ * `endsAt` se calcula del lado del servidor como `startsAt + runtime +` los minutos de recambio
+ * (`screeningTurnoverMinutes`) y nunca debe enviarse. Reflejamos la misma cuenta solo como
  * vista previa para que el administrador vea el bloque que ocupará una función
  * antes de guardar.
  *
@@ -75,20 +65,25 @@ export default function AdminScreenings() {
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const movies = useResource<Page<Movie>>(
-    (signal) => listMovies({ size: OPTIONS_PAGE_SIZE, sort: 'movieName,asc' }, { signal }),
+  // Opciones de los selectores: los catálogos completos, aunque superen el `size` máximo.
+  const movies = useResource<readonly Movie[]>(
+    (signal) =>
+      collectAllPages((pageIndex, size) =>
+        listMovies({ page: pageIndex, size, sort: 'movieName,asc' }, { signal }),
+      ),
     [],
   );
-  const rooms = useResource<Page<Room>>(
-    (signal) => listRooms({ size: OPTIONS_PAGE_SIZE, sort: 'roomName,asc' }, { signal }),
+  const rooms = useResource<readonly Room[]>(
+    (signal) =>
+      collectAllPages((pageIndex, size) =>
+        listRooms({ page: pageIndex, size, sort: 'roomName,asc' }, { signal }),
+      ),
     [],
   );
 
-  // Si falla, vuelve al valor predeterminado documentado (15), para que el programador
-  // siga funcionando aunque el endpoint de metadatos no esté disponible momentáneamente.
-  const config = useResource((signal) => getMetadataConfigOrDefault({ signal }), []);
-  const turnoverMinutes = config.data?.screeningTurnoverMinutes ?? TURNOVER_MINUTES;
-  const premiumMultiplier = config.data?.premiumSeatMultiplier ?? PREMIUM_MULTIPLIER;
+  // Los valores documentados mientras carga o si el endpoint de metadatos falla.
+  const { screeningTurnoverMinutes: turnoverMinutes, premiumSeatMultiplier: premiumMultiplier } =
+    useMetadataConfig();
 
   const resource = useResource<Page<Screening>>(
     (signal) =>
@@ -203,7 +198,7 @@ export default function AdminScreenings() {
           }}
         >
           <option value="">Todas las películas</option>
-          {(movies.data?.content ?? []).map((movie) => (
+          {(movies.data ?? []).map((movie) => (
             <option key={movie.uuid} value={movie.uuid}>
               {movie.movieName}
             </option>
@@ -220,7 +215,7 @@ export default function AdminScreenings() {
           }}
         >
           <option value="">Todas las salas</option>
-          {(rooms.data?.content ?? []).map((room) => (
+          {(rooms.data ?? []).map((room) => (
             <option key={room.uuid} value={room.uuid}>
               {room.roomName}
             </option>
@@ -248,7 +243,7 @@ export default function AdminScreenings() {
         />
       </AdminToolbar>
 
-      {actions.banner}
+      {actions.feedback}
 
       <DataTable
         rows={resource.data?.content ?? null}
@@ -272,8 +267,8 @@ export default function AdminScreenings() {
         <ScreeningFormModal
           key={editing?.uuid ?? 'new'}
           screening={editing}
-          movies={movies.data?.content ?? []}
-          rooms={rooms.data?.content ?? []}
+          movies={movies.data ?? []}
+          rooms={rooms.data ?? []}
           turnoverMinutes={turnoverMinutes}
           premiumMultiplier={premiumMultiplier}
           onClose={() => {
@@ -327,11 +322,15 @@ function ScreeningFormModal({
   const startsInPast = startsAt !== '' && new Date(startsAt).getTime() <= now;
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
+    const startsAtValue = formText(formData, 'startsAt');
+    // `new Date('')` es inválida y `toISOString()` lanzaría: se valida antes de convertir.
+    if (!startsAtValue) return fieldErrors({ startsAt: 'Completá este campo.' });
+
     const body: ScreeningRequest = {
-      movieId: String(formData.get('movieId') ?? ''),
-      screenRoomId: String(formData.get('screenRoomId') ?? ''),
-      startsAt: fromDateTimeLocalValue(String(formData.get('startsAt') ?? '')),
-      basePrice: Number(formData.get('basePrice') ?? 0),
+      movieId: formText(formData, 'movieId'),
+      screenRoomId: formText(formData, 'screenRoomId'),
+      startsAt: fromDateTimeLocalValue(startsAtValue),
+      basePrice: Number(formText(formData, 'basePrice')),
     };
 
     try {
@@ -342,7 +341,7 @@ function ScreeningFormModal({
     } catch (error) {
       // 409 significa que la ventana [startsAt, endsAt) se superpone con otra función en
       // la sala; en PUT la validación excluye a esta misma función.
-      return { error, fieldErrors: toFieldErrors(error) };
+      return formError(error);
     }
   }, initialFormState);
 

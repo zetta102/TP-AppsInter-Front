@@ -88,6 +88,9 @@ export function useResource<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, nonce, ...deps]);
 
+  // `useCallback` explícito, a diferencia del resto de la app: el React Compiler no compila este
+  // hook (la supresión de `exhaustive-deps` por el array `deps` dinámico lo hace desistir), y los
+  // llamadores usan `refetch`/`setData` como valores estables.
   const refetch = useCallback(() => {
     startRefresh(() => {
       setNonce((value) => value + 1);

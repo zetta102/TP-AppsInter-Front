@@ -2,14 +2,15 @@ import { cx } from '../../lib/cx.ts';
 import { isApiError, toUserMessage } from '../../lib/problem.ts';
 
 /**
- * Presentación de errores según el estado (backend-status-for-frontend.md §8).
+ * Presentación de errores según el estado.
  *
  * El mapeo es intencional:
- *  - el texto viene de `ApiError.userMessage`, traducido por `code` (el backend solo habla inglés);
- *  - `409` siempre permite reintentar tras recargar, por eso ofrecemos la acción de reintento;
+ *  - el texto viene de `ApiError.userMessage`, traducido en el cliente a partir de `code`
+ *    (el texto del servidor nunca se muestra tal cual);
+ *  - `409`, los fallos de red y los `5xx` permiten reintentar, por eso ofrecemos esa acción;
  *  - `403` significa que el control no debería haber sido visible en primer lugar;
- *  - los mensajes de validación se localizan del lado del servidor, así que nunca mostramos aquí
- *    el mapa `errors`: pertenece a los campos individuales.
+ *  - los errores por campo (`ApiError.fieldErrors`) nunca se muestran acá: pertenecen a
+ *    cada campo del formulario (`Field.tsx`).
  */
 
 const toneByKind = {
@@ -76,15 +77,5 @@ export function ErrorBanner({
         </button>
       )}
     </div>
-  );
-}
-
-/** Variante compacta de una sola línea para espacios inline como filas de tabla. */
-export function InlineError({ error }: { readonly error: unknown }) {
-  if (!error) return null;
-  return (
-    <p role="alert" className="text-sm text-brand-400">
-      {toUserMessage(error)}
-    </p>
   );
 }

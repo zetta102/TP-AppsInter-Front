@@ -1,11 +1,12 @@
 import { useState, useTransition, type ReactNode } from 'react';
 import { isApiErrorWithCode } from '../../lib/problem.ts';
 import type { Uuid } from '../../lib/types.ts';
+import { Badge } from '../ui/Badge.tsx';
+import { useConfirm } from '../ui/ConfirmDialog.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { Badge } from '../ui/Modal.tsx';
 
 /**
- * Piezas compartidas para archivar recursos desde admin (backend-status-for-frontend.md §3.7).
+ * Piezas compartidas para archivar recursos desde admin.
  *
  * Películas, salas, funciones y productos con historial no se pueden borrar
  * (`409 RESOURCE_IN_USE`), pero sí archivar: desaparecen de los listados públicos y se siguen
@@ -48,8 +49,11 @@ export interface ArchiveActions<T extends Archivable> {
   readonly toggleArchived: (item: T) => void;
   /** `true` mientras corre una acción de fila; los botones quedan deshabilitados. */
   readonly isPending: boolean;
-  /** Error de la última acción de fila (con el botón "Archivar en su lugar" cuando aplica). */
-  readonly banner: ReactNode;
+  /**
+   * El diálogo de confirmación y el error de la última acción de fila (con el botón
+   * "Archivar en su lugar" cuando aplica).
+   */
+  readonly feedback: ReactNode;
   /** Botones "Archivar"/"Restaurar" y "Eliminar" para la columna de acciones. */
   readonly buttons: (item: T) => ReactNode;
 }
@@ -63,6 +67,7 @@ export function useArchiveActions<T extends Archivable>(options: {
   /** Nombre del ítem para el botón "Archivar … en su lugar". */
   readonly name: (item: T) => string;
 }): ArchiveActions<T> {
+  const { confirm, dialog } = useConfirm();
   const [rowError, setRowError] = useState<unknown>(null);
   const [blocked, setBlocked] = useState<T | null>(null);
   // Una acción a la vez: mientras está pendiente, los botones no aceptan otro clic.
@@ -82,8 +87,14 @@ export function useArchiveActions<T extends Archivable>(options: {
     });
   };
 
-  const remove = (item: T) => {
-    if (!window.confirm(options.confirmDelete(item))) return;
+  const remove = async (item: T) => {
+    const confirmed = await confirm({
+      title: 'Eliminar',
+      message: options.confirmDelete(item),
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setRowError(null);
     setBlocked(null);
     startTransition(async () => {
@@ -99,24 +110,28 @@ export function useArchiveActions<T extends Archivable>(options: {
     });
   };
 
-  const banner =
-    rowError === null ? null : (
-      <div className="flex flex-col gap-2">
-        <ErrorBanner error={rowError} onRetry={options.refetch} />
-        {blocked && (
-          <div>
-            <button
-              type="button"
-              className="cine-btn cine-btn-ghost"
-              disabled={isPending}
-              onClick={() => toggleArchived(blocked)}
-            >
-              Archivar “{options.name(blocked)}” en su lugar
-            </button>
-          </div>
-        )}
-      </div>
-    );
+  const feedback = (
+    <>
+      {dialog}
+      {rowError !== null && (
+        <div className="flex flex-col gap-2">
+          <ErrorBanner error={rowError} onRetry={options.refetch} />
+          {blocked && (
+            <div>
+              <button
+                type="button"
+                className="cine-btn cine-btn-ghost"
+                disabled={isPending}
+                onClick={() => toggleArchived(blocked)}
+              >
+                Archivar “{options.name(blocked)}” en su lugar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
 
   const buttons = (item: T) => (
     <>
@@ -132,12 +147,12 @@ export function useArchiveActions<T extends Archivable>(options: {
         type="button"
         className="cine-btn cine-btn-danger"
         disabled={isPending}
-        onClick={() => remove(item)}
+        onClick={() => void remove(item)}
       >
         Eliminar
       </button>
     </>
   );
 
-  return { remove, toggleArchived, isPending, banner, buttons };
+  return { remove: (item) => void remove(item), toggleArchived, isPending, feedback, buttons };
 }

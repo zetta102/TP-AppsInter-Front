@@ -1,6 +1,5 @@
 /**
- * Construcción tipada de query strings para los endpoints de lista paginada
- * (backend-status-for-frontend.md §3.3).
+ * Construcción tipada de query strings para los endpoints de lista paginada.
  *
  * `page` es base cero. `sort` debe nombrar una **propiedad de la entidad** (`movieName`,
  * `startsAt`, `createdAt`, `email`, `productName`), no un campo de respuesta; una
@@ -82,24 +81,4 @@ export function buildQuery(params: QueryParams | undefined): string {
 
   const query = search.toString();
   return query ? `?${query}` : '';
-}
-
-/** Combina parámetros de página/sort con filtros específicos del endpoint en una query string. */
-export function buildPageQuery<Field extends string>(
-  params: (PageParams<Field> & QueryParams) | undefined,
-): string {
-  return buildQuery(params);
-}
-
-/** Lee el estado de paginación desde un `URLSearchParams` del navegador. */
-export function readPageParams(
-  search: URLSearchParams,
-  defaults: { readonly size?: number } = {},
-): { page: number; size: number } {
-  const page = Number.parseInt(search.get('page') ?? '', 10);
-  const size = Number.parseInt(search.get('size') ?? '', 10);
-  return {
-    page: Number.isFinite(page) && page >= 0 ? page : 0,
-    size: Number.isFinite(size) && size > 0 ? size : (defaults.size ?? 20),
-  };
 }
