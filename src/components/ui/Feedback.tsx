@@ -18,12 +18,11 @@ export function Spinner({ className = '' }: { readonly className?: string }) {
 /** Placeholder de carga en bloque completo para regiones respaldadas por recursos. */
 export function LoadingBlock({ label = 'Cargando…' }: { readonly label?: string }) {
   return (
-    <div
-      role="status"
-      className="flex items-center justify-center gap-3 py-16 text-sm text-ink-500"
-    >
-      <Spinner />
-      {label}
+    <div role="status" className="flex items-center justify-center py-16 text-sm text-ink-500">
+      <span className="inline-flex cine-plate items-center gap-3">
+        <Spinner />
+        {label}
+      </span>
     </div>
   );
 }

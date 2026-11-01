@@ -1,4 +1,4 @@
-import { useActionState, useState } from 'react';
+import { useActionState, useId, useState } from 'react';
 import {
   createMovie,
   deleteMovie,
@@ -26,7 +26,7 @@ import { useResource } from '../../lib/use-resource.ts';
 import { GenreList } from '../catalogue/MovieCard.tsx';
 import { DataTable, type Column } from '../ui/DataTable.tsx';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
-import { TextArea, TextInput } from '../ui/Field.tsx';
+import { FieldError, TextArea, TextInput } from '../ui/Field.tsx';
 import { Modal } from '../ui/Modal.tsx';
 import { Pagination } from '../ui/Pagination.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
@@ -94,7 +94,7 @@ export default function AdminMovies() {
             <img
               src={movie.posterUrl}
               alt=""
-              className="h-12 w-8 shrink-0 rounded-sm object-cover"
+              className="h-12 w-8 shrink-0 object-cover"
               loading="lazy"
             />
           ) : null}
@@ -224,6 +224,7 @@ function MovieFormModal({
   readonly onSaved: () => void;
 }) {
   const { screeningTurnoverMinutes } = useMetadataConfig();
+  const genresErrorId = useId();
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
     const releaseYear = formText(formData, 'releaseYear');
@@ -279,7 +280,7 @@ function MovieFormModal({
           error={state.fieldErrors['movieName']}
         />
 
-        <fieldset>
+        <fieldset aria-describedby={state.fieldErrors['genres'] ? genresErrorId : undefined}>
           <legend className="cine-label">Géneros</legend>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {movieGenreValues.map((genre) => (
@@ -295,9 +296,7 @@ function MovieFormModal({
             ))}
           </div>
           {state.fieldErrors['genres'] && (
-            <p role="alert" className="mt-1 text-xs text-virus-400">
-              Seleccioná al menos un género.
-            </p>
+            <FieldError id={genresErrorId}>Seleccioná al menos un género.</FieldError>
           )}
         </fieldset>
 

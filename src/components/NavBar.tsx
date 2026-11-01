@@ -24,7 +24,8 @@ const adminLinks = [
   { href: '/admin/inventory', label: 'Confitería' },
   { href: '/admin/reservations', label: 'Reservas' },
   { href: '/admin/users', label: 'Usuarios' },
-  { href: '/admin/contact', label: 'Mensajes' },
+  // Las etiquetas coinciden con el título de cada consola (WCAG 3 "Consistent navigation labels").
+  { href: '/admin/contact', label: 'Mensajes de contacto' },
 ] as const;
 
 export default function NavBar({ pathname }: { readonly pathname: string }) {
@@ -50,11 +51,15 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
   // El estado activo no puede ser solo visual: los lectores de pantalla lo leen de `aria-current`.
   const currentFor = (href: string) => (isActive(href) ? 'page' : undefined);
 
+  // Todo control de la barra comparte la caja de `cine-btn` (alto, relleno, peso y la pulsación);
+  // las pestañas solo cambian los colores: sin marco en reposo y, en la actual, fondo oscuro con
+  // una barra de marca abajo. No se rellena de marca para no confundirse con "Crear cuenta"
+  // (`cine-btn-primary`); con colores forzados la sombra desaparece y queda el subrayado.
   const linkClass = (href: string) =>
     cx(
-      'rounded-lg border-2 border-transparent px-3 py-1.5 text-sm font-medium transition-colors',
+      'cine-btn',
       isActive(href)
-        ? 'border-brand-400 bg-brand-600 text-white shadow-[inset_0_-2px_0_var(--color-brand-700)]'
+        ? 'border-ink-500 bg-ink-800 text-white shadow-[inset_0_-4px_0_var(--color-brand-400)] forced-colors:underline'
         : 'text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100',
     );
 
@@ -90,19 +95,23 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
           >
             Administración ▾
           </button>
-          {/* CSS anchor positioning: el popover vive en la capa superior, anclado bajo el botón. */}
+          {/*
+            CSS anchor positioning: el popover vive en la capa superior, anclado bajo el botón. Sin
+            soporte, `@supports` deja el centrado predeterminado del navegador en lugar de tirarlo
+            a la esquina superior izquierda.
+          */}
           <div
             id={adminMenuId}
             ref={adminMenuRef}
             popover="auto"
-            className="inset-auto m-0 mt-1 w-48 cine-card p-1 shadow-xl [position-anchor:--admin-menu] [position-area:bottom_span-left]"
+            className="w-56 cine-card p-1 [position-anchor:--admin-menu] supports-[position-area:bottom]:inset-auto supports-[position-area:bottom]:m-0 supports-[position-area:bottom]:mt-1 supports-[position-area:bottom]:[position-area:bottom_span-left]"
           >
             {adminLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
                 aria-current={currentFor(link.href)}
-                className="block rounded-md px-3 py-2 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100 aria-[current=page]:bg-ink-800 aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-400)] forced-colors:aria-[current=page]:underline"
               >
                 {link.label}
               </a>
@@ -119,8 +128,15 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
           </span>
         ) : isAuthenticated ? (
           <>
-            <a href="/account" className="hidden text-sm text-ink-500 hover:text-ink-100 sm:inline">
-              {user?.firstName ?? 'Cuenta'}
+            {/* Visible en todos los anchos: es el único camino a la cuenta. */}
+            <a
+              href="/account"
+              aria-current={currentFor('/account')}
+              className={linkClass('/account')}
+            >
+              <span className="sr-only">Tu cuenta: </span>
+              {/* El recorte va en un hijo: `text-overflow` no aplica a la caja `inline-flex`. */}
+              <span className="max-w-[12ch] truncate">{user?.firstName ?? 'Cuenta'}</span>
             </a>
             <button
               type="button"

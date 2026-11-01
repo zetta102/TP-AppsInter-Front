@@ -120,7 +120,7 @@ export function useArchiveActions<T extends Archivable>(options: {
             <div>
               <button
                 type="button"
-                className="cine-btn cine-btn-ghost"
+                className="cine-btn cine-btn-ghost bg-ink-950/50"
                 disabled={isPending}
                 onClick={() => toggleArchived(blocked)}
               >

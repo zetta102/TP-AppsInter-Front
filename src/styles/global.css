@@ -5,6 +5,13 @@
  * Network. Los nombres de los tokens se mantienen (ink/brand/gold) para que los componentes se
  * recoloreen solos; los contrastes de texto (≥4.5:1) y de bordes (≥3:1) se verificaron contra
  * ink-950/900/800 y contra el píxel más claro del fondo animado.
+ *
+ * Bordes: todo es de 2px, como los marcos de 16 bits. Los contenedores usan `ink-600` (≥3:1
+ * contra el fondo, WCAG 3 "Graphical object contrast"); los separadores internos, `ink-700`
+ * (`border-t-2 border-ink-700`, `divide-y-2 divide-ink-700`).
+ *
+ * Movimiento (WCAG 3 "No visual motion"): ninguna animación dura más de 5 s. Los bucles tienen
+ * un número fijo de vueltas y el fondo animado es opcional (`NetBackground.astro`).
  */
 @theme {
   /* Azul marino/cobalto de la red. */
@@ -67,6 +74,15 @@
     inset 2px 2px 0 --alpha(var(--color-brand-300) / 12%),
     inset -2px -2px 0 --alpha(var(--color-black) / 35%);
   --shadow-pixel: 4px 4px 0 --alpha(var(--color-black) / 45%);
+  /* Saliente duro bajo el encabezado fijo. */
+  --shadow-ledge: 0 4px 0 --alpha(var(--color-black) / 35%);
+
+  /* Sombra de texto de un píxel de arte (2px); el color se cambia con `text-shadow-<color>`. */
+  --text-shadow-pixel: 2px 2px 0 var(--color-ink-950);
+
+  /* Las transiciones saltan en dos cuadros, como un sprite, en lugar de interpolarse. */
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: steps(2, jump-end);
 }
 
 @layer base {
@@ -90,7 +106,7 @@
     font-weight: 400;
     font-synthesis: none;
     line-height: 1.4;
-    text-shadow: 2px 2px 0 var(--color-ink-950);
+    text-shadow: var(--text-shadow-pixel);
   }
 
   ::selection {
@@ -98,10 +114,21 @@
     color: var(--color-white);
   }
 
-  /* Los biseles son `box-shadow`, no `clip-path`: el contorno de foco nunca queda recortado. */
+  /*
+   * Cursor de selección: marco de 3px separado 2px del control; el hueco deja ver el fondo oscuro,
+   * así que el marco contrasta también sobre rellenos claros (WCAG 3 "Focus indicator contrast").
+   * Los biseles son `box-shadow`, no `clip-path`: el contorno de foco nunca queda recortado.
+   */
   :focus-visible {
-    outline: 2px solid var(--color-brand-300);
+    outline: 3px solid var(--color-brand-300);
     outline-offset: 2px;
+  }
+
+  /* Más contraste a pedido del sistema: el texto secundario sube un escalón (WCAG 3 "User settings supported"). */
+  @media (prefers-contrast: more) {
+    :root {
+      --color-ink-500: var(--color-ink-300);
+    }
   }
 }
 
@@ -118,6 +145,98 @@
   border: 2px solid var(--color-ink-600);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-bevel), var(--shadow-pixel);
+
+  @media (prefers-contrast: more) {
+    background-color: var(--color-ink-900);
+  }
+}
+
+/*
+ * Barra de título de ventana de PET para el encabezado de una tarjeta: va primera y llega a los
+ * bordes de la tarjeta, compensando su relleno (`p-5` por defecto; otro relleno se indica con
+ * `[--cine-titlebar-inset:…]`). El triángulo es decorativo: `content` lleva texto alternativo vacío.
+ */
+@utility cine-titlebar {
+  display: flex;
+  align-items: center;
+  gap: --spacing(2);
+  margin: calc(var(--cine-titlebar-inset, --spacing(5)) * -1);
+  margin-bottom: 0;
+  border-bottom: 2px solid var(--color-brand-400);
+  background-color: var(--color-brand-700);
+  box-shadow: var(--shadow-bevel);
+  padding: --spacing(2) --spacing(4);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 600;
+  color: var(--color-white);
+  text-shadow: 1px 1px 0 var(--color-ink-950);
+
+  &::before {
+    content: '▶' / '';
+    font-size: 0.625em;
+    color: var(--color-brand-300);
+  }
+}
+
+/* Título de sección que flota sobre el fondo, fuera de tarjetas: placa + escala única de h2. */
+@utility cine-heading {
+  width: fit-content;
+  max-width: 100%;
+  background-color: --alpha(var(--color-ink-950) / 50%);
+  padding: --spacing(1) --spacing(2);
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  font-weight: 700;
+  text-shadow: var(--text-shadow-pixel);
+
+  @variant sm {
+    font-size: var(--text-xl);
+    line-height: var(--text-xl--line-height);
+  }
+
+  @media (prefers-contrast: more) {
+    background-color: var(--color-ink-950);
+  }
+}
+
+/* Placa translúcida: ancla el texto que flota sobre el fondo animado (fuera de tarjetas y alertas). */
+@utility cine-plate {
+  width: fit-content;
+  max-width: 100%;
+  background-color: --alpha(var(--color-ink-950) / 50%);
+  padding: --spacing(1) --spacing(2);
+
+  @media (prefers-contrast: more) {
+    background-color: var(--color-ink-950);
+  }
+}
+
+/* Igual que `cine-plate`, para bloques de varios párrafos. */
+@utility cine-plate-block {
+  width: fit-content;
+  max-width: 100%;
+  background-color: --alpha(var(--color-ink-950) / 50%);
+  padding: --spacing(4);
+
+  @media (prefers-contrast: more) {
+    background-color: var(--color-ink-950);
+  }
+}
+
+/*
+ * Enlace dentro de texto: subrayado siempre, no solo al pasar el puntero, para que no se distinga
+ * únicamente por el tono (WCAG 3 "Hue not relied on").
+ */
+@utility cine-link {
+  color: var(--color-brand-400);
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+
+  @variant hover {
+    color: var(--color-brand-300);
+  }
 }
 
 @utility cine-input {
@@ -143,6 +262,18 @@
     box-shadow:
       inset 2px 2px 0 --alpha(var(--color-black) / 40%),
       0 0 0 2px --alpha(var(--color-brand-400) / 30%);
+  }
+
+  /* El error se marca también en el borde, no solo en el texto (WCAG 3 "Errors indicated in multiple ways"). */
+  &[aria-invalid='true'] {
+    border-color: var(--color-virus-500);
+  }
+
+  &[aria-invalid='true']:focus {
+    border-color: var(--color-virus-400);
+    box-shadow:
+      inset 2px 2px 0 --alpha(var(--color-black) / 40%),
+      0 0 0 2px --alpha(var(--color-virus-400) / 30%);
   }
 
   &:disabled {
@@ -225,7 +356,9 @@
   }
 }
 
+/* Enmarcado también en reposo, como un chip de menú: se reconoce como control sin pasar el puntero. */
 @utility cine-btn-ghost {
+  border-color: var(--color-ink-600);
   color: var(--color-ink-300);
 
   @variant hover {
@@ -250,22 +383,29 @@
 }
 
 /* Avisos en línea (retenciones, advertencias, confirmaciones). El espaciado queda en el markup. */
+@utility cine-alert-info {
+  border: 2px solid var(--color-brand-500);
+  border-radius: var(--radius-lg);
+  background-color: --alpha(var(--color-ink-900) / 92%);
+  color: var(--color-brand-300);
+}
+
 @utility cine-alert-warning {
-  border: 2px solid --alpha(var(--color-gold-500) / 45%);
+  border: 2px solid var(--color-gold-600);
   border-radius: var(--radius-lg);
   background-color: --alpha(var(--color-gold-900) / 85%);
   color: var(--color-gold-400);
 }
 
 @utility cine-alert-success {
-  border: 2px solid --alpha(var(--color-hp-500) / 45%);
+  border: 2px solid var(--color-hp-500);
   border-radius: var(--radius-lg);
   background-color: --alpha(var(--color-ink-900) / 92%);
 }
 
 /* Aviso de error: mismo formato que las alertas, sobre la escala "virus". */
 @utility cine-alert-danger {
-  border: 2px solid --alpha(var(--color-virus-500) / 50%);
+  border: 2px solid var(--color-virus-500);
   border-radius: var(--radius-lg);
   background-color: --alpha(var(--color-ink-900) / 92%);
   color: var(--color-virus-300);
@@ -327,9 +467,10 @@
     animation: pc-hop 200ms step-end 760ms;
   }
 
-  /* Placa gris "leyendo" el número mientras todavía no alcanza para decidir la marca. */
+  /* Placa gris "leyendo" el número mientras todavía no alcanza para decidir la marca. Los bucles
+   * se cortan antes de los 5 s (WCAG 3 "No visual motion") y quedan en su estado final. */
   .pc-scanline {
-    animation: pc-scan 1.3s steps(52) infinite;
+    animation: pc-scan 1.3s steps(52) 3;
   }
 
   .pc-glint {
@@ -341,12 +482,12 @@
   }
 
   .pc-blink {
-    animation: pc-blink 800ms step-end infinite;
+    animation: pc-blink 800ms step-end 6;
   }
 
   /* Holograma del dorso: ciclo de paleta, una franja por cuadro. */
   .pc-holo {
-    animation: pc-holo 1.2s steps(6) infinite;
+    animation: pc-holo 1.2s steps(6) 4;
   }
 
   /*

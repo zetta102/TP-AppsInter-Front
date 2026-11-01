@@ -10,6 +10,28 @@ import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from '
  * servidor depende de su idioma y solo se usa como respaldo para restricciones desconocidas.
  */
 
+/**
+ * Mensaje de error de un campo. Se marca de tres formas a la vez —símbolo, color y la palabra
+ * "Error"— y el campo además cambia de borde (`aria-invalid` en `cine-input`), así que no depende
+ * solo del color (WCAG 3 "Errors indicated in multiple ways").
+ */
+export function FieldError({ id, children }: { readonly id: string; readonly children: string }) {
+  return (
+    <p id={id} role="alert" className="mt-1 flex items-start gap-1.5 text-xs text-virus-400">
+      <span
+        aria-hidden="true"
+        className="mt-px inline-flex size-4 shrink-0 items-center justify-center border-2 border-virus-400 text-xs leading-none font-bold"
+      >
+        !
+      </span>
+      <span>
+        <span className="sr-only">Error: </span>
+        {children}
+      </span>
+    </p>
+  );
+}
+
 export interface FieldProps {
   readonly label: string;
   readonly children: (props: {
@@ -42,11 +64,7 @@ export function Field({ label, children, error, hint, required, className = '' }
         )}
       </label>
       {children({ id, describedBy })}
-      {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-virus-400">
-          {error}
-        </p>
-      )}
+      {error && <FieldError id={errorId}>{error}</FieldError>}
       {hint && (
         <p id={hintId} className="mt-1 text-xs text-ink-500">
           {hint}

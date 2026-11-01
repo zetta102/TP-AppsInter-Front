@@ -161,7 +161,7 @@ export default function AdminInventory() {
 
   return (
     <AdminPage
-      title="Inventario"
+      title="Confitería"
       description="El stock se descuenta cuando se crea una reserva y se repone cuando se cancela."
       action={
         <button
@@ -488,7 +488,7 @@ function AdjustStockModal({
           </div>
         </form>
 
-        <div className="border-t border-ink-800 pt-4">
+        <div className="border-t-2 border-ink-700 pt-4">
           <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-500 uppercase">
             Ajustes recientes
           </h3>
@@ -503,7 +503,7 @@ function AdjustStockModal({
               {history.data.content.map((entry) => (
                 <li
                   key={entry.uuid}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 px-3 py-2"
+                  className="flex items-center justify-between gap-3 border-2 border-ink-700 px-3 py-2"
                 >
                   <span>
                     <span className={entry.delta >= 0 ? 'text-hp-400' : 'text-virus-400'}>

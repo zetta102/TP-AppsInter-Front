@@ -15,6 +15,7 @@ import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { TextInput } from '../ui/Field.tsx';
 import { Modal } from '../ui/Modal.tsx';
+import { SEAT_BASE, seatColorClass, seatShapeClass } from '../booking/SeatMap.tsx';
 import { AdminPage } from './AdminPage.tsx';
 
 /** Letras de fila A, B, … Z, AA, AB: el mismo formato que suele usar una sala de cine. */
@@ -66,7 +67,7 @@ export default function AdminRoomSeats() {
 
   if (!roomId) {
     return (
-      <AdminPage title="Plano de asientos">
+      <AdminPage title="Distribución de asientos">
         <EmptyState
           title="No hay ninguna sala seleccionada"
           action={
@@ -161,11 +162,11 @@ export default function AdminRoomSeats() {
 
   return (
     <AdminPage
-      title={room.data ? `Asientos · ${room.data.roomName}` : 'Plano de asientos'}
-      description={`Seleccioná un asiento para alternar entre normal y premium. Las entradas premium cuestan ${premiumMultiplier} el precio base.`}
+      title={room.data ? `Asientos · ${room.data.roomName}` : 'Distribución de asientos'}
+      description={`Seleccioná un asiento para alternar entre normal y premium. Las entradas premium cuestan ${premiumMultiplier} el precio base; se reconocen por el respaldo (borde superior) grueso.`}
       action={
         <div className="flex gap-2">
-          <a href="/admin/rooms" className="cine-btn cine-btn-ghost">
+          <a href="/admin/rooms" className="cine-btn cine-btn-ghost bg-ink-950/50">
             Todas las salas
           </a>
           <button
@@ -238,6 +239,7 @@ export default function AdminRoomSeats() {
                 {layoutData.columns.map((column) => {
                   const seat = existing.get(coord(row, column));
                   if (!seat) return <span key={column} className="size-8 shrink-0" />;
+                  const isPremium = seat.seatType === SeatType.PREMIUM;
                   return (
                     <button
                       key={column}
@@ -247,10 +249,10 @@ export default function AdminRoomSeats() {
                       aria-label={`Editar asiento ${seatLabel(seat.row, seat.column)}, ${seatTypeLabels[seat.seatType]}`}
                       title={`${seatLabel(seat.row, seat.column)} · ${seatTypeLabels[seat.seatType]}`}
                       className={cx(
-                        'size-8 shrink-0 rounded-md font-display text-[8px] disabled:opacity-50',
-                        seat.seatType === SeatType.PREMIUM
-                          ? 'bg-gold-500/25 text-gold-400 hover:bg-gold-500/45'
-                          : 'bg-ink-700 text-ink-100 hover:bg-ink-600',
+                        SEAT_BASE,
+                        seatShapeClass(isPremium),
+                        seatColorClass('available', isPremium, true),
+                        'disabled:opacity-50',
                       )}
                     >
                       {column}

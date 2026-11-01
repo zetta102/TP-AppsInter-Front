@@ -31,12 +31,17 @@ function PosterPlaceholder({ title }: { readonly title: string }) {
     .map((word) => word[0]?.toUpperCase() ?? '')
     .join('');
 
+  // Cuatro bandas duras entre los dos tonos, como una paleta de 16 bits (sin interpolación suave).
+  const from = `oklch(0.34 0.09 ${hue})`;
+  const to = `oklch(0.2 0.05 ${(hue + 60) % 360})`;
+  const band = (share: number) => `color-mix(in oklch, ${from} ${share}%, ${to})`;
+
   return (
     <div
       aria-hidden="true"
-      className="flex aspect-2/3 w-full items-center justify-center rounded-lg font-display text-2xl text-white/80 [text-shadow:2px_2px_0_rgb(0_0_0/0.5)]"
+      className="flex aspect-2/3 w-full items-center justify-center font-display text-2xl text-white/80 text-shadow-black/50 text-shadow-pixel"
       style={{
-        background: `linear-gradient(150deg, oklch(0.34 0.09 ${hue}), oklch(0.2 0.05 ${(hue + 60) % 360}))`,
+        background: `linear-gradient(150deg, ${from} 0 25%, ${band(67)} 25% 50%, ${band(33)} 50% 75%, ${to} 75% 100%)`,
       }}
     >
       {initials}
@@ -61,7 +66,7 @@ export function Poster({
     <img
       src={movie.posterUrl}
       alt={`Póster de ${movie.movieName}`}
-      className="aspect-2/3 w-full rounded-lg object-cover"
+      className="aspect-2/3 w-full object-cover"
       {...(priority ? { fetchPriority: 'high' } : { loading: 'lazy' })}
     />
   );
@@ -103,7 +108,10 @@ export function MovieCard({
 
       <div className="flex flex-col gap-2">
         <h3 className="text-base leading-tight font-semibold">
-          <a href={`/movies/detail?id=${movie.uuid}`} className="hover:text-brand-400">
+          <a
+            href={`/movies/detail?id=${movie.uuid}`}
+            className="decoration-2 underline-offset-3 hover:text-brand-400 hover:underline"
+          >
             {movie.movieName}
           </a>
         </h3>
@@ -113,7 +121,7 @@ export function MovieCard({
       </div>
 
       {screenings.length > 0 && (
-        <div className="mt-auto flex flex-wrap gap-1 border-t border-ink-800 pt-3">
+        <div className="mt-auto flex flex-wrap gap-1 border-t-2 border-ink-700 pt-3">
           {screenings.slice(0, 4).map((screening) =>
             screening.soldOut ? (
               // El `title` no llega al teclado ni a los lectores: la sala y el estado van también en
@@ -174,9 +182,14 @@ export function ScreeningAvailability({ screening }: { readonly screening: Scree
   if (screening.availableSeats === 0) {
     // Quedan asientos sin vender, pero otros clientes los tienen retenidos.
     return (
+      // El `title` solo llega al puntero: la explicación va también como texto para lectores y
+      // teclado.
       <Badge tone="warning">
         <span title="Otros clientes están comprando estos asientos. Volvé a mirar en unos minutos.">
           En compra
+          <span className="sr-only">
+            : otros clientes están comprando estos asientos. Volvé a mirar en unos minutos.
+          </span>
         </span>
       </Badge>
     );
@@ -195,7 +208,7 @@ export function ScreeningRow({ screening }: { readonly screening: Screening }) {
     <Tag
       {...(screening.soldOut ? {} : { href: `/screenings/seats?id=${screening.uuid}` })}
       className={cx(
-        'flex items-center justify-between gap-4 rounded-lg border border-ink-800 px-4 py-3 transition-colors',
+        'flex items-center justify-between gap-4 border-2 border-ink-700 bg-ink-950/50 px-4 py-3 transition-colors',
         screening.soldOut ? 'opacity-50' : 'hover:bg-ink-800/50',
       )}
     >

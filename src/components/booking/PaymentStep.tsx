@@ -14,7 +14,7 @@ import {
   type CardInput,
   type CardKind,
 } from '../../lib/card.ts';
-import { TextInput } from '../ui/Field.tsx';
+import { FieldError, TextInput } from '../ui/Field.tsx';
 import { PixelCard } from './PixelCard.tsx';
 
 /**
@@ -121,7 +121,7 @@ export function PaymentStep({
   return (
     <section className="flex flex-col gap-5 cine-card p-5">
       <header className="flex flex-col gap-1">
-        <h2 ref={headingRef} tabIndex={-1} className="text-sm font-semibold">
+        <h2 ref={headingRef} tabIndex={-1} className="cine-titlebar mb-3">
           Datos de la tarjeta
         </h2>
         <p className="text-xs text-ink-500">
@@ -249,11 +249,7 @@ export function PaymentStep({
                 </label>
               ))}
             </div>
-            {kindError && (
-              <p id={kindErrorId} role="alert" className="mt-1 text-xs text-virus-400">
-                {kindError}
-              </p>
-            )}
+            {kindError && <FieldError id={kindErrorId}>{kindError}</FieldError>}
           </fieldset>
         </div>
       </div>

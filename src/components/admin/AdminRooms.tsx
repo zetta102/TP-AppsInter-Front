@@ -75,7 +75,7 @@ export default function AdminRooms() {
       key: 'seats',
       header: 'Asientos',
       cell: (room) => (
-        <a href={`/admin/rooms/seats?id=${room.uuid}`} className="text-brand-400 hover:underline">
+        <a href={`/admin/rooms/seats?id=${room.uuid}`} className="cine-link">
           Gestionar distribución
         </a>
       ),

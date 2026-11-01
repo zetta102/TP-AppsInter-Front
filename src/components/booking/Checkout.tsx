@@ -1,5 +1,5 @@
 import { navigate } from 'astro:transitions/client';
-import { useActionState, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useActionState, useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { cardFields, validateCard } from '../../lib/card.ts';
@@ -33,6 +33,7 @@ import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
 import { emptyCardForm, PaymentStep, type CardForm } from './PaymentStep.tsx';
+import { PurchaseSteps } from './PurchaseSteps.tsx';
 import { isScreeningClosed, ScreeningClosedNotice } from './ScreeningClosedNotice.tsx';
 import { indexSeatsById, SeatMap } from './SeatMap.tsx';
 
@@ -95,9 +96,14 @@ function CheckoutPanel() {
   const [initialised, setInitialised] = useState(false);
   const [quantities, setQuantities] = useState<ReadonlyMap<string, number>>(new Map());
   const [step, setStep] = useState<Step>('order');
-  // Se conserva al volver al pedido; desaparece con el checkout al confirmar la reserva.
-  const [card, setCard] = useState<CardForm>(emptyCardForm);
+  // Se conserva al volver al pedido; desaparece con el checkout al confirmar la reserva. El
+  // titular arranca con el nombre de la cuenta, editable (WCAG 3 "No redundant entry").
+  const [card, setCard] = useState<CardForm>(() => ({
+    ...emptyCardForm,
+    name: user ? `${user.firstName} ${user.lastName}`.trim().toUpperCase().slice(0, 26) : '',
+  }));
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const blockReasonId = useId();
 
   // Al cambiar de paso, el foco va al título del paso nuevo (el contenido anterior desaparece).
   const goToStep = (next: Step) => {
@@ -284,47 +290,89 @@ function CheckoutPanel() {
   const total = quote?.totalPrice ?? localEstimate.total;
 
   const closed = isScreeningClosed(screening, now);
-  const canSubmit = chosenSeats.length > 0 && !closed && !seatHold.expired;
+  // Por qué no se puede avanzar, junto al botón deshabilitado (WCAG 3 "Disabled controls explained").
+  const blockReason = closed
+    ? 'La función ya no admite reservas.'
+    : seatHold.expired
+      ? 'Tu retención venció: renovala para continuar.'
+      : chosenSeats.length === 0
+        ? 'Elegí al menos un asiento para continuar.'
+        : null;
+  const canSubmit = blockReason === null;
+
+  // Total y acción principal. En pantallas angostas van en una barra fija inferior, en el mismo
+  // lugar que en el selector de asientos (WCAG 3 "Consistent control location"); desde `lg`, en
+  // el resumen lateral. Solo una de las dos copias se muestra (la otra tiene `display: none`).
+  const actions = (where: 'aside' | 'bar') => {
+    const reasonId = `${blockReasonId}-${where}`;
+    return (
+      <>
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className={cx(
+            'flex justify-between text-base font-semibold',
+            where === 'aside' && 'border-t-2 border-ink-700 pt-3',
+          )}
+        >
+          <span>Total</span>
+          <span className="tabular-nums">{formatMoney(total)}</span>
+        </div>
+
+        {blockReason && (
+          <p id={reasonId} className="text-xs text-gold-400">
+            {blockReason}
+          </p>
+        )}
+
+        {step === 'payment' ? (
+          <>
+            <SubmitButton
+              disabled={!canSubmit}
+              pendingLabel="Procesando pago…"
+              {...(blockReason ? { describedBy: reasonId } : {})}
+            >
+              Pagar {formatMoney(total)}
+            </SubmitButton>
+            <button
+              type="button"
+              className="cine-btn cine-btn-ghost"
+              onClick={() => goToStep('order')}
+            >
+              Volver al pedido
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="cine-btn cine-btn-primary"
+            disabled={!canSubmit}
+            aria-describedby={blockReason ? reasonId : undefined}
+            onClick={() => goToStep('payment')}
+          >
+            Continuar al pago
+          </button>
+        )}
+      </>
+    );
+  };
 
   return (
     // Un solo formulario para los dos pasos: en el pedido no hay ningún botón de envío.
     <form action={submitAction} noValidate className="grid gap-8 lg:grid-cols-[1fr_22rem]">
       <div className="flex flex-col gap-6">
         <header className="flex flex-col gap-3">
-          <div>
+          <div className="cine-plate">
             <h1 className="text-lg sm:text-2xl">{screening.movieName}</h1>
             <p className="text-sm text-ink-500">
               {formatDateTime(screening.startsAt)} · {screening.roomName}
             </p>
           </div>
-          <ol
-            aria-label="Pasos de la compra"
-            className="flex items-center gap-3 font-display text-xs"
-          >
-            {(
-              [
-                ['order', '1 · Pedido'],
-                ['payment', '2 · Pago'],
-              ] as const
-            ).map(([key, label]) => (
-              <li
-                key={key}
-                aria-current={step === key ? 'step' : undefined}
-                className={cx(
-                  'border-b-2 pb-1',
-                  step === key
-                    ? 'border-brand-400 text-brand-300'
-                    : 'border-transparent text-ink-500',
-                )}
-              >
-                {label}
-              </li>
-            ))}
-          </ol>
+          <PurchaseSteps current={step} />
         </header>
 
         {seatHold.hold && !seatHold.expired && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-brand-500/40 bg-brand-500/10 px-4 py-3 text-sm text-brand-300">
+          <div className="flex items-center justify-between gap-3 cine-alert-info px-4 py-3 text-sm">
             {/* Solo el aviso es una región viva: la cuenta regresiva no se anuncia cada segundo. */}
             <span role="status">
               Tus asientos están reservados para vos.
@@ -393,7 +441,7 @@ function CheckoutPanel() {
         ) : (
           <>
             <section className="cine-card p-5">
-              <h2 ref={stepHeadingRef} tabIndex={-1} className="mb-4 text-sm font-semibold">
+              <h2 ref={stepHeadingRef} tabIndex={-1} className="cine-titlebar mb-4">
                 Tus asientos
               </h2>
               <SeatMap
@@ -408,14 +456,14 @@ function CheckoutPanel() {
             </section>
 
             <section className="cine-card p-5">
-              <h2 className="mb-4 text-sm font-semibold">Agregar confitería</h2>
+              <h2 className="cine-titlebar mb-4">Agregar confitería</h2>
 
               {products.length === 0 ? (
                 <p className="text-sm text-ink-500">
                   No hay productos disponibles en este momento.
                 </p>
               ) : (
-                <ul className="divide-y divide-ink-800">
+                <ul className="divide-y-2 divide-ink-700">
                   {products.map((product) => {
                     const quantity = quantities.get(product.uuid) ?? 0;
                     const soldOut = !product.available;
@@ -433,7 +481,7 @@ function CheckoutPanel() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            className="cine-btn cine-btn-ghost px-2 py-1"
+                            className="cine-btn size-9 cine-btn-ghost p-0"
                             disabled={quantity === 0}
                             aria-label={`Quitar una unidad de ${product.productName}`}
                             onClick={() => setQuantity(product.uuid, quantity - 1)}
@@ -450,7 +498,7 @@ function CheckoutPanel() {
                           </span>
                           <button
                             type="button"
-                            className="cine-btn cine-btn-ghost px-2 py-1"
+                            className="cine-btn size-9 cine-btn-ghost p-0"
                             disabled={soldOut}
                             aria-label={`Agregar una unidad de ${product.productName}`}
                             onClick={() => setQuantity(product.uuid, quantity + 1)}
@@ -470,7 +518,7 @@ function CheckoutPanel() {
 
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <div className="flex flex-col gap-4 cine-card p-5">
-          <h2 className="text-sm font-semibold">Resumen del pedido</h2>
+          <h2 className="cine-titlebar">Resumen del pedido</h2>
 
           <ul className="flex flex-col gap-2 text-sm">
             {chosenSeats.length === 0 ? (
@@ -518,38 +566,7 @@ function CheckoutPanel() {
             })}
           </ul>
 
-          <div
-            aria-live="polite"
-            aria-atomic="true"
-            className="flex justify-between border-t border-ink-800 pt-3 text-base font-semibold"
-          >
-            <span>Total</span>
-            <span className="tabular-nums">{formatMoney(total)}</span>
-          </div>
-
-          {step === 'payment' ? (
-            <>
-              <SubmitButton disabled={!canSubmit} pendingLabel="Procesando pago…">
-                Pagar {formatMoney(total)}
-              </SubmitButton>
-              <button
-                type="button"
-                className="cine-btn cine-btn-ghost"
-                onClick={() => goToStep('order')}
-              >
-                Volver al pedido
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="cine-btn cine-btn-primary"
-              disabled={!canSubmit}
-              onClick={() => goToStep('payment')}
-            >
-              Continuar al pago
-            </button>
-          )}
+          <div className="hidden flex-col gap-4 lg:flex">{actions('aside')}</div>
 
           <p className="text-xs text-ink-500">
             {quote
@@ -558,6 +575,10 @@ function CheckoutPanel() {
           </p>
         </div>
       </aside>
+
+      <div className="sticky bottom-4 flex flex-col gap-3 cine-card p-4 lg:hidden">
+        {actions('bar')}
+      </div>
     </form>
   );
 }

@@ -21,7 +21,7 @@ export function AdminPage({
     <AdminGuard>
       <div className="flex flex-col gap-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+          <div className="cine-plate">
             <h1 className="text-lg sm:text-2xl">{title}</h1>
             {description && <p className="mt-1 text-sm text-ink-500">{description}</p>}
           </div>

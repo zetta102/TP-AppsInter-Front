@@ -53,15 +53,16 @@ export function Modal({
         wide ? 'max-w-3xl' : 'max-w-lg',
       )}
     >
-      <div className="flex items-center justify-between border-b-2 border-ink-700 px-5 py-4">
-        <h2 id={titleId} className="text-base font-semibold">
+      {/* Barra de título de ventana: el diálogo no tiene relleno, así que no hay que compensarlo. */}
+      <div className="cine-titlebar justify-between py-1.5 pr-1.5 [--cine-titlebar-inset:0px]">
+        <h2 id={titleId} className="mr-auto text-base font-semibold">
           {title}
         </h2>
         <button
           type="button"
           onClick={onClose}
           aria-label="Cerrar"
-          className="cine-btn cine-btn-ghost px-2 py-1"
+          className="cine-btn border-brand-300 px-2 py-1 text-white hover:bg-brand-600"
         >
           <span aria-hidden="true">✕</span>
         </button>
@@ -70,7 +71,7 @@ export function Modal({
         {children}
       </div>
       {footer && (
-        <div className="flex justify-end gap-2 border-t border-ink-800 px-5 py-4">{footer}</div>
+        <div className="flex justify-end gap-2 border-t-2 border-ink-700 px-5 py-4">{footer}</div>
       )}
     </dialog>
   );

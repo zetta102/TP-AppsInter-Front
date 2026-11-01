@@ -38,7 +38,7 @@ export function ItemLines({ reservation }: { readonly reservation: Reservation }
   if (reservation.items.length === 0) return null;
 
   return (
-    <ul className="divide-y divide-ink-800 text-sm">
+    <ul className="divide-y-2 divide-ink-700 text-sm">
       {reservation.items.map((item) => (
         <li key={item.uuid} className="flex justify-between gap-3 py-2">
           <span>

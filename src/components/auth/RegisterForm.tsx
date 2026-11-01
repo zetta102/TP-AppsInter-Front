@@ -98,7 +98,7 @@ export default function RegisterForm() {
 
       <p className="text-center text-sm text-ink-500">
         ¿Ya tenés una cuenta?{' '}
-        <a href="/login" className="text-brand-400 hover:underline">
+        <a href="/login" className="cine-link">
           Iniciá sesión
         </a>
       </p>

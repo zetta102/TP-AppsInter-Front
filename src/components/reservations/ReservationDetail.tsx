@@ -63,7 +63,7 @@ function DetailPanel() {
       {cancellation.dialog}
 
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="cine-plate">
           <h1 className="text-lg sm:text-2xl">{reservation.movieName}</h1>
           <p className="text-sm text-ink-500">
             Reservada el {formatDateTime(reservation.createdAt)} · referencia{' '}
@@ -79,7 +79,7 @@ function DetailPanel() {
       {cancellation.error !== null && <ErrorBanner error={cancellation.error} />}
 
       {cancelled && (
-        <p className="rounded-lg border border-ink-800 bg-ink-900 px-4 py-3 text-sm text-ink-300">
+        <p className="border-2 border-ink-700 bg-ink-900 px-4 py-3 text-sm text-ink-300">
           Esta reserva se canceló
           {reservation.cancelledAt && ` el ${formatDateTime(reservation.cancelledAt)}`}. Los
           asientos se liberaron y cualquier producto adicional volvió al stock.
@@ -87,11 +87,11 @@ function DetailPanel() {
       )}
 
       <section className="cine-card p-5">
-        <h2 className="mb-3 text-sm font-semibold">Entradas</h2>
+        <h2 className="cine-titlebar mb-3">Entradas</h2>
         {reservation.tickets.length === 0 ? (
           <p className="text-sm text-ink-500">No hay entradas en esta reserva.</p>
         ) : (
-          <ul className="divide-y divide-ink-800 text-sm">
+          <ul className="divide-y-2 divide-ink-700 text-sm">
             {reservation.tickets.map((ticket) => (
               <li key={ticket.uuid} className="flex justify-between gap-3 py-2">
                 <span>
@@ -107,7 +107,7 @@ function DetailPanel() {
 
       {reservation.items.length > 0 && (
         <section className="cine-card p-5">
-          <h2 className="mb-3 text-sm font-semibold">Productos adicionales</h2>
+          <h2 className="cine-titlebar mb-3">Productos adicionales</h2>
           <ItemLines reservation={reservation} />
         </section>
       )}
@@ -131,7 +131,7 @@ function DetailPanel() {
         </div>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="ml-auto flex cine-plate justify-end gap-2">
         <a href="/reservations" className="cine-btn cine-btn-ghost">
           Volver a mis reservas
         </a>

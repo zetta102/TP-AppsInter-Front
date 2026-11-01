@@ -54,8 +54,8 @@ export default function NowShowing() {
     <div className="flex flex-col gap-12">
       <section>
         <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-xl font-bold">En cartel</h2>
-          <p className="text-sm text-ink-500">
+          <h2 className="cine-heading">En cartel</h2>
+          <p className="cine-plate text-sm text-ink-500">
             {formatCount(screeningCount, 'próxima función', 'próximas funciones')}
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function NowShowing() {
 
       {rest.length > 0 && (
         <section>
-          <h2 className="mb-4 text-xl font-bold">También en el catálogo</h2>
+          <h2 className="mb-4 cine-heading">También en el catálogo</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {rest.map((movie) => (
               <MovieCard key={movie.uuid} movie={movie} />

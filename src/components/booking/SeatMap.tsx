@@ -68,7 +68,7 @@ export function SeatMap({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="mx-auto h-1.5 w-3/4 rounded-full bg-linear-to-b from-ink-700 to-transparent" />
+      <div className="mx-auto h-2 w-3/4 bg-ink-600 shadow-[0_2px_0_var(--color-ink-800)]" />
       <p className="text-center text-xs tracking-[0.3em] text-ink-500 uppercase">Pantalla</p>
 
       <div className="overflow-x-auto pb-2">
@@ -96,7 +96,7 @@ export function SeatMap({
                 const seat = byCoord.get(coordKey(row, column));
 
                 // Un hueco en la grilla dispersa: es un pasillo, no un asiento.
-                if (!seat) return <span key={column} className="size-7 shrink-0" />;
+                if (!seat) return <span key={column} className="size-8 shrink-0" />;
 
                 const isSelected = selectedSet.has(seat.seatId);
                 const isLost = lostSet.has(seat.seatId);
@@ -124,7 +124,18 @@ export function SeatMap({
                     title={`${seatLabel(seat.row, seat.column)} · ${formatMoney(
                       ticketPrice(basePrice, seat.seatType, premiumMultiplier),
                     )}`}
-                    className={seatClass({ isSelected, isLost, isPremium, seat, interactive })}
+                    className={cx(
+                      SEAT_BASE,
+                      // `scroll-mb-32`: al enfocar con teclado, el asiento queda por encima de la
+                      // barra fija inferior del selector (WCAG 2.4.11).
+                      'scroll-mb-32',
+                      seatShapeClass(isPremium),
+                      seatColorClass(
+                        seatState({ isSelected, isLost, seat }),
+                        isPremium,
+                        interactive,
+                      ),
+                    )}
                   >
                     {column}
                   </button>
@@ -140,40 +151,87 @@ export function SeatMap({
   );
 }
 
-const HELD_CLASS = 'border border-dashed border-gold-600 bg-gold-900/60';
+/**
+ * Piezas de estilo de un asiento, compartidas con el editor de salas (`AdminRoomSeats.tsx`) y con
+ * la leyenda, para que la leyenda no pueda desviarse de los asientos.
+ *
+ * Cada estado se distingue por algo más que el tono (WCAG 3 "Hue not relied on"): premium lleva
+ * un respaldo grueso arriba, seleccionado es mucho más claro, ocupado va tachado, retenido tiene
+ * borde punteado y "recién ocupado" suma un marco exterior. Los bordes de los asientos
+ * disponibles contrastan ≥3:1 con la tarjeta.
+ */
+export const SEAT_BASE =
+  'flex size-8 shrink-0 items-center justify-center text-xs tabular-nums transition-colors';
 
-function seatClass({
+export type SeatState = 'available' | 'selected' | 'sold' | 'held' | 'lost';
+
+function seatState({
   isSelected,
   isLost,
-  isPremium,
   seat,
-  interactive,
 }: {
   readonly isSelected: boolean;
   readonly isLost: boolean;
-  readonly isPremium: boolean;
   readonly seat: SeatAvailability;
-  readonly interactive: boolean;
-}): string {
-  // `scroll-mb-32`: al enfocar con teclado, el asiento queda por encima de la barra fija inferior
-  // del selector (WCAG 2.4.11).
-  const base =
-    'size-7 shrink-0 scroll-mb-32 rounded-md font-display text-[8px] transition-colors flex items-center justify-center';
+}): SeatState {
+  if (isLost) return 'lost';
+  if (isSelected) return 'selected';
+  if (!seat.available) return 'sold';
+  if (seat.held) return 'held';
+  return 'available';
+}
 
-  if (isLost)
-    return cx(base, 'bg-virus-600 ring-virus-400 motion-safe:animate-pulse text-white ring-2');
-  if (isSelected) return cx(base, 'text-ink-950 bg-hp-500');
-  if (!seat.available) return cx(base, 'bg-ink-800 text-ink-500 cursor-not-allowed line-through');
-  // Borde punteado: el estado "retenido" no puede distinguirse solo por color (WCAG 1.4.1).
-  if (seat.held) return cx(base, HELD_CLASS, 'text-gold-600 cursor-not-allowed');
-  if (!interactive) {
-    return cx(base, isPremium ? 'bg-gold-500/25 text-gold-400' : 'bg-ink-700 text-ink-300');
+/** La forma marca el tipo en cualquier estado: premium tiene el borde superior grueso. */
+export function seatShapeClass(isPremium: boolean): string {
+  return isPremium ? 'border-2 border-t-4' : 'border-2';
+}
+
+export function seatColorClass(state: SeatState, isPremium: boolean, interactive: boolean): string {
+  switch (state) {
+    case 'lost':
+      // Parpadeo de tres vueltas (menos de 5 s, WCAG 3 "No visual motion"); el marco exterior
+      // queda fijo y lo distingue también sin movimiento.
+      return 'border-virus-300 bg-virus-600 text-white ring-2 ring-virus-300 ring-offset-2 ring-offset-ink-900 motion-safe:animate-[pc-blink_800ms_step-end_3]';
+    case 'selected':
+      return 'border-hp-400 bg-hp-500 text-ink-950 forced-colors:bg-[Highlight] forced-colors:text-[HighlightText]';
+    case 'sold':
+      return 'cursor-not-allowed border-ink-700 bg-ink-800 text-ink-500 line-through';
+    case 'held':
+      return 'cursor-not-allowed border-dashed border-gold-600 bg-gold-900/60 text-gold-600';
+    case 'available':
+      if (isPremium) {
+        return cx(
+          'border-gold-500 border-t-gold-400 bg-gold-900 text-gold-400',
+          interactive && 'hover:bg-gold-600/40',
+        );
+      }
+      return cx(
+        'border-ink-500 bg-ink-700',
+        interactive ? 'text-ink-100 hover:bg-ink-600' : 'text-ink-300',
+      );
   }
-  return cx(
-    base,
-    isPremium
-      ? 'bg-gold-500/25 text-gold-400 hover:bg-gold-500/45'
-      : 'bg-ink-700 text-ink-100 hover:bg-ink-600',
+}
+
+function LegendSwatch({
+  state,
+  isPremium = false,
+  children,
+}: {
+  readonly state: SeatState;
+  readonly isPremium?: boolean;
+  readonly children?: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx(
+        'flex size-5 shrink-0 items-center justify-center',
+        seatShapeClass(isPremium),
+        seatColorClass(state, isPremium, false),
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -187,25 +245,24 @@ export function SeatLegend({
   return (
     <ul className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-500">
       <li className="flex items-center gap-2">
-        <span className="size-4 rounded-sm bg-ink-700" />
+        <LegendSwatch state="available" />
         Estándar · {formatMoney(ticketPrice(basePrice, SeatType.NORMAL, premiumMultiplier))}
       </li>
       <li className="flex items-center gap-2">
-        <span className="size-4 rounded-sm bg-gold-500/25" />
-        Premium · {formatMoney(ticketPrice(basePrice, SeatType.PREMIUM, premiumMultiplier))}
+        <LegendSwatch state="available" isPremium />
+        Premium (respaldo grueso) ·{' '}
+        {formatMoney(ticketPrice(basePrice, SeatType.PREMIUM, premiumMultiplier))}
       </li>
       <li className="flex items-center gap-2">
-        <span className="size-4 rounded-sm bg-hp-500" />
+        <LegendSwatch state="selected" />
         Seleccionado
       </li>
       <li className="flex items-center gap-2">
-        <span className="flex size-4 items-center justify-center rounded-sm bg-ink-800 font-display text-[8px] text-ink-500 line-through">
-          <span aria-hidden="true">1</span>
-        </span>
+        <LegendSwatch state="sold">1</LegendSwatch>
         Ocupado
       </li>
       <li className="flex items-center gap-2">
-        <span className={cx('size-4 rounded-sm', HELD_CLASS)} />
+        <LegendSwatch state="held" />
         Retenido por otro cliente
       </li>
     </ul>

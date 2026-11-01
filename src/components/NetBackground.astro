@@ -1,18 +1,22 @@
 ---
 /**
- * Fondo animado "Net": dos capas de baldosas de 16 bits que se desplazan en diagonal, al estilo
- * de las áreas de Internet de Mega Man Battle Network. Lejos, una grilla de circuito; cerca, los
- * pares "6 7", que además giran sobre su eje vertical como los emblemas de MMBN 4-6.
+ * Fondo "Net": dos capas de baldosas de 16 bits al estilo de las áreas de Internet de Mega Man
+ * Battle Network. Lejos, una grilla de circuito; cerca, los pares "6 7", que en modo animado se
+ * desplazan en diagonal y giran sobre su eje vertical como los emblemas de MMBN 4-6.
  *
  * El giro vive dentro de `net-67-spin.svg`, con cuadros de píxeles dibujados a mano y sin escalados
- * que emborronen. La página no puede pausar la animación de una imagen: en pausa o con movimiento
- * reducido se usa la baldosa estática `net-67.svg`.
+ * que emborronen. La página no puede pausar la animación de una imagen: fuera del modo animado se
+ * usa la baldosa estática `net-67.svg`.
  *
  * Persiste entre transiciones (`transition:persist`): el `ClientRouter` reemplaza el `<body>` en
  * cada navegación y, sin persistir, la animación volvería a empezar.
  *
- * Movimiento (WCAG 2.2.2 y 2.3.3): solo se anima con `prefers-reduced-motion: no-preference`, y
- * el botón `[data-net-toggle]` del pie lo pausa; la elección se recuerda en `localStorage`.
+ * Modos (`data-mode`), elegidos con el grupo "Fondo" del pie y recordados en `localStorage`:
+ *  - `quieto` (predeterminado): baldosas fijas. WCAG 3 "No visual motion" prohíbe movimiento de
+ *    más de 5 s salvo que la persona lo pida, así que la animación es opcional;
+ *  - `animado`: solo con `prefers-reduced-motion: no-preference`;
+ *  - `liso`: sin baldosas detrás del texto, solo el degradé (WCAG 3 "Background adjustable").
+ * Con colores forzados (alto contraste) el fondo no se dibuja.
  */
 ---
 
@@ -21,37 +25,63 @@
   <div class="net-layer net-layer-near"></div>
 </div>
 
+<!-- Antes del primer pintado: aplica el modo guardado sin mostrar un cuadro del predeterminado. -->
+<script is:inline>
+  try {
+    const mode = window.localStorage.getItem('cine:fondo');
+    if (mode === 'animado' || mode === 'liso') {
+      document.querySelector('.net-bg')?.setAttribute('data-mode', mode);
+    }
+  } catch {
+    // Sin almacenamiento: queda el modo predeterminado.
+  }
+</script>
+
 <script>
-  const STORAGE_KEY = 'cine:fondo-pausado';
+  type NetMode = 'animado' | 'quieto' | 'liso';
 
-  function readPaused(): boolean {
+  const STORAGE_KEY = 'cine:fondo';
+
+  function isNetMode(value: unknown): value is NetMode {
+    return value === 'animado' || value === 'quieto' || value === 'liso';
+  }
+
+  function readMode(): NetMode {
     try {
-      return window.localStorage.getItem(STORAGE_KEY) === '1';
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      return isNetMode(stored) ? stored : 'quieto';
     } catch {
-      return false;
+      return 'quieto';
     }
   }
 
-  function writePaused(paused: boolean) {
+  function writeMode(mode: NetMode) {
     try {
-      window.localStorage.setItem(STORAGE_KEY, paused ? '1' : '0');
+      window.localStorage.setItem(STORAGE_KEY, mode);
     } catch {
-      // Sin almacenamiento (navegación privada) la pausa vale solo para esta página.
+      // Sin almacenamiento (navegación privada) la elección vale solo para esta página.
     }
   }
 
-  function applyPaused(paused: boolean) {
-    document.querySelector('.net-bg')?.toggleAttribute('data-paused', paused);
-    document.querySelector('[data-net-toggle]')?.setAttribute('aria-pressed', String(paused));
+  function applyMode(mode: NetMode) {
+    document.querySelector('.net-bg')?.setAttribute('data-mode', mode);
+    // Con movimiento reducido la opción "Animado" está oculta y el fondo no se mueve: se marca
+    // "Quieto", que es lo que se ve.
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const shown = reduced && mode === 'animado' ? 'quieto' : mode;
+    for (const input of document.querySelectorAll<HTMLInputElement>('input[name="net-mode"]')) {
+      input.checked = input.value === shown;
+    }
   }
 
-  // El pie se reemplaza en cada navegación (el fondo no): se vuelve a enlazar el botón cada vez.
+  // El pie se reemplaza en cada navegación (el fondo no): se vuelve a enlazar el grupo cada vez.
   document.addEventListener('astro:page-load', () => {
-    applyPaused(readPaused());
-    document.querySelector('[data-net-toggle]')?.addEventListener('click', (event) => {
-      const paused = (event.currentTarget as HTMLElement).getAttribute('aria-pressed') !== 'true';
-      writePaused(paused);
-      applyPaused(paused);
+    applyMode(readMode());
+    document.querySelector('[data-net-mode]')?.addEventListener('change', (event) => {
+      const { value } = event.target as HTMLInputElement;
+      if (!isNetMode(value)) return;
+      writeMode(value);
+      applyMode(value);
     });
   });
 </script>
@@ -65,7 +95,14 @@
     z-index: -1;
     overflow: hidden;
     pointer-events: none;
-    background: linear-gradient(to bottom, #020d29, #001b45);
+    /* Degradé en cuatro bandas duras, como una paleta de 16 bits: sin interpolación suave. */
+    background: linear-gradient(
+      to bottom,
+      var(--color-ink-950) 0 25%,
+      color-mix(in oklch, var(--color-ink-950) 67%, var(--color-ink-900)) 25% 50%,
+      color-mix(in oklch, var(--color-ink-950) 33%, var(--color-ink-900)) 50% 75%,
+      var(--color-ink-900) 75% 100%
+    );
   }
 
   /* Una baldosa de margen arriba y a la derecha: el desplazamiento nunca deja huecos. */
@@ -84,30 +121,34 @@
     background-image: url('../assets/net-67.svg');
   }
 
+  .net-bg[data-mode='liso'] .net-layer {
+    display: none;
+  }
+
   /*
    * `steps()` con tantos pasos como píxeles tiene la baldosa: avanza de a 1px entero, sin
    * subpíxeles que emborronen el arte. Recorrer una baldosa exacta hace el bucle invisible.
    */
   @media (prefers-reduced-motion: no-preference) {
-    .net-layer {
+    .net-bg[data-mode='animado'] .net-layer {
       will-change: transform;
     }
 
     /* La grilla lejana va a mitad de velocidad: paralaje. */
-    .net-layer-far {
+    .net-bg[data-mode='animado'] .net-layer-far {
       animation: net-scroll 6.4s steps(96) infinite;
     }
 
-    .net-layer-near {
+    .net-bg[data-mode='animado'] .net-layer-near {
+      background-image: url('../assets/net-67-spin.svg');
       animation: net-scroll 3.2s steps(96) infinite;
     }
+  }
 
-    .net-bg:not([data-paused]) .net-layer-near {
-      background-image: url('../assets/net-67-spin.svg');
-    }
-
-    .net-bg[data-paused] .net-layer {
-      animation-play-state: paused;
+  /* Alto contraste: el sistema impone sus colores y las baldosas solo estorbarían la lectura. */
+  @media (forced-colors: active) {
+    .net-bg {
+      display: none;
     }
   }
 

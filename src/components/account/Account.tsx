@@ -93,8 +93,8 @@ function AccountPanel() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8">
-      <section className="flex flex-col gap-4 cine-card p-6">
-        <h2 className="text-lg font-semibold">Perfil</h2>
+      <section className="flex flex-col gap-4 cine-card p-5">
+        <h2 className="cine-titlebar">Perfil</h2>
 
         <ErrorBanner error={profileState.error} />
         {profileState.success && (
@@ -130,8 +130,8 @@ function AccountPanel() {
         </form>
       </section>
 
-      <section className="flex flex-col gap-4 cine-card p-6">
-        <h2 className="text-lg font-semibold">Cambiar contraseña</h2>
+      <section className="flex flex-col gap-4 cine-card p-5">
+        <h2 className="cine-titlebar">Cambiar contraseña</h2>
 
         <ErrorBanner error={passwordState.error} />
         {passwordState.success && (

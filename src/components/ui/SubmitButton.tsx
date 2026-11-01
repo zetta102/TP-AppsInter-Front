@@ -15,12 +15,15 @@ export function SubmitButton({
   variant = 'primary',
   className = '',
   disabled = false,
+  describedBy,
 }: {
   readonly children: ReactNode;
   readonly pendingLabel?: string;
   readonly variant?: 'primary' | 'secondary' | 'danger';
   readonly className?: string;
   readonly disabled?: boolean;
+  /** Id del texto que explica por qué el botón está deshabilitado. */
+  readonly describedBy?: string;
 }) {
   const { pending } = useFormStatus();
 
@@ -29,6 +32,7 @@ export function SubmitButton({
       type="submit"
       disabled={pending || disabled}
       aria-busy={pending}
+      aria-describedby={describedBy}
       className={cx('cine-btn', `cine-btn-${variant}`, className)}
     >
       {pending && <Spinner />}

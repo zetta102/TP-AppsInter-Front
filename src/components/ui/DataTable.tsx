@@ -58,7 +58,7 @@ export function DataTable<T, Field extends string = string>({
   return (
     <div className="overflow-x-auto cine-card">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-ink-800 text-xs tracking-wide text-ink-500 uppercase">
+        <thead className="border-b-2 border-ink-700 text-xs tracking-wide text-ink-500 uppercase">
           <tr>
             {columns.map((column) => {
               const { sortField } = column;
@@ -98,7 +98,7 @@ export function DataTable<T, Field extends string = string>({
             })}
           </tr>
         </thead>
-        <tbody className="divide-y divide-ink-800">
+        <tbody className="divide-y-2 divide-ink-700">
           {(rows ?? []).map((row) => (
             <tr key={rowKey(row)} className="hover:bg-ink-800/40">
               {columns.map((column) => (
@@ -111,7 +111,7 @@ export function DataTable<T, Field extends string = string>({
         </tbody>
       </table>
       {isLoading && rows && (
-        <p role="status" className="border-t border-ink-800 px-4 py-2 text-xs text-ink-500">
+        <p role="status" className="border-t-2 border-ink-700 px-4 py-2 text-xs text-ink-500">
           Actualizando…
         </p>
       )}

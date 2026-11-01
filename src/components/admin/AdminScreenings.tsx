@@ -394,7 +394,7 @@ function ScreeningFormModal({
         />
 
         {endsAtPreview && (
-          <p className="rounded-lg border border-ink-800 bg-ink-900 px-3 py-2 text-xs text-ink-300">
+          <p className="border-2 border-ink-700 bg-ink-900 px-3 py-2 text-xs text-ink-300">
             Termina a las <strong>{formatDateTime(endsAtPreview.toISOString())}</strong>: duración
             más {turnoverMinutes} minutos de recambio. La sala queda bloqueada durante toda esa
             franja.

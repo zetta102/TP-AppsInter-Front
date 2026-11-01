@@ -179,10 +179,10 @@ function ContactForm({ onSent }: { readonly onSent: () => void }) {
   );
 
   return (
-    <section className="flex flex-col gap-4 cine-card p-6">
+    <section className="flex flex-col gap-4 cine-card p-5">
       <div>
-        <h2 className="text-lg font-semibold">Escribinos</h2>
-        <p className="mt-1 text-sm text-ink-500">
+        <h2 className="cine-titlebar">Escribinos</h2>
+        <p className="mt-4 text-sm text-ink-500">
           Consultas, problemas con una reserva, reclamos o sugerencias. Vas a poder editar tu
           mensaje hasta que el equipo lo lea.
         </p>
@@ -250,12 +250,12 @@ function MyMessages({
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 id={headingId} className="text-lg font-semibold">
+        <h2 id={headingId} className="cine-heading">
           Mis mensajes
         </h2>
         <SelectInput
           label="Motivo"
-          fieldClassName="min-w-48"
+          fieldClassName="cine-plate min-w-48"
           value={category}
           onChange={(event) => {
             const { value } = event.target;
@@ -274,7 +274,7 @@ function MyMessages({
       {content}
 
       {resource.isRefreshing && (
-        <p className="flex items-center justify-center gap-2 text-xs text-ink-500">
+        <p className="mx-auto flex cine-plate items-center justify-center gap-2 text-xs text-ink-500">
           <Spinner /> Actualizando…
         </p>
       )}

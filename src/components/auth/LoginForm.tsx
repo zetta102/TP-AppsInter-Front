@@ -53,7 +53,7 @@ export default function LoginForm() {
 
       <p className="text-center text-sm text-ink-500">
         ¿No tenés cuenta?{' '}
-        <a href="/register" className="text-brand-400 hover:underline">
+        <a href="/register" className="cine-link">
           Creá una
         </a>
       </p>

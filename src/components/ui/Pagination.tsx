@@ -28,12 +28,12 @@ export function Pagination<T>({
       aria-label="Paginación"
       className={cx('flex items-center justify-between gap-4', className)}
     >
-      <p className="text-xs text-ink-500">
+      <p className="cine-plate text-xs text-ink-500">
         {formatCount(page.totalElements, 'resultado', 'resultados')} · página {current + 1} de{' '}
         {formatNumber(page.totalPages)}
       </p>
 
-      <div className="flex items-center gap-1">
+      <div className="flex cine-plate items-center gap-1">
         <button
           type="button"
           className="cine-btn cine-btn-ghost"

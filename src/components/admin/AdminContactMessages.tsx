@@ -342,7 +342,7 @@ function MessageModal({
             {author.firstName} {author.lastName} ·{' '}
             <a
               href={`mailto:${author.email}?subject=${encodeURIComponent(`Re: ${message.subject}`)}`}
-              className="text-brand-400 hover:underline"
+              className="cine-link"
             >
               {author.email}
             </a>
@@ -358,7 +358,7 @@ function MessageModal({
           <dd>{formatDateTime(message.readAt)}</dd>
         </dl>
 
-        <div className="flex flex-col gap-2 border-t border-ink-800 pt-4">
+        <div className="flex flex-col gap-2 border-t-2 border-ink-700 pt-4">
           <h3 className="text-base font-semibold wrap-break-word">{message.subject}</h3>
           <p className="text-sm wrap-break-word whitespace-pre-wrap text-ink-300">{message.body}</p>
         </div>

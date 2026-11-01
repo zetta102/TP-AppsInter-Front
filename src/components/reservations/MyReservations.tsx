@@ -247,7 +247,7 @@ function ReservationList() {
                   <h2 className="text-base font-semibold">
                     <a
                       href={`/reservations/detail?id=${reservation.uuid}`}
-                      className="hover:text-brand-400"
+                      className="decoration-2 underline-offset-3 hover:text-brand-400 hover:underline"
                     >
                       {reservation.movieName}
                     </a>
@@ -301,7 +301,7 @@ function ReservationList() {
       </ul>
 
       {resource.isRefreshing && (
-        <p className="flex items-center justify-center gap-2 text-xs text-ink-500">
+        <p className="mx-auto flex cine-plate items-center justify-center gap-2 text-xs text-ink-500">
           <Spinner /> Actualizando…
         </p>
       )}

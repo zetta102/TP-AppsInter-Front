@@ -64,7 +64,7 @@ export default function MovieDetail() {
   return (
     <article className="flex flex-col gap-10">
       {movie.backdropUrl && (
-        <div className="-mx-4 -mt-4 overflow-hidden rounded-b-xl border-b border-ink-800 sm:-mx-8 sm:-mt-8">
+        <div className="-mx-4 -mt-8 overflow-hidden border-b-2 border-ink-700">
           {/* Imagen principal sobre el pliegue (probable LCP): sin `lazy` y con prioridad alta. */}
           <img
             src={movie.backdropUrl}
@@ -80,7 +80,7 @@ export default function MovieDetail() {
           <Poster movie={movie} priority={!movie.backdropUrl} />
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex cine-plate-block flex-col gap-3">
           <h1 className="text-lg sm:text-2xl">{movie.movieName}</h1>
           <p className="text-sm text-ink-500">{formatRuntime(movie.runtime)}</p>
           <MovieMeta movie={movie} />
@@ -119,7 +119,7 @@ export default function MovieDetail() {
       </header>
 
       <section>
-        <h2 className="mb-4 text-xl font-bold">Próximas funciones</h2>
+        <h2 className="mb-4 cine-heading">Próximas funciones</h2>
 
         {days.length === 0 ? (
           <EmptyState
@@ -130,7 +130,7 @@ export default function MovieDetail() {
           <div className="flex flex-col gap-6">
             {days.map(({ day, first, screenings: dayScreenings }) => (
               <div key={day}>
-                <h3 className="mb-2 text-xs font-semibold tracking-wide text-ink-500 uppercase">
+                <h3 className="mb-2 cine-plate text-xs font-semibold tracking-wide text-ink-500 uppercase">
                   {formatDayHeading(first.startsAt)}
                 </h3>
                 <div className="grid gap-2 sm:grid-cols-2">
