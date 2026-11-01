@@ -20,9 +20,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/react": "^7.1.0",
+    "@astrojs/react": "^7.1.2",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.4.1",
+    "astro": "^7.4.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwindcss": "^4.3.3"
@@ -34,12 +34,12 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "oxc-transform-react": "^0.155.0",
-    "oxlint": "^1.89.0",
+    "oxlint": "^1.90.0",
     "prettier": "^3.9.10",
-    "prettier-plugin-astro": "^1.1.1",
+    "prettier-plugin-astro": "^1.1.2",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
   "overrides": {
