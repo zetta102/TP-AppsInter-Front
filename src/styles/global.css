@@ -272,7 +272,7 @@
 }
 
 /*
- * Tarjeta de 16 bits del paso de pago (`PixelCard.tsx`). Todo avanza de a cuadros (`step-end`,
+ * Tarjeta de 32 bits del paso de pago (`PixelCard.tsx`). Todo avanza de a cuadros (`step-end`,
  * `steps()`): nada se interpola, como un sprite. Sin `prefers-reduced-motion: no-preference`
  * las capas quedan en su estado final y la tarjeta cambia de marca sin animarse.
  */
@@ -302,35 +302,38 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* Transformación: destello, disolución por tramado, el logo aparece con destellos y salta. */
+  /*
+   * Transformación: destello, disolución por los 16 umbrales del tramado Bayer, el logo aparece
+   * con destellos y salta.
+   */
   .pc-animate .pc-flash {
     animation: pc-flash 160ms step-end;
   }
 
   .pc-animate .pc-dissolve-layer {
     opacity: 0;
-    animation: pc-show 1ms linear calc(100ms + var(--pc-frame) * 40ms) forwards;
+    animation: pc-show 1ms linear calc(100ms + var(--pc-frame) * 24ms) forwards;
   }
 
   .pc-animate .pc-logo {
-    animation: pc-pop 240ms step-end 440ms both;
+    animation: pc-pop 240ms step-end 480ms both;
   }
 
   .pc-animate .pc-sparkle {
-    animation: pc-sparkle 300ms step-end calc(480ms + var(--pc-i) * 60ms);
+    animation: pc-sparkle 300ms step-end calc(520ms + var(--pc-i) * 60ms);
   }
 
   .pc-animate .pc-hop {
-    animation: pc-hop 200ms step-end 700ms;
+    animation: pc-hop 200ms step-end 760ms;
   }
 
   /* Placa gris "leyendo" el número mientras todavía no alcanza para decidir la marca. */
   .pc-scanline {
-    animation: pc-scan 1.3s steps(26) infinite;
+    animation: pc-scan 1.3s steps(52) infinite;
   }
 
   .pc-glint {
-    animation: pc-glint 650ms steps(13) both;
+    animation: pc-glint 650ms steps(26) both;
   }
 
   .pc-shake {
@@ -341,26 +344,32 @@
     animation: pc-blink 800ms step-end infinite;
   }
 
+  /* Holograma del dorso: ciclo de paleta, una franja por cuadro. */
+  .pc-holo {
+    animation: pc-holo 1.2s steps(6) infinite;
+  }
+
   /*
-   * Giro al enfocar el CVV: se achica en X, cambia de cara a mitad de camino y vuelve. Dos
-   * nombres iguales para que cada cambio de sentido reinicie la animación.
+   * Giro pseudo-3D al enfocar el CVV, con perspectiva como en la primera PlayStation: gira hasta
+   * quedar de canto, cambia de cara y termina de girar. Dos nombres iguales para que cada cambio
+   * de sentido reinicie la animación.
    */
   .pc-flip-ready.pc-flipped {
-    animation: pc-flip-a 300ms step-end;
+    animation: pc-flip-a 360ms step-end;
   }
 
   .pc-flip-ready:not(.pc-flipped) {
-    animation: pc-flip-b 300ms step-end;
+    animation: pc-flip-b 360ms step-end;
   }
 
   .pc-flip-ready.pc-flipped .pc-face-front,
   .pc-flip-ready:not(.pc-flipped) .pc-face-back {
-    animation: pc-face-out 300ms step-end;
+    animation: pc-face-out 360ms step-end;
   }
 
   .pc-flip-ready.pc-flipped .pc-face-back,
   .pc-flip-ready:not(.pc-flipped) .pc-face-front {
-    animation: pc-face-in 300ms step-end;
+    animation: pc-face-in 360ms step-end;
   }
 }
 
@@ -427,32 +436,32 @@
   }
   25%,
   75% {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
   }
   50% {
-    transform: translateY(-2px);
+    transform: translateY(-4px);
   }
 }
 
 @keyframes pc-scan {
   from {
-    opacity: 0.3;
+    opacity: 0.25;
     transform: translateY(0);
   }
   to {
-    opacity: 0.3;
-    transform: translateY(52px);
+    opacity: 0.25;
+    transform: translateY(104px);
   }
 }
 
 @keyframes pc-glint {
   from {
     opacity: 0.4;
-    transform: translateX(-30px);
+    transform: translateX(-60px);
   }
   to {
     opacity: 0.4;
-    transform: translateX(100px);
+    transform: translateX(200px);
   }
 }
 
@@ -479,39 +488,59 @@
   }
 }
 
+@keyframes pc-holo {
+  to {
+    transform: translateX(-24px);
+  }
+}
+
 @keyframes pc-flip-a {
   0%,
   100% {
-    transform: scaleX(1);
+    transform: perspective(700px) rotateY(0deg);
   }
-  17%,
-  83% {
-    transform: scaleX(0.66);
+  12.5% {
+    transform: perspective(700px) rotateY(30deg);
   }
-  33%,
-  67% {
-    transform: scaleX(0.33);
+  25% {
+    transform: perspective(700px) rotateY(60deg);
+  }
+  37.5% {
+    transform: perspective(700px) rotateY(82deg);
   }
   50% {
-    transform: scaleX(0.06);
+    transform: perspective(700px) rotateY(-82deg);
+  }
+  62.5% {
+    transform: perspective(700px) rotateY(-60deg);
+  }
+  75% {
+    transform: perspective(700px) rotateY(-30deg);
   }
 }
 
 @keyframes pc-flip-b {
   0%,
   100% {
-    transform: scaleX(1);
+    transform: perspective(700px) rotateY(0deg);
   }
-  17%,
-  83% {
-    transform: scaleX(0.66);
+  12.5% {
+    transform: perspective(700px) rotateY(30deg);
   }
-  33%,
-  67% {
-    transform: scaleX(0.33);
+  25% {
+    transform: perspective(700px) rotateY(60deg);
+  }
+  37.5% {
+    transform: perspective(700px) rotateY(82deg);
   }
   50% {
-    transform: scaleX(0.06);
+    transform: perspective(700px) rotateY(-82deg);
+  }
+  62.5% {
+    transform: perspective(700px) rotateY(-60deg);
+  }
+  75% {
+    transform: perspective(700px) rotateY(-30deg);
   }
 }
 

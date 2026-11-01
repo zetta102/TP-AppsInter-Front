@@ -11,15 +11,17 @@ import {
 import { cx } from '../../lib/cx.ts';
 
 /**
- * Tarjeta de 16 bits del paso de pago: empieza como una placa gris y se "transforma" en la
+ * Tarjeta de 32 bits del paso de pago: empieza como una placa gris y se "transforma" en la
  * marca apenas los dígitos escritos alcanzan para reconocerla (`detectBrand`).
  *
- * Es arte de píxeles en SVG a su resolución nativa (86 × 54, la proporción ID-1) con
- * `crispEdges`, escalado por un entero (×3 o ×4) como `net-67-spin.svg`. Cada cambio de marca
- * vuelve a montar la cara frontal (`key`), lo que reinicia la secuencia de `global.css`:
- * destello, disolución por tramado Bayer de la marca anterior a la nueva, el logo que aparece
- * con destellos y un saltito. Además: línea de escaneo mientras no hay marca, un brillo al
- * completar un número válido, una sacudida si no pasa Luhn y un giro al enfocar el CVV.
+ * Es arte de píxeles en SVG a su resolución nativa (172 × 108, la proporción ID-1) con
+ * `crispEdges`, mostrada a ×2 (×1,5 en pantallas angostas). Como en la era de 32 bits, cada marca
+ * tiene rampas de 5 tonos con degradés tramados (Bayer 4 × 4), biseles, brillo y líneas de
+ * seguridad; el número va en relieve. Cada cambio de marca vuelve a montar la cara frontal
+ * (`key`), lo que reinicia la secuencia de `global.css`: destello, disolución por tramado de la
+ * marca anterior a la nueva, el logo que aparece con destellos y un saltito. Además: línea de
+ * escaneo mientras no hay marca, un brillo al completar un número válido, una sacudida si no
+ * pasa Luhn y un giro pseudo-3D al enfocar el CVV, con un holograma de colores cíclicos al dorso.
  *
  * Es decorativa (`aria-hidden`): la marca detectada se anuncia como texto en `PaymentStep`. Solo
  * recibe el largo del CVV, nunca el código.
@@ -27,94 +29,133 @@ import { cx } from '../../lib/cx.ts';
 
 type SkinKey = CardBrand | 'slate';
 
+/** De oscuro a claro: sombra, oscuro, base, claro, luz. */
+type Ramp = readonly [shadow: string, dark: string, base: string, light: string, highlight: string];
+
 interface Skin {
-  readonly base: string;
-  readonly light: string;
-  readonly dark: string;
-  readonly chip: readonly [base: string, dark: string, light: string];
+  readonly ramp: Ramp;
+  /** Sombra, oscuro, base y luz del chip. */
+  readonly chip: readonly [string, string, string, string];
 }
 
-const goldChip = ['#e0b040', '#9a7320', '#f6dc8a'] as const;
+const goldChip = ['#6e4f10', '#9a7320', '#e0b040', '#f6dc8a'] as const;
 
 const skins: Readonly<Record<SkinKey, Skin>> = {
   slate: {
-    base: '#5b6170',
-    light: '#737a8a',
-    dark: '#434856',
-    chip: ['#9aa0ab', '#6c727d', '#c3c8d0'],
+    ramp: ['#2e323c', '#434856', '#5b6170', '#767d8e', '#9aa1b2'],
+    chip: ['#4f545e', '#6c727d', '#9aa0ab', '#c9ced6'],
   },
-  visa: { base: '#1a2a8c', light: '#2b45b8', dark: '#0f1858', chip: goldChip },
-  mastercard: { base: '#262626', light: '#3b3b3b', dark: '#141414', chip: goldChip },
-  amex: { base: '#1f6fb8', light: '#3f8fd6', dark: '#134e86', chip: goldChip },
-  discover: { base: '#5a2d0c', light: '#8a4614', dark: '#3a1c06', chip: goldChip },
-  diners: { base: '#0b5f94', light: '#1f7fbd', dark: '#073f63', chip: goldChip },
-  jcb: { base: '#116a3a', light: '#1e8c4f', dark: '#0a4a28', chip: goldChip },
+  visa: { ramp: ['#0a0f3d', '#13206a', '#1a2a8c', '#2b45b8', '#4d6be0'], chip: goldChip },
+  mastercard: { ramp: ['#0b0b0b', '#171717', '#262626', '#3a3a3a', '#555555'], chip: goldChip },
+  amex: { ramp: ['#0b3560', '#134e86', '#1f6fb8', '#3f8fd6', '#74b3ec'], chip: goldChip },
+  discover: { ramp: ['#2a1203', '#3a1c06', '#5a2d0c', '#8a4614', '#b9682a'], chip: goldChip },
+  diners: { ramp: ['#04304f', '#073f63', '#0b5f94', '#1f7fbd', '#4fa3d8'], chip: goldChip },
+  jcb: { ramp: ['#063019', '#0a4a28', '#116a3a', '#1e8c4f', '#3fb06e'], chip: goldChip },
 };
 
-const W = 86;
-const H = 54;
+const W = 172;
+const H = 108;
+const CORNER = 3;
 const WHITE = '#f4f6ff';
 
-/** Fuente de píxeles de 5 de alto para los logos (solo las letras que usan). */
+/** Fuente de píxeles de 3 × 5 (M, N, V y W más anchas) para logos y rótulos chicos. */
 const glyphs: Readonly<Record<string, readonly string[]>> = {
   A: ['.#.', '#.#', '###', '#.#', '#.#'],
   B: ['##.', '#.#', '##.', '#.#', '##.'],
   C: ['.##', '#..', '#..', '#..', '.##'],
   D: ['##.', '#.#', '#.#', '#.#', '##.'],
   E: ['###', '#..', '##.', '#..', '###'],
+  F: ['###', '#..', '##.', '#..', '#..'],
+  G: ['.##', '#..', '#.#', '#.#', '.##'],
+  H: ['#.#', '#.#', '###', '#.#', '#.#'],
   I: ['###', '.#.', '.#.', '.#.', '###'],
   J: ['..#', '..#', '..#', '#.#', '.#.'],
+  K: ['#.#', '#.#', '##.', '#.#', '#.#'],
+  L: ['#..', '#..', '#..', '#..', '###'],
   M: ['#...#', '##.##', '#.#.#', '#...#', '#...#'],
   N: ['#..#', '##.#', '#.##', '#..#', '#..#'],
+  O: ['.#.', '#.#', '#.#', '#.#', '.#.'],
+  P: ['##.', '#.#', '##.', '#..', '#..'],
+  Q: ['.#.', '#.#', '#.#', '##.', '.##'],
   R: ['##.', '#.#', '##.', '#.#', '#.#'],
   S: ['.##', '#..', '.#.', '..#', '##.'],
+  T: ['###', '.#.', '.#.', '.#.', '.#.'],
+  U: ['#.#', '#.#', '#.#', '#.#', '###'],
   V: ['#...#', '#...#', '.#.#.', '.#.#.', '..#..'],
+  W: ['#...#', '#...#', '#.#.#', '##.##', '#...#'],
   X: ['#.#', '#.#', '.#.', '#.#', '#.#'],
+  Y: ['#.#', '#.#', '.#.', '.#.', '.#.'],
+  Z: ['###', '..#', '.#.', '#..', '###'],
+  '0': ['###', '#.#', '#.#', '#.#', '###'],
+  '1': ['.#.', '##.', '.#.', '.#.', '###'],
+  '2': ['##.', '..#', '.#.', '#..', '###'],
+  '3': ['##.', '..#', '.#.', '..#', '##.'],
+  '4': ['#.#', '#.#', '###', '..#', '..#'],
+  '5': ['###', '#..', '##.', '..#', '##.'],
+  '6': ['.##', '#..', '###', '#.#', '###'],
+  '7': ['###', '..#', '.#.', '.#.', '.#.'],
+  '8': ['###', '#.#', '###', '#.#', '###'],
+  '9': ['###', '#.#', '###', '..#', '##.'],
+  '/': ['..#', '..#', '.#.', '#..', '#..'],
   '?': ['##.', '..#', '.#.', '...', '.#.'],
+  ' ': ['...', '...', '...', '...', '...'],
 };
 
+const GLYPH_ROWS = 5;
 const glyphWidth = (char: string) => glyphs[char]?.[0]?.length ?? 3;
 
-function textWidth(text: string, scale = 1): number {
-  return ([...text].reduce((sum, char) => sum + glyphWidth(char) + 1, 0) - 1) * scale;
+function textWidth(text: string, scale = 1, italic = 0): number {
+  return (
+    ([...text].reduce((sum, char) => sum + glyphWidth(char) + 1, 0) - 1) * scale +
+    (GLYPH_ROWS - 1) * italic
+  );
 }
 
-/** Texto de la fuente de píxeles: un `<rect>` por tramo horizontal de cada fila. */
-function PixelText({
-  text,
-  x,
-  y,
-  scale = 1,
-  fill,
-}: {
+interface PixelTextProps {
   readonly text: string;
   readonly x: number;
   readonly y: number;
   readonly scale?: number;
+  /** Corrimiento por fila hacia la derecha (cursiva escalonada). */
+  readonly italic?: number;
   readonly fill: string;
-}) {
-  const rects: ReactNode[] = [];
-  let cursor = x;
-  for (const char of text) {
-    (glyphs[char] ?? []).forEach((row, r) => {
-      for (let c = 0; c < row.length; c++) {
-        if (row[c] !== '#') continue;
-        const start = c;
-        while (row[c + 1] === '#') c++;
-        rects.push(
-          <rect
-            key={`${cursor}-${r}-${start}`}
-            x={cursor + start * scale}
-            y={y + r * scale}
-            width={(c - start + 1) * scale}
-            height={scale}
-          />,
-        );
-      }
-    });
-    cursor += (glyphWidth(char) + 1) * scale;
-  }
-  return <g fill={fill}>{rects}</g>;
+  /** Sombra dura de 1 píxel abajo a la derecha. */
+  readonly shadow?: string;
+}
+
+/** Texto de la fuente de píxeles: un `<rect>` por tramo horizontal de cada fila. */
+function PixelText({ text, x, y, scale = 1, italic = 0, fill, shadow }: PixelTextProps) {
+  const rects = (dx: number, dy: number) => {
+    const out: ReactNode[] = [];
+    let cursor = x + dx;
+    for (const char of text) {
+      (glyphs[char] ?? []).forEach((row, r) => {
+        const shift = (GLYPH_ROWS - 1 - r) * italic;
+        for (let c = 0; c < row.length; c++) {
+          if (row[c] !== '#') continue;
+          const start = c;
+          while (row[c + 1] === '#') c++;
+          out.push(
+            <rect
+              key={`${cursor}-${r}-${start}`}
+              x={cursor + shift + start * scale}
+              y={y + dy + r * scale}
+              width={(c - start + 1) * scale}
+              height={scale}
+            />,
+          );
+        }
+      });
+      cursor += (glyphWidth(char) + 1) * scale;
+    }
+    return out;
+  };
+  return (
+    <g>
+      {shadow && <g fill={shadow}>{rects(1, 1)}</g>}
+      <g fill={fill}>{rects(0, 0)}</g>
+    </g>
+  );
 }
 
 interface Row {
@@ -133,13 +174,33 @@ function discRows(x: number, y: number, r: number): Row[] {
   return rows;
 }
 
+/** Una línea ondulada de 1 píxel de alto ("guilloche" de seguridad), en tramos horizontales. */
+function waveRows(cy: number, amplitude: number, period: number, phase: number): Row[] {
+  const yAt = (x: number) => cy + Math.round(amplitude * Math.sin(x / period + phase));
+  const rows: Row[] = [];
+  let start = 0;
+  for (let x = 1; x <= W; x++) {
+    if (x === W || yAt(x) !== yAt(start)) {
+      rows.push({ y: yAt(start), x0: start, x1: x });
+      start = x;
+    }
+  }
+  return rows;
+}
+
 function Rows({ rows, fill }: { readonly rows: readonly Row[]; readonly fill: string }) {
   return (
     <g fill={fill}>
       {rows
         .filter((row) => row.x1 > row.x0)
         .map((row) => (
-          <rect key={row.y} x={row.x0} y={row.y} width={row.x1 - row.x0} height={1} />
+          <rect
+            key={`${row.y}-${row.x0}`}
+            x={row.x0}
+            y={row.y}
+            width={row.x1 - row.x0}
+            height={1}
+          />
         ))}
     </g>
   );
@@ -172,23 +233,144 @@ function Notched(props: {
   );
 }
 
-function Logo({ skin }: { readonly skin: SkinKey }) {
-  const { base } = skins[skin];
+/** Orden de un tramado Bayer de 4 × 4: umbrales de 0 a 15. */
+const bayer = [
+  [0, 8, 2, 10],
+  [12, 4, 14, 6],
+  [3, 11, 1, 9],
+  [15, 7, 13, 5],
+] as const;
+/** La disolución enciende un umbral por cuadro. */
+const DISSOLVE_FRAMES = 16;
+/** Niveles de cobertura (de 16) de las máscaras de degradé. */
+const LEVELS = [4, 8, 12] as const;
+
+/**
+ * Banda de degradé tramado: `fill` cubre de más a menos (`fade: 'down'`) o de menos a más
+ * (`'up'`), de a `step` filas por nivel.
+ */
+function DitherBand({
+  uid,
+  y,
+  step,
+  fill,
+  fade,
+}: {
+  readonly uid: string;
+  readonly y: number;
+  readonly step: number;
+  readonly fill: string;
+  readonly fade: 'down' | 'up';
+}) {
+  const levels = fade === 'down' ? LEVELS.toReversed() : LEVELS;
+  return (
+    <g fill={fill}>
+      {levels.map((level, i) => (
+        <rect
+          key={level}
+          y={y + i * step}
+          width={W}
+          height={step}
+          mask={`url(#${uid}-lv${level})`}
+        />
+      ))}
+    </g>
+  );
+}
+
+/** Placa con degradé, bisel, brillo diagonal y líneas de seguridad: lo que se disuelve. */
+function SkinPlate({ skin, uid }: { readonly skin: SkinKey; readonly uid: string }) {
+  const [shadow, dark, base, light, highlight] = skins[skin].ramp;
+  return (
+    <g clipPath={`url(#${uid}-body)`}>
+      <rect width={W} height={H} fill={base} />
+      {/* Arriba: brillo y tono claro que se funden en la base. */}
+      <rect width={W} height={16} fill={light} />
+      <DitherBand uid={uid} y={16} step={4} fill={light} fade="down" />
+      <rect width={W} height={2} fill={highlight} />
+      <DitherBand uid={uid} y={2} step={2} fill={highlight} fade="down" />
+      {/* Abajo: la base se oscurece hasta la sombra del borde. */}
+      <DitherBand uid={uid} y={78} step={4} fill={dark} fade="up" />
+      <rect y={90} width={W} height={18} fill={dark} />
+      <DitherBand uid={uid} y={98} step={2} fill={shadow} fade="up" />
+      <rect y={104} width={W} height={4} fill={shadow} />
+
+      <g opacity={0.2}>
+        <Rows rows={waveRows(50, 3, 9, 0)} fill={highlight} />
+        <Rows rows={waveRows(56, 3, 9, 2)} fill={highlight} />
+        <Rows rows={waveRows(62, 2, 7, 4)} fill={highlight} />
+      </g>
+      <polygon points="52,0 76,0 40,108 16,108" fill={highlight} opacity={0.08} />
+      <polygon points="84,0 90,0 54,108 48,108" fill={highlight} opacity={0.06} />
+
+      {/* Bisel de 1 píxel: luz arriba a la izquierda, sombra abajo a la derecha. */}
+      <rect y={1} width={W} height={1} fill={highlight} opacity={0.6} />
+      <rect x={1} width={1} height={H} fill={highlight} opacity={0.4} />
+      <rect y={H - 2} width={W} height={1} fill={shadow} />
+      <rect x={W - 2} width={1} height={H} fill={shadow} />
+    </g>
+  );
+}
+
+/** Chip de contactos con bisel y un brillo por contacto, y el símbolo sin contacto. */
+function Chip({ skin }: { readonly skin: SkinKey }) {
+  const [shadow, dark, base, light] = skins[skin].chip;
+  const x = 16;
+  const y = 34;
+  return (
+    <g>
+      <Notched x={x} y={y} w={24} h={18} r={2} fill={shadow} />
+      <Notched x={x} y={y} w={23} h={17} r={2} fill={light} />
+      <Notched x={x + 1} y={y + 1} w={22} h={16} r={2} fill={base} />
+      <g fill={dark}>
+        <rect x={x + 1} y={y + 6} width={22} height={1} />
+        <rect x={x + 1} y={y + 11} width={22} height={1} />
+        <rect x={x + 8} y={y + 1} width={1} height={16} />
+        <rect x={x + 15} y={y + 1} width={1} height={16} />
+        <rect x={x + 10} y={y + 7} width={4} height={4} />
+      </g>
+      <g fill={light}>
+        {[x + 2, x + 9, x + 16].flatMap((px) =>
+          [y + 2, y + 7, y + 12].map((py) => (
+            <rect key={`${px}-${py}`} x={px} y={py} width={2} height={1} />
+          )),
+        )}
+      </g>
+      <g fill="#ffffff8c">
+        {[0, 1, 2, 3].map((i) => {
+          const ax = 46 + i * 3;
+          const half = 2 + i * 2;
+          return (
+            <g key={i}>
+              <rect x={ax} y={43 - half} width={1} height={1} />
+              <rect x={ax + 1} y={43 - half + 1} width={1} height={half * 2 - 1} />
+              <rect x={ax} y={43 + half} width={1} height={1} />
+            </g>
+          );
+        })}
+      </g>
+    </g>
+  );
+}
+
+function Logo({ skin, uid }: { readonly skin: SkinKey; readonly uid: string }) {
+  const [shadow, dark, , light] = skins[skin].ramp;
   switch (skin) {
     case 'slate':
-      return <PixelText text="?" x={76} y={5} scale={2} fill="#ffffff59" />;
+      return <PixelText text="?" x={152} y={9} scale={3} fill="#ffffffb3" shadow={shadow} />;
     case 'visa': {
-      const width = textWidth('VISA', 2);
+      const x = 164 - textWidth('VISA', 3, 1);
       return (
         <g>
-          <PixelText text="VISA" x={81 - width} y={5} scale={2} fill={WHITE} />
-          <rect x={81 - width} y={16} width={8} height={1} fill="#f7b600" />
+          <PixelText text="VISA" x={x} y={9} scale={3} italic={1} fill={WHITE} shadow={shadow} />
+          <rect x={x} y={27} width={22} height={2} fill="#f7b600" />
+          <rect x={x} y={29} width={22} height={1} fill="#b98500" />
         </g>
       );
     }
     case 'mastercard': {
-      const red = discRows(66, 11, 5);
-      const yellow = discRows(74, 11, 5);
+      const red = discRows(126, 21, 10);
+      const yellow = discRows(142, 21, 10);
       const overlap = red.map((row, i) => ({
         y: row.y,
         x0: Math.max(row.x0, yellow[i]?.x0 ?? row.x1),
@@ -196,89 +378,99 @@ function Logo({ skin }: { readonly skin: SkinKey }) {
       }));
       return (
         <g>
+          <Rows rows={discRows(126, 21, 11)} fill="#a80014" />
           <Rows rows={red} fill="#eb001b" />
+          <Rows rows={discRows(142, 21, 11)} fill="#c27400" />
           <Rows rows={yellow} fill="#f79e1b" />
           <Rows rows={overlap} fill="#ff5f00" />
+          <g fill="#ff6b7a">
+            <rect x={119} y={13} width={4} height={1} />
+            <rect x={117} y={14} width={2} height={1} />
+            <rect x={116} y={15} width={1} height={2} />
+          </g>
+          <g fill="#ffd07a">
+            <rect x={145} y={13} width={4} height={1} />
+            <rect x={149} y={14} width={2} height={1} />
+            <rect x={151} y={15} width={1} height={2} />
+          </g>
+          <PixelText text="MASTERCARD" x={114} y={35} fill="#ffffffd9" />
         </g>
       );
     }
     case 'amex':
       return (
         <g>
-          <Notched x={60} y={5} w={21} h={11} fill={WHITE} />
-          <PixelText text="AMEX" x={62} y={8} fill={base} />
+          <Notched x={108} y={8} w={56} h={26} r={2} fill={WHITE} />
+          <Notched x={110} y={10} w={52} h={22} r={1} fill={dark} />
+          <rect x={110} y={10} width={52} height={1} fill={light} />
+          <PixelText text="AMERICAN" x={119} y={13} fill={WHITE} shadow={shadow} />
+          <PixelText text="EXPRESS" x={122} y={22} fill={WHITE} shadow={shadow} />
         </g>
       );
     case 'discover': {
-      const x = 81 - (textWidth('DISC') + 1 + 6 + 1 + textWidth('VER'));
-      const orbX = x + textWidth('DISC') + 1 + 3;
+      const x = 164 - (textWidth('DISC', 2) + 2 + 12 + 2 + textWidth('VER', 2));
+      const orbX = x + textWidth('DISC', 2) + 2 + 6;
       return (
         <g>
-          <PixelText text="DISC" x={x} y={8} fill={WHITE} />
-          <Rows rows={discRows(orbX, 10, 3)} fill="#ff7a00" />
-          <rect x={orbX - 2} y={8} width={1} height={1} fill="#ffc27a" />
-          <PixelText text="VER" x={orbX + 4} y={8} fill={WHITE} />
+          <PixelText text="DISC" x={x} y={12} scale={2} fill={WHITE} shadow={shadow} />
+          <Rows rows={discRows(orbX, 17, 6)} fill="#b33f00" />
+          <Rows rows={discRows(orbX, 17, 5)} fill="#ff6a00" />
+          <Rows rows={discRows(orbX - 1, 16, 3)} fill="#ff8f2e" />
+          <rect x={orbX - 4} y={13} width={2} height={1} fill="#ffd2a1" />
+          <rect x={orbX - 5} y={14} width={1} height={1} fill="#ffd2a1" />
+          <PixelText text="VER" x={orbX + 8} y={12} scale={2} fill={WHITE} shadow={shadow} />
         </g>
       );
     }
     case 'diners':
       return (
         <g>
-          <PixelText text="DINERS" x={66 - textWidth('DINERS')} y={9} fill={WHITE} />
-          <Rows rows={discRows(75, 11, 6)} fill={WHITE} />
-          <Rows rows={discRows(75, 11, 4)} fill={base} />
-          <rect x={74} y={7} width={2} height={8} fill={WHITE} />
+          <PixelText text="DINERS" x={112} y={15} fill={WHITE} shadow={shadow} />
+          <PixelText text="CLUB" x={121} y={23} fill={WHITE} shadow={shadow} />
+          <Rows rows={discRows(152, 22, 12)} fill="#b8c7d6" />
+          <Rows rows={discRows(152, 22, 11)} fill={WHITE} />
+          <Rows rows={discRows(152, 22, 8)} fill={dark} />
+          <rect x={146} y={17} width={1} height={10} fill={light} />
+          <rect x={151} y={14} width={2} height={16} fill={WHITE} />
         </g>
       );
     case 'jcb':
       return (
         <g>
-          {(['#0e4c96', '#e21836', '#00965f'] as const).map((fill, i) => (
-            <g key={fill}>
-              <Notched x={59 + i * 8} y={5} w={7} h={11} fill={fill} />
-              <PixelText text={'JCB'[i] ?? ''} x={61 + i * 8} y={8} fill={WHITE} />
-            </g>
-          ))}
+          {(
+            [
+              ['J', '#2a6cc0', '#0e4c96'],
+              ['C', '#ff3b55', '#c4122c'],
+              ['B', '#22b57e', '#00804f'],
+            ] as const
+          ).map(([letter, top, bottom], i) => {
+            const x = 120 + i * 15;
+            return (
+              <g key={letter}>
+                <Notched x={x} y={8} w={14} h={26} r={2} fill={bottom} />
+                <g fill={top}>
+                  <rect x={x + 2} y={8} width={10} height={1} />
+                  <rect x={x + 1} y={9} width={12} height={1} />
+                  <rect x={x} y={10} width={14} height={10} />
+                  <rect x={x} y={20} width={14} height={3} mask={`url(#${uid}-lv8)`} />
+                </g>
+                <PixelText
+                  text={letter}
+                  x={x + 4}
+                  y={16}
+                  scale={2}
+                  fill={WHITE}
+                  shadow="#00000066"
+                />
+              </g>
+            );
+          })}
         </g>
       );
   }
 }
 
-/** Placa, bandas tramadas, chip y símbolo sin contacto: lo que se disuelve entre marcas. */
-function SkinBody({ skin, uid }: { readonly skin: SkinKey; readonly uid: string }) {
-  const { base, light, dark, chip } = skins[skin];
-  const [chipBase, chipDark, chipLight] = chip;
-  return (
-    <g>
-      <g clipPath={`url(#${uid}-body)`}>
-        <rect width={W} height={H} fill={base} />
-        <rect y={0} width={W} height={10} fill={light} />
-        <rect y={10} width={W} height={4} fill={light} mask={`url(#${uid}-checker)`} />
-        <rect y={40} width={W} height={4} fill={dark} mask={`url(#${uid}-checker)`} />
-        <rect y={44} width={W} height={10} fill={dark} />
-      </g>
-      <Notched x={8} y={17} w={11} h={8} fill={chipBase} />
-      <g fill={chipDark}>
-        <rect x={8} y={19} width={11} height={1} />
-        <rect x={8} y={22} width={11} height={1} />
-        <rect x={12} y={17} width={1} height={8} />
-        <rect x={15} y={17} width={1} height={8} />
-      </g>
-      <rect x={9} y={18} width={2} height={1} fill={chipLight} />
-      <g fill="#ffffff80">
-        <rect x={22} y={19} width={1} height={3} />
-        <rect x={24} y={18} width={1} height={1} />
-        <rect x={25} y={19} width={1} height={3} />
-        <rect x={24} y={22} width={1} height={1} />
-        <rect x={27} y={17} width={1} height={1} />
-        <rect x={28} y={18} width={1} height={5} />
-        <rect x={27} y={23} width={1} height={1} />
-      </g>
-    </g>
-  );
-}
-
-/** Texto en Press Start 2P con sombra dura de 2 px; `rest` va atenuado (la plantilla vacía). */
+/** Texto en Press Start 2P "en relieve": luz arriba a la izquierda, sombra abajo a la derecha. */
 function CardText({
   x,
   y,
@@ -294,42 +486,32 @@ function CardText({
   readonly rest?: string;
   readonly className?: string;
 }) {
-  const content = (fill: string, dim: string) => (
-    <>
+  const layer = (dx: number, dy: number, fill: string, dim: string) => (
+    <text x={x + dx} y={y + dy} className="font-mono">
       <tspan fill={fill}>{value}</tspan>
       {rest && <tspan fill={dim}>{rest}</tspan>}
-    </>
+    </text>
   );
   return (
     <g className={className} fontSize={size} style={{ whiteSpace: 'pre' }}>
-      <text x={x + 0.5} y={y + 0.5} className="font-mono" fill="#00000073">
-        {content('#00000073', '#00000033')}
-      </text>
-      <text x={x} y={y} className="font-mono">
-        {content(WHITE, '#ffffff66')}
-      </text>
+      {layer(1, 1, '#00000080', '#00000033')}
+      {layer(-0.5, -0.5, '#ffffff66', '#ffffff1a')}
+      {layer(0, 0, '#e3e8f4', '#ffffff59')}
     </g>
   );
 }
 
-/** Orden de un tramado Bayer de 4 × 4: el cuadro `k` enciende los píxeles `2k` y `2k + 1`. */
-const bayer = [
-  [0, 8, 2, 10],
-  [12, 4, 14, 6],
-  [3, 11, 1, 9],
-  [15, 7, 13, 5],
-] as const;
-const DISSOLVE_FRAMES = 8;
-
-// Sin tildes, como en una tarjeta grabada: Press Start 2P tampoco las tiene.
+// Sin tildes, como en una tarjeta grabada: ni Press Start 2P ni la fuente de píxeles las tienen.
 const kindLabels: Readonly<Record<CardKind, string>> = { credit: 'CREDITO', debit: 'DEBITO' };
 
 const sparkles = [
-  [52, 4],
-  [83, 19],
-  [44, 14],
-  [70, 2],
+  [104, 8],
+  [166, 38],
+  [88, 28],
+  [140, 4],
 ] as const;
+
+const rainbow = ['#ff5f6d', '#ffb347', '#fff275', '#7dff9b', '#6ad8ff', '#b48cff'] as const;
 
 export interface PixelCardProps {
   readonly digits: string;
@@ -381,6 +563,7 @@ export function PixelCard({ digits, name, expiry, cvvLength, kind, cvvFocused }:
       : progress === 'complete'
         ? 'var(--color-hp-500)'
         : '#0a0e1c';
+  const [backShadow, backDark] = skins[skin].ramp;
 
   return (
     <div
@@ -397,14 +580,9 @@ export function PixelCard({ digits, name, expiry, cvvLength, kind, cvvFocused }:
         onAnimationEnd={onAnimationEnd}
       >
         <defs>
-          <clipPath id={`${uid}-body`}>{notchedRects(1, 1, W - 2, H - 2, 2)}</clipPath>
-          <pattern id={`${uid}-checker-p`} width={2} height={2} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#fff" />
-            <rect x={1} y={1} width={1} height={1} fill="#fff" />
-          </pattern>
-          <mask id={`${uid}-checker`}>
-            <rect width={W} height={H} fill={`url(#${uid}-checker-p)`} />
-          </mask>
+          <clipPath id={`${uid}-body`}>{notchedRects(1, 1, W - 2, H - 2, CORNER)}</clipPath>
+          <clipPath id={`${uid}-holo`}>{notchedRects(136, 72, 24, 16, 2)}</clipPath>
+          {/* Un patrón por umbral (disolución) y uno acumulado por nivel (degradés). */}
           {Array.from({ length: DISSOLVE_FRAMES }, (_, frame) => (
             <pattern
               key={frame}
@@ -415,22 +593,48 @@ export function PixelCard({ digits, name, expiry, cvvLength, kind, cvvFocused }:
             >
               {bayer.flatMap((row, y) =>
                 row.map((value, x) =>
-                  Math.floor(value / 2) === frame ? (
+                  value === frame ? (
                     <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="#fff" />
                   ) : null,
                 ),
               )}
             </pattern>
           ))}
+          {LEVELS.map((level) => (
+            <g key={level}>
+              <pattern
+                id={`${uid}-lv${level}-p`}
+                width={4}
+                height={4}
+                patternUnits="userSpaceOnUse"
+              >
+                {bayer.flatMap((row, y) =>
+                  row.map((value, x) =>
+                    value < level ? (
+                      <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="#fff" />
+                    ) : null,
+                  ),
+                )}
+              </pattern>
+              <mask id={`${uid}-lv${level}`}>
+                <rect width={W} height={H} fill={`url(#${uid}-lv${level}-p)`} />
+              </mask>
+            </g>
+          ))}
+          <pattern id={`${uid}-diag`} width={4} height={4} patternUnits="userSpaceOnUse">
+            {[0, 1, 2, 3].map((i) => (
+              <rect key={i} x={3 - i} y={i} width={1} height={1} fill="#cfc8ad" />
+            ))}
+          </pattern>
         </defs>
 
         <g className="pc-face-front">
           <g key={view.nonce} className={cx(view.nonce > 0 && 'pc-animate')}>
             <g className="pc-hop">
-              <Notched x={0} y={0} w={W} h={H} r={2} style={{ fill: outline }} />
+              <Notched x={0} y={0} w={W} h={H} r={CORNER} style={{ fill: outline }} />
               {view.prev !== null && (
                 <>
-                  {/* Cada capa del tramado se enciende un cuadro después de la anterior. */}
+                  {/* Cada umbral del tramado se enciende un cuadro después del anterior. */}
                   <mask id={`${uid}-dissolve`}>
                     {Array.from({ length: DISSOLVE_FRAMES }, (_, frame) => (
                       <rect
@@ -443,45 +647,61 @@ export function PixelCard({ digits, name, expiry, cvvLength, kind, cvvFocused }:
                       />
                     ))}
                   </mask>
-                  <SkinBody skin={view.prev} uid={uid} />
-                  <Logo skin={view.prev} />
+                  <SkinPlate skin={view.prev} uid={uid} />
+                  <Chip skin={view.prev} />
+                  <Logo skin={view.prev} uid={uid} />
                 </>
               )}
               <g mask={view.prev === null ? undefined : `url(#${uid}-dissolve)`}>
-                <SkinBody skin={view.skin} uid={uid} />
+                <SkinPlate skin={view.skin} uid={uid} />
+                <Chip skin={view.skin} />
               </g>
               <g className="pc-logo">
-                <Logo skin={view.skin} />
+                <Logo skin={view.skin} uid={uid} />
               </g>
 
-              {kind && <CardText x={6} y={9} size={2.5} value={kindLabels[kind]} />}
+              {kind && (
+                <PixelText
+                  text={kindLabels[kind]}
+                  x={12}
+                  y={12}
+                  fill="#ffffffbf"
+                  shadow="#00000066"
+                />
+              )}
               <CardText
-                x={6}
-                y={37}
-                size={Math.min(4, 74 / template.length)}
+                x={12}
+                y={76}
+                size={Math.min(8, 150 / template.length)}
                 value={template.slice(0, split)}
                 rest={template.slice(split)}
               />
               {brand === 'amex' && (
                 <CardText
-                  x={68}
-                  y={29}
-                  size={2.5}
+                  x={140}
+                  y={60}
+                  size={5}
                   value={cvvMask}
                   rest={cvvTemplate.slice(cvvLength)}
                   {...(cvvFocused ? { className: 'pc-blink' } : {})}
                 />
               )}
-              <CardText x={6} y={43} size={2} value="" rest="TITULAR" />
+              <PixelText text="TITULAR" x={12} y={83} fill="#ffffff80" />
               <CardText
-                x={6}
-                y={49}
-                size={Math.min(3, 54 / Math.max(holder.length, 1))}
+                x={12}
+                y={98}
+                size={Math.min(6, 112 / Math.max(holder.length, 1))}
                 value={holder}
                 rest={holder ? '' : 'NOMBRE APELLIDO'}
               />
-              <CardText x={66} y={43} size={2} value="" rest="VENCE" />
-              <CardText x={66} y={49} size={3} value={expiry} rest={'MM/AA'.slice(expiry.length)} />
+              <PixelText text="VENCE" x={134} y={83} fill="#ffffff80" />
+              <CardText
+                x={134}
+                y={98}
+                size={6}
+                value={expiry}
+                rest={'MM/AA'.slice(expiry.length)}
+              />
 
               <rect
                 className="pc-flash"
@@ -494,8 +714,14 @@ export function PixelCard({ digits, name, expiry, cvvLength, kind, cvvFocused }:
                 view.skin !== 'slate' &&
                 sparkles.map(([x, y], i) => (
                   <g key={i} className="pc-sparkle" style={{ '--pc-i': i } as CSSProperties}>
-                    <rect x={x - 1} y={y} width={3} height={1} fill={WHITE} />
-                    <rect x={x} y={y - 1} width={1} height={3} fill={WHITE} />
+                    <rect x={x - 2} y={y} width={5} height={1} fill={WHITE} />
+                    <rect x={x} y={y - 2} width={1} height={5} fill={WHITE} />
+                    <g fill="#ffffffaa">
+                      <rect x={x - 1} y={y - 1} width={1} height={1} />
+                      <rect x={x + 1} y={y - 1} width={1} height={1} />
+                      <rect x={x - 1} y={y + 1} width={1} height={1} />
+                      <rect x={x + 1} y={y + 1} width={1} height={1} />
+                    </g>
                     <rect x={x} y={y} width={1} height={1} fill="#f7d44a" />
                   </g>
                 ))}
@@ -504,31 +730,61 @@ export function PixelCard({ digits, name, expiry, cvvLength, kind, cvvFocused }:
 
           <g clipPath={`url(#${uid}-body)`}>
             {progress === 'scanning' && (
-              <rect className="pc-scanline" width={W} height={2} fill="#fff" />
+              <rect className="pc-scanline" width={W} height={3} fill="#fff" />
             )}
             {progress === 'complete' && (
-              <polygon className="pc-glint" points="0,54 6,54 24,0 18,0" fill="#fff" />
+              <polygon className="pc-glint" points="0,108 12,108 48,0 36,0" fill="#fff" />
             )}
           </g>
         </g>
 
         <g className="pc-face-back">
-          <Notched x={0} y={0} w={W} h={H} r={2} style={{ fill: outline }} />
-          <g clipPath={`url(#${uid}-body)`}>
-            <rect width={W} height={H} fill={skins[skin].base} />
-            <rect y={44} width={W} height={10} fill={skins[skin].dark} />
-            <rect y={6} width={W} height={8} fill="#0b0b10" />
-          </g>
-          <rect x={6} y={20} width={56} height={8} fill="#e9e6d8" />
-          <rect x={6} y={20} width={56} height={8} fill="#c9c3aa" mask={`url(#${uid}-checker)`} />
-          <rect x={64} y={20} width={16} height={8} fill="#ffffff" />
-          <CardText x={64} y={18} size={2} value="" rest="CVV" />
-          <text x={66} y={26} fontSize={3} className="font-mono" fill="#1a1a2a">
+          <Notched x={0} y={0} w={W} h={H} r={CORNER} style={{ fill: outline }} />
+          <SkinPlate skin={skin} uid={uid} />
+          {/* Banda magnética con textura tramada. */}
+          <rect x={1} y={12} width={W - 2} height={18} fill="#0d0d12" />
+          <rect x={1} y={12} width={W - 2} height={18} fill="#26262e" mask={`url(#${uid}-lv4)`} />
+          <rect x={1} y={12} width={W - 2} height={1} fill="#3a3a46" />
+          <rect x={1} y={29} width={W - 2} height={1} fill={backShadow} />
+
+          <PixelText text="FIRMA AUTORIZADA" x={12} y={35} fill="#ffffff80" />
+          <rect x={12} y={42} width={108} height={16} fill="#ece8d8" />
+          <rect x={12} y={42} width={108} height={16} fill={`url(#${uid}-diag)`} />
+          <rect x={12} y={58} width={108} height={1} fill={backDark} />
+
+          <PixelText text="CVV" x={124} y={35} fill="#ffffff80" />
+          <rect x={124} y={42} width={32} height={16} fill={WHITE} />
+          <rect x={124} y={42} width={32} height={1} fill="#b9bcc6" />
+          <rect x={124} y={42} width={1} height={16} fill="#b9bcc6" />
+          <text x={128} y={54} fontSize={6} className="font-mono" fill="#1a1a2a">
             {cvvMask}
             <tspan fill="#1a1a2a55">{cvvTemplate.slice(cvvLength)}</tspan>
           </text>
-          <Notched x={70} y={37} w={10} h={7} fill="#c9a640" />
-          <rect x={70} y={37} width={10} height={7} fill="#f6e7a8" mask={`url(#${uid}-checker)`} />
+
+          <g fill="#ffffff40">
+            <rect x={12} y={66} width={108} height={1} />
+            <rect x={12} y={70} width={96} height={1} />
+            <rect x={12} y={74} width={84} height={1} />
+          </g>
+
+          {/* Holograma: los colores ciclan corriendo una franja repetida dentro del recorte. */}
+          <g clipPath={`url(#${uid}-holo)`}>
+            <g className="pc-holo">
+              {Array.from({ length: 12 }, (_, i) => (
+                <rect
+                  key={i}
+                  x={136 + i * 4}
+                  y={72}
+                  width={4}
+                  height={16}
+                  fill={rainbow[i % rainbow.length]}
+                />
+              ))}
+            </g>
+            <rect x={136} y={72} width={24} height={16} fill="#fff" mask={`url(#${uid}-lv4)`} />
+            <rect x={136} y={72} width={24} height={1} fill="#ffffffaa" />
+            <rect x={136} y={87} width={24} height={1} fill="#00000055" />
+          </g>
         </g>
       </svg>
     </div>
