@@ -270,3 +270,267 @@
   background-color: --alpha(var(--color-ink-900) / 92%);
   color: var(--color-virus-300);
 }
+
+/*
+ * Tarjeta de 16 bits del paso de pago (`PixelCard.tsx`). Todo avanza de a cuadros (`step-end`,
+ * `steps()`): nada se interpola, como un sprite. Sin `prefers-reduced-motion: no-preference`
+ * las capas quedan en su estado final y la tarjeta cambia de marca sin animarse.
+ */
+@layer components {
+  .pc-face-back,
+  .pc-flipped .pc-face-front {
+    visibility: hidden;
+  }
+
+  .pc-flipped .pc-face-back {
+    visibility: visible;
+  }
+
+  /* Capas que solo se ven mientras corre una animación. */
+  .pc-flash,
+  .pc-sparkle,
+  .pc-scanline,
+  .pc-glint {
+    opacity: 0;
+  }
+
+  .pc-logo,
+  .pc-sparkle {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Transformación: destello, disolución por tramado, el logo aparece con destellos y salta. */
+  .pc-animate .pc-flash {
+    animation: pc-flash 160ms step-end;
+  }
+
+  .pc-animate .pc-dissolve-layer {
+    opacity: 0;
+    animation: pc-show 1ms linear calc(100ms + var(--pc-frame) * 40ms) forwards;
+  }
+
+  .pc-animate .pc-logo {
+    animation: pc-pop 240ms step-end 440ms both;
+  }
+
+  .pc-animate .pc-sparkle {
+    animation: pc-sparkle 300ms step-end calc(480ms + var(--pc-i) * 60ms);
+  }
+
+  .pc-animate .pc-hop {
+    animation: pc-hop 200ms step-end 700ms;
+  }
+
+  /* Placa gris "leyendo" el número mientras todavía no alcanza para decidir la marca. */
+  .pc-scanline {
+    animation: pc-scan 1.3s steps(26) infinite;
+  }
+
+  .pc-glint {
+    animation: pc-glint 650ms steps(13) both;
+  }
+
+  .pc-shake {
+    animation: pc-shake 300ms step-end;
+  }
+
+  .pc-blink {
+    animation: pc-blink 800ms step-end infinite;
+  }
+
+  /*
+   * Giro al enfocar el CVV: se achica en X, cambia de cara a mitad de camino y vuelve. Dos
+   * nombres iguales para que cada cambio de sentido reinicie la animación.
+   */
+  .pc-flip-ready.pc-flipped {
+    animation: pc-flip-a 300ms step-end;
+  }
+
+  .pc-flip-ready:not(.pc-flipped) {
+    animation: pc-flip-b 300ms step-end;
+  }
+
+  .pc-flip-ready.pc-flipped .pc-face-front,
+  .pc-flip-ready:not(.pc-flipped) .pc-face-back {
+    animation: pc-face-out 300ms step-end;
+  }
+
+  .pc-flip-ready.pc-flipped .pc-face-back,
+  .pc-flip-ready:not(.pc-flipped) .pc-face-front {
+    animation: pc-face-in 300ms step-end;
+  }
+}
+
+@keyframes pc-flash {
+  0% {
+    opacity: 0.9;
+  }
+  33% {
+    opacity: 0.55;
+  }
+  66% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pc-show {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pc-pop {
+  0% {
+    transform: scale(0);
+  }
+  25% {
+    transform: scale(0.5);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+  75%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pc-sparkle {
+  0% {
+    opacity: 1;
+    transform: scale(0.34);
+  }
+  33% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  66% {
+    opacity: 1;
+    transform: scale(0.67);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* En SVG, `px` son unidades del `viewBox`: 1px es un píxel de la tarjeta. */
+@keyframes pc-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25%,
+  75% {
+    transform: translateY(-1px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes pc-scan {
+  from {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0.3;
+    transform: translateY(52px);
+  }
+}
+
+@keyframes pc-glint {
+  from {
+    opacity: 0.4;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 0.4;
+    transform: translateX(100px);
+  }
+}
+
+@keyframes pc-shake {
+  0%,
+  50% {
+    transform: translateX(-4px);
+  }
+  25%,
+  75% {
+    transform: translateX(4px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes pc-blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes pc-flip-a {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  17%,
+  83% {
+    transform: scaleX(0.66);
+  }
+  33%,
+  67% {
+    transform: scaleX(0.33);
+  }
+  50% {
+    transform: scaleX(0.06);
+  }
+}
+
+@keyframes pc-flip-b {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  17%,
+  83% {
+    transform: scaleX(0.66);
+  }
+  33%,
+  67% {
+    transform: scaleX(0.33);
+  }
+  50% {
+    transform: scaleX(0.06);
+  }
+}
+
+@keyframes pc-face-out {
+  0% {
+    visibility: visible;
+  }
+  50%,
+  100% {
+    visibility: hidden;
+  }
+}
+
+@keyframes pc-face-in {
+  0% {
+    visibility: hidden;
+  }
+  50%,
+  100% {
+    visibility: visible;
+  }
+}

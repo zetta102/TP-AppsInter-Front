@@ -1,6 +1,10 @@
 import { navigate } from 'astro:transitions/client';
-import { useActionState, useEffect, useEffectEvent, useState } from 'react';
+import { useActionState, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
+import { cardFields, validateCard } from '../../lib/card.ts';
+import { cx } from '../../lib/cx.ts';
+import { formText } from '../../lib/form.ts';
 import { listProducts } from '../../lib/api/products.ts';
 import { createReservation, quoteReservation } from '../../lib/api/reservations.ts';
 import { getScreeningSeatMap, getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
@@ -28,6 +32,7 @@ import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { AuthGuard } from '../ui/Guards.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
+import { emptyCardForm, PaymentStep, type CardForm } from './PaymentStep.tsx';
 import { isScreeningClosed, ScreeningClosedNotice } from './ScreeningClosedNotice.tsx';
 import { indexSeatsById, SeatMap } from './SeatMap.tsx';
 
@@ -45,6 +50,10 @@ import { indexSeatsById, SeatMap } from './SeatMap.tsx';
  *    confirmada del lado del servidor), así que se conserva una segunda línea de defensa:
  *    un `409` al enviar vuelve a consultar el mapa, resalta los asientos perdidos y le pide
  *    al usuario que vuelva a seleccionar.
+ *
+ * La compra tiene dos pasos en la misma pantalla —el pedido y el pago con tarjeta—, no dos
+ * páginas: desmontar el checkout liberaría la retención. El backend no procesa pagos, así que la
+ * tarjeta se valida solo en el cliente (`validateCard`) y nunca forma parte de la reserva.
  */
 
 interface CheckoutData {
@@ -57,9 +66,13 @@ interface CheckoutData {
 interface SubmitState {
   readonly error: unknown;
   readonly lostSeatIds: readonly string[];
+  /** Errores de la tarjeta, validada en el cliente antes de reservar. */
+  readonly fieldErrors: Readonly<Record<string, string>>;
 }
 
-const initialSubmitState: SubmitState = { error: null, lostSeatIds: [] };
+type Step = 'order' | 'payment';
+
+const initialSubmitState: SubmitState = { error: null, lostSeatIds: [], fieldErrors: {} };
 const QUOTE_DEBOUNCE_MS = 400;
 /** Umbral del aviso previo al vencimiento de la retención (las retenciones no se extienden). */
 const HOLD_WARNING_SECONDS = 60;
@@ -81,6 +94,16 @@ function CheckoutPanel() {
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [initialised, setInitialised] = useState(false);
   const [quantities, setQuantities] = useState<ReadonlyMap<string, number>>(new Map());
+  const [step, setStep] = useState<Step>('order');
+  // Se conserva al volver al pedido; desaparece con el checkout al confirmar la reserva.
+  const [card, setCard] = useState<CardForm>(emptyCardForm);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  // Al cambiar de paso, el foco va al título del paso nuevo (el contenido anterior desaparece).
+  const goToStep = (next: Step) => {
+    flushSync(() => setStep(next));
+    stepHeadingRef.current?.focus();
+  };
 
   const resource = useKeyedResource<string, CheckoutData>(screeningId, async (id, signal) => {
     const [screening, products, config] = await Promise.all([
@@ -171,37 +194,56 @@ function CheckoutPanel() {
   // Un error de cotización no bloquea: se vuelve a la estimación local.
   const quote = quoteResource.status === 'success' ? quoteResource.data : null;
 
-  const [submitState, submitAction] = useActionState(async (_prev: SubmitState) => {
-    if (!screeningId) return initialSubmitState;
-    try {
-      const { data } = await createReservation({
-        movieScreeningId: screeningId,
-        seatIds: selected,
-        ...(productsRequest ? { products: productsRequest } : {}),
-        ...(holdId ? { holdId } : {}),
-      });
-      // El servidor consume la retención enviada; no hay que liberarla también al desmontar.
-      if (holdId) seatHold.markConsumed();
-      void navigate(`/reservations/detail?id=${data.uuid}`);
-      return initialSubmitState;
-    } catch (error) {
-      // 409: otra persona reservó uno de estos asientos antes. Se vuelve a consultar y se
-      // muestra cuáles se perdieron.
-      if (isApiErrorWithStatus(error, 409)) {
-        const fresh = await getScreeningSeatMap(screeningId).catch(() => null);
-        const unavailable = new Set(
-          (fresh?.seats ?? []).filter((seat) => !seat.available).map((seat) => seat.seatId),
-        );
-        const lost = new Set(selected).intersection(unavailable);
-        resource.refetch();
-        setSelected((current) => current.filter((id) => !lost.has(id)));
-        return { error, lostSeatIds: [...lost] };
+  const [submitState, submitAction] = useActionState(
+    async (_prev: SubmitState, formData: FormData): Promise<SubmitState> => {
+      if (!screeningId) return initialSubmitState;
+      // Una tarjeta inválida no llega a reservar. Sus datos se leen solo para validarlos.
+      const cardErrors = validateCard(
+        {
+          number: formText(formData, cardFields.number),
+          name: formText(formData, cardFields.name),
+          expiry: formText(formData, cardFields.expiry),
+          cvv: formText(formData, cardFields.cvv),
+          kind: formText(formData, cardFields.kind),
+        },
+        new Date(),
+      );
+      if (Object.keys(cardErrors).length > 0) {
+        return { ...initialSubmitState, fieldErrors: cardErrors };
       }
-      // La función se archivó o empezó mientras tanto: se recarga para reflejarlo.
-      if (isApiErrorWithCode(error, 'RESOURCE_ARCHIVED', 'SCREENING_STARTED')) resource.refetch();
-      return { error, lostSeatIds: [] };
-    }
-  }, initialSubmitState);
+      try {
+        const { data } = await createReservation({
+          movieScreeningId: screeningId,
+          seatIds: selected,
+          ...(productsRequest ? { products: productsRequest } : {}),
+          ...(holdId ? { holdId } : {}),
+        });
+        // El servidor consume la retención enviada; no hay que liberarla también al desmontar.
+        if (holdId) seatHold.markConsumed();
+        void navigate(`/reservations/detail?id=${data.uuid}`);
+        return initialSubmitState;
+      } catch (error) {
+        // 409: otra persona reservó uno de estos asientos antes. Se vuelve a consultar y se
+        // muestra cuáles se perdieron.
+        if (isApiErrorWithStatus(error, 409)) {
+          const fresh = await getScreeningSeatMap(screeningId).catch(() => null);
+          const unavailable = new Set(
+            (fresh?.seats ?? []).filter((seat) => !seat.available).map((seat) => seat.seatId),
+          );
+          const lost = new Set(selected).intersection(unavailable);
+          resource.refetch();
+          setSelected((current) => current.filter((id) => !lost.has(id)));
+          // De vuelta al pedido, donde el mapa muestra qué asientos reemplazar.
+          setStep('order');
+          return { ...initialSubmitState, error, lostSeatIds: [...lost] };
+        }
+        // La función se archivó o empezó mientras tanto: se recarga para reflejarlo.
+        if (isApiErrorWithCode(error, 'RESOURCE_ARCHIVED', 'SCREENING_STARTED')) resource.refetch();
+        return { ...initialSubmitState, error };
+      }
+    },
+    initialSubmitState,
+  );
 
   if (!screeningId) {
     return (
@@ -245,13 +287,40 @@ function CheckoutPanel() {
   const canSubmit = chosenSeats.length > 0 && !closed && !seatHold.expired;
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
+    // Un solo formulario para los dos pasos: en el pedido no hay ningún botón de envío.
+    <form action={submitAction} noValidate className="grid gap-8 lg:grid-cols-[1fr_22rem]">
       <div className="flex flex-col gap-6">
-        <header>
-          <h1 className="text-lg sm:text-2xl">{screening.movieName}</h1>
-          <p className="text-sm text-ink-500">
-            {formatDateTime(screening.startsAt)} · {screening.roomName}
-          </p>
+        <header className="flex flex-col gap-3">
+          <div>
+            <h1 className="text-lg sm:text-2xl">{screening.movieName}</h1>
+            <p className="text-sm text-ink-500">
+              {formatDateTime(screening.startsAt)} · {screening.roomName}
+            </p>
+          </div>
+          <ol
+            aria-label="Pasos de la compra"
+            className="flex items-center gap-3 font-display text-xs"
+          >
+            {(
+              [
+                ['order', '1 · Pedido'],
+                ['payment', '2 · Pago'],
+              ] as const
+            ).map(([key, label]) => (
+              <li
+                key={key}
+                aria-current={step === key ? 'step' : undefined}
+                className={cx(
+                  'border-b-2 pb-1',
+                  step === key
+                    ? 'border-brand-400 text-brand-300'
+                    : 'border-transparent text-ink-500',
+                )}
+              >
+                {label}
+              </li>
+            ))}
+          </ol>
         </header>
 
         {seatHold.hold && !seatHold.expired && (
@@ -313,78 +382,94 @@ function CheckoutPanel() {
           <ErrorBanner error={submitState.error} />
         )}
 
-        <section className="cine-card p-5">
-          <h2 className="mb-4 text-sm font-semibold">Tus asientos</h2>
-          <SeatMap
-            seatMap={seatMap}
-            basePrice={screening.basePrice}
-            premiumMultiplier={config.premiumSeatMultiplier}
-            selected={selected}
-            onToggle={toggle}
-            lostSeatIds={submitState.lostSeatIds}
-            disabled={closed}
+        {step === 'payment' ? (
+          <PaymentStep
+            value={card}
+            onChange={setCard}
+            submittedErrors={submitState.fieldErrors}
+            now={now}
+            headingRef={stepHeadingRef}
           />
-        </section>
+        ) : (
+          <>
+            <section className="cine-card p-5">
+              <h2 ref={stepHeadingRef} tabIndex={-1} className="mb-4 text-sm font-semibold">
+                Tus asientos
+              </h2>
+              <SeatMap
+                seatMap={seatMap}
+                basePrice={screening.basePrice}
+                premiumMultiplier={config.premiumSeatMultiplier}
+                selected={selected}
+                onToggle={toggle}
+                lostSeatIds={submitState.lostSeatIds}
+                disabled={closed}
+              />
+            </section>
 
-        <section className="cine-card p-5">
-          <h2 className="mb-4 text-sm font-semibold">Agregar confitería</h2>
+            <section className="cine-card p-5">
+              <h2 className="mb-4 text-sm font-semibold">Agregar confitería</h2>
 
-          {products.length === 0 ? (
-            <p className="text-sm text-ink-500">No hay productos disponibles en este momento.</p>
-          ) : (
-            <ul className="divide-y divide-ink-800">
-              {products.map((product) => {
-                const quantity = quantities.get(product.uuid) ?? 0;
-                const soldOut = !product.available;
+              {products.length === 0 ? (
+                <p className="text-sm text-ink-500">
+                  No hay productos disponibles en este momento.
+                </p>
+              ) : (
+                <ul className="divide-y divide-ink-800">
+                  {products.map((product) => {
+                    const quantity = quantities.get(product.uuid) ?? 0;
+                    const soldOut = !product.available;
 
-                return (
-                  <li key={product.uuid} className="flex items-center gap-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{product.productName}</p>
-                      <p className="text-xs text-ink-500">
-                        {productCategoryLabels[product.category]} · {formatMoney(product.price)} ·{' '}
-                        {soldOut ? 'sin stock' : 'disponible'}
-                      </p>
-                    </div>
+                    return (
+                      <li key={product.uuid} className="flex items-center gap-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{product.productName}</p>
+                          <p className="text-xs text-ink-500">
+                            {productCategoryLabels[product.category]} · {formatMoney(product.price)}{' '}
+                            · {soldOut ? 'sin stock' : 'disponible'}
+                          </p>
+                        </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="cine-btn cine-btn-ghost px-2 py-1"
-                        disabled={quantity === 0}
-                        aria-label={`Quitar una unidad de ${product.productName}`}
-                        onClick={() => setQuantity(product.uuid, quantity - 1)}
-                      >
-                        −
-                      </button>
-                      <span
-                        aria-live="polite"
-                        aria-atomic="true"
-                        className="w-6 text-center text-sm tabular-nums"
-                      >
-                        {quantity}
-                        <span className="sr-only"> de {product.productName}</span>
-                      </span>
-                      <button
-                        type="button"
-                        className="cine-btn cine-btn-ghost px-2 py-1"
-                        disabled={soldOut}
-                        aria-label={`Agregar una unidad de ${product.productName}`}
-                        onClick={() => setQuantity(product.uuid, quantity + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="cine-btn cine-btn-ghost px-2 py-1"
+                            disabled={quantity === 0}
+                            aria-label={`Quitar una unidad de ${product.productName}`}
+                            onClick={() => setQuantity(product.uuid, quantity - 1)}
+                          >
+                            −
+                          </button>
+                          <span
+                            aria-live="polite"
+                            aria-atomic="true"
+                            className="w-6 text-center text-sm tabular-nums"
+                          >
+                            {quantity}
+                            <span className="sr-only"> de {product.productName}</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="cine-btn cine-btn-ghost px-2 py-1"
+                            disabled={soldOut}
+                            aria-label={`Agregar una unidad de ${product.productName}`}
+                            onClick={() => setQuantity(product.uuid, quantity + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
       </div>
 
       <aside className="lg:sticky lg:top-24 lg:self-start">
-        <form action={submitAction} className="flex flex-col gap-4 cine-card p-5">
+        <div className="flex flex-col gap-4 cine-card p-5">
           <h2 className="text-sm font-semibold">Resumen del pedido</h2>
 
           <ul className="flex flex-col gap-2 text-sm">
@@ -442,17 +527,37 @@ function CheckoutPanel() {
             <span className="tabular-nums">{formatMoney(total)}</span>
           </div>
 
-          <SubmitButton disabled={!canSubmit} pendingLabel="Reservando…">
-            Confirmar reserva
-          </SubmitButton>
+          {step === 'payment' ? (
+            <>
+              <SubmitButton disabled={!canSubmit} pendingLabel="Procesando pago…">
+                Pagar {formatMoney(total)}
+              </SubmitButton>
+              <button
+                type="button"
+                className="cine-btn cine-btn-ghost"
+                onClick={() => goToStep('order')}
+              >
+                Volver al pedido
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="cine-btn cine-btn-primary"
+              disabled={!canSubmit}
+              onClick={() => goToStep('payment')}
+            >
+              Continuar al pago
+            </button>
+          )}
 
           <p className="text-xs text-ink-500">
             {quote
               ? 'Este total es la cotización de precio confirmada por el servidor.'
               : 'El precio mostrado es una estimación; el total confirmado de tu reserva es el válido.'}
           </p>
-        </form>
+        </div>
       </aside>
-    </div>
+    </form>
   );
 }
