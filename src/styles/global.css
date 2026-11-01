@@ -1,37 +1,79 @@
 @import 'tailwindcss';
 
+/*
+ * Tema "Net": paleta y cromo de 16 bits inspirados en las áreas de Internet de Mega Man Battle
+ * Network. Los nombres de los tokens se mantienen (ink/brand/gold) para que los componentes se
+ * recoloreen solos; los contrastes de texto (≥4.5:1) y de bordes (≥3:1) se verificaron contra
+ * ink-950/900/800 y contra el píxel más claro del fondo animado.
+ */
 @theme {
-  --color-ink-950: oklch(0.16 0.02 275);
-  --color-ink-900: oklch(0.21 0.025 275);
-  --color-ink-800: oklch(0.27 0.03 275);
-  --color-ink-700: oklch(0.35 0.03 275);
-  --color-ink-600: oklch(0.46 0.025 275);
-  --color-ink-500: oklch(0.65 0.02 275);
-  --color-ink-400: oklch(0.68 0.018 275);
-  --color-ink-300: oklch(0.78 0.015 275);
-  --color-ink-200: oklch(0.86 0.012 275);
-  --color-ink-100: oklch(0.93 0.008 275);
+  /* Azul marino/cobalto de la red. */
+  --color-ink-950: oklch(0.17 0.06 262);
+  --color-ink-900: oklch(0.22 0.075 262);
+  --color-ink-800: oklch(0.29 0.09 262);
+  --color-ink-700: oklch(0.37 0.1 260);
+  --color-ink-600: oklch(0.53 0.09 255);
+  --color-ink-500: oklch(0.72 0.07 245);
+  --color-ink-400: oklch(0.76 0.06 240);
+  --color-ink-300: oklch(0.84 0.05 230);
+  --color-ink-200: oklch(0.9 0.035 225);
+  --color-ink-100: oklch(0.96 0.02 220);
 
-  --color-brand-700: oklch(0.48 0.18 12);
-  --color-brand-600: oklch(0.55 0.19 12);
-  --color-brand-500: oklch(0.63 0.2 12);
-  --color-brand-400: oklch(0.72 0.17 12);
-  --color-brand-300: oklch(0.8 0.13 12);
+  /* Cian a cobalto: acciones primarias, enlaces y foco. */
+  --color-brand-700: oklch(0.45 0.16 255);
+  --color-brand-600: oklch(0.52 0.16 250);
+  --color-brand-500: oklch(0.7 0.15 225);
+  --color-brand-400: oklch(0.82 0.14 210);
+  --color-brand-300: oklch(0.88 0.11 205);
 
-  --color-gold-900: oklch(0.32 0.07 85);
-  --color-gold-600: oklch(0.64 0.15 85);
-  --color-gold-500: oklch(0.74 0.16 85);
-  --color-gold-400: oklch(0.82 0.15 85);
+  /* Amarillo de resaltado: advertencias, butacas premium y retenidas. */
+  --color-gold-900: oklch(0.33 0.07 95);
+  --color-gold-600: oklch(0.72 0.16 95);
+  --color-gold-500: oklch(0.84 0.17 98);
+  --color-gold-400: oklch(0.9 0.16 100);
 
-  --radius-card: 0.875rem;
+  /* Rojo "virus": errores y acciones destructivas, separado de `brand`. */
+  --color-virus-700: oklch(0.48 0.18 28);
+  --color-virus-600: oklch(0.55 0.2 30);
+  --color-virus-500: oklch(0.65 0.2 32);
+  --color-virus-400: oklch(0.74 0.16 35);
+  --color-virus-300: oklch(0.83 0.09 35);
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Verde "HP": confirmaciones y selección. */
+  --color-hp-500: oklch(0.78 0.2 142);
+  --color-hp-400: oklch(0.86 0.19 140);
+
+  /* Sin esquinas redondeadas: todo es de píxeles. `rounded-full` no se toca. */
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-card: 0;
+
+  /* `--font-pixelify`/`--font-press-start` las define <Font> en el layout, con `monospace` de respaldo. */
+  --font-sans: var(--font-pixelify), monospace;
+  --font-display: var(--font-press-start), monospace;
+  --font-mono: var(--font-press-start), monospace;
+
+  /* Pixelify tiene x-height chica: se agrandan los tamaños pequeños para que sigan legibles. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+
+  /* Biseles de ventana de PET: luz arriba-izquierda, sombra abajo-derecha. */
+  --shadow-bevel:
+    inset 2px 2px 0 --alpha(var(--color-brand-300) / 12%),
+    inset -2px -2px 0 --alpha(var(--color-black) / 35%);
+  --shadow-pixel: 4px 4px 0 --alpha(var(--color-black) / 45%);
 }
 
 @layer base {
   html {
     color-scheme: dark;
     scrollbar-gutter: stable;
+    scrollbar-color: var(--color-brand-600) var(--color-ink-950);
     /* Que el encabezado fijo no tape el elemento enfocado (WCAG 2.4.11). */
     scroll-padding-top: 5rem;
   }
@@ -39,32 +81,56 @@
   body {
     background-color: var(--color-ink-950);
     color: var(--color-ink-100);
-    -webkit-font-smoothing: antialiased;
     font-family: var(--font-sans);
   }
 
+  /* Press Start 2P tiene un solo peso: sin negrita sintética que empaste los píxeles. */
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1.4;
+    text-shadow: 2px 2px 0 var(--color-ink-950);
+  }
+
+  ::selection {
+    background-color: var(--color-brand-600);
+    color: var(--color-white);
+  }
+
+  /* Los biseles son `box-shadow`, no `clip-path`: el contorno de foco nunca queda recortado. */
   :focus-visible {
-    outline: 2px solid var(--color-brand-400);
+    outline: 2px solid var(--color-brand-300);
     outline-offset: 2px;
   }
 }
 
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+/* Ventana de PET: translúcida sobre el fondo animado, con bisel y sombra dura de píxel. */
 @utility cine-card {
-  background-color: var(--color-ink-900);
-  border: 1px solid var(--color-ink-800);
+  background-color: --alpha(var(--color-ink-900) / 92%);
+  /* Borde ≥3:1 contra ink-900 (WCAG 1.4.11). */
+  border: 2px solid var(--color-ink-600);
   border-radius: var(--radius-card);
+  box-shadow: var(--shadow-bevel), var(--shadow-pixel);
 }
 
 @utility cine-input {
   width: 100%;
   border-radius: var(--radius-lg);
   /* Borde con contraste ≥3:1 contra el fondo (WCAG 1.4.11). */
-  border: 1px solid var(--color-ink-500);
+  border: 2px solid var(--color-ink-500);
   background-color: var(--color-ink-950);
+  box-shadow: inset 2px 2px 0 --alpha(var(--color-black) / 40%);
   padding: --spacing(2) --spacing(3);
   font-size: var(--text-sm);
   color: var(--color-ink-100);
-  transition-property: border-color;
+  transition-property: border-color, box-shadow;
   transition-duration: var(--default-transition-duration);
   transition-timing-function: var(--default-transition-timing-function);
 
@@ -74,6 +140,9 @@
 
   &:focus {
     border-color: var(--color-brand-400);
+    box-shadow:
+      inset 2px 2px 0 --alpha(var(--color-black) / 40%),
+      0 0 0 2px --alpha(var(--color-brand-400) / 30%);
   }
 
   &:disabled {
@@ -94,13 +163,21 @@
   align-items: center;
   justify-content: center;
   gap: --spacing(2);
+  border: 2px solid transparent;
   border-radius: var(--radius-lg);
-  padding: --spacing(2) --spacing(4);
+  padding: calc(--spacing(2) - 2px) calc(--spacing(4) - 2px);
   font-size: var(--text-sm);
   font-weight: 600;
-  transition-property: background-color, color;
+  transition-property: background-color, color, border-color;
   transition-duration: var(--default-transition-duration);
   transition-timing-function: var(--default-transition-timing-function);
+
+  /* "Pulsar" el botón: baja 2px como en los menús de 16 bits. */
+  @media (prefers-reduced-motion: no-preference) {
+    &:active:not(:disabled) {
+      translate: 2px 2px;
+    }
+  }
 
   &:disabled {
     cursor: not-allowed;
@@ -112,7 +189,15 @@
 /* `brand-600`/`brand-700` mantienen el texto blanco por encima de 4.5:1 (WCAG 1.4.3). */
 @utility cine-btn-primary {
   background-color: var(--color-brand-600);
+  border-color: var(--color-brand-400);
   color: var(--color-white);
+  box-shadow:
+    var(--shadow-bevel),
+    2px 2px 0 --alpha(var(--color-black) / 45%);
+
+  &:active:not(:disabled) {
+    box-shadow: var(--shadow-bevel);
+  }
 
   @variant hover {
     &:not(:disabled) {
@@ -123,7 +208,15 @@
 
 @utility cine-btn-secondary {
   background-color: var(--color-ink-800);
+  border-color: var(--color-ink-600);
   color: var(--color-ink-100);
+  box-shadow:
+    var(--shadow-bevel),
+    2px 2px 0 --alpha(var(--color-black) / 45%);
+
+  &:active:not(:disabled) {
+    box-shadow: var(--shadow-bevel);
+  }
 
   @variant hover {
     &:not(:disabled) {
@@ -138,18 +231,19 @@
   @variant hover {
     &:not(:disabled) {
       background-color: var(--color-ink-800);
+      border-color: var(--color-ink-600);
       color: var(--color-ink-100);
     }
   }
 }
 
 @utility cine-btn-danger {
-  border: 1px solid var(--color-brand-600);
-  color: var(--color-brand-400);
+  border-color: var(--color-virus-500);
+  color: var(--color-virus-400);
 
   @variant hover {
     &:not(:disabled) {
-      background-color: var(--color-brand-600);
+      background-color: var(--color-virus-600);
       color: var(--color-white);
     }
   }
@@ -157,14 +251,22 @@
 
 /* Avisos en línea (retenciones, advertencias, confirmaciones). El espaciado queda en el markup. */
 @utility cine-alert-warning {
-  border: 1px solid --alpha(var(--color-gold-500) / 40%);
+  border: 2px solid --alpha(var(--color-gold-500) / 45%);
   border-radius: var(--radius-lg);
-  background-color: --alpha(var(--color-gold-500) / 10%);
+  background-color: --alpha(var(--color-gold-900) / 85%);
   color: var(--color-gold-400);
 }
 
 @utility cine-alert-success {
-  border: 1px solid --alpha(var(--color-emerald-500) / 40%);
+  border: 2px solid --alpha(var(--color-hp-500) / 45%);
   border-radius: var(--radius-lg);
-  background-color: --alpha(var(--color-emerald-500) / 10%);
+  background-color: --alpha(var(--color-ink-900) / 92%);
+}
+
+/* Aviso de error: mismo formato que las alertas, sobre la escala "virus". */
+@utility cine-alert-danger {
+  border: 2px solid --alpha(var(--color-virus-500) / 50%);
+  border-radius: var(--radius-lg);
+  background-color: --alpha(var(--color-ink-900) / 92%);
+  color: var(--color-virus-300);
 }

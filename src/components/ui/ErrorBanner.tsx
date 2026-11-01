@@ -17,13 +17,13 @@ const toneByKind = {
   validation: 'cine-alert-warning',
   unauthorized: 'cine-alert-warning',
   forbidden: 'cine-alert-warning',
-  notFound: 'rounded-lg border border-ink-700 bg-ink-800/60 text-ink-300',
+  notFound: 'border-2 border-ink-600 bg-ink-900/92 text-ink-300',
   conflict: 'cine-alert-warning',
-  businessRule: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
-  request: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
-  server: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
-  network: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
-  unknown: 'rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400',
+  businessRule: 'cine-alert-danger',
+  request: 'cine-alert-danger',
+  server: 'cine-alert-danger',
+  network: 'cine-alert-danger',
+  unknown: 'cine-alert-danger',
 } as const;
 
 const headingByKind = {

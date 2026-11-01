@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { cx } from '../../lib/cx.ts';
 
 const tones = {
-  neutral: 'bg-ink-800 text-ink-300',
-  success: 'bg-emerald-500/15 text-emerald-400',
-  warning: 'bg-gold-500/15 text-gold-400',
-  danger: 'bg-brand-500/15 text-brand-400',
-  premium: 'bg-gold-500/15 text-gold-400',
+  neutral: 'border-ink-600 bg-ink-800 text-ink-300',
+  success: 'border-hp-500/40 bg-hp-500/15 text-hp-400',
+  warning: 'border-gold-500/40 bg-gold-500/15 text-gold-400',
+  danger: 'border-virus-500/40 bg-virus-500/15 text-virus-400',
+  premium: 'border-gold-500/40 bg-gold-500/15 text-gold-400',
 } as const;
 
 export type BadgeTone = keyof typeof tones;
@@ -21,10 +21,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={cx(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-        tones[tone],
-      )}
+      className={cx('inline-flex items-center border px-2 py-0.5 text-xs font-medium', tones[tone])}
     >
       {children}
     </span>

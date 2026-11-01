@@ -81,7 +81,7 @@ export default function MovieDetail() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <h1 className="text-3xl font-bold">{movie.movieName}</h1>
+          <h1 className="text-lg sm:text-2xl">{movie.movieName}</h1>
           <p className="text-sm text-ink-500">{formatRuntime(movie.runtime)}</p>
           <MovieMeta movie={movie} />
           <GenreList genres={movie.genres} />

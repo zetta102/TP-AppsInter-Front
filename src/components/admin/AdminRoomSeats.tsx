@@ -247,7 +247,7 @@ export default function AdminRoomSeats() {
                       aria-label={`Editar asiento ${seatLabel(seat.row, seat.column)}, ${seatTypeLabels[seat.seatType]}`}
                       title={`${seatLabel(seat.row, seat.column)} · ${seatTypeLabels[seat.seatType]}`}
                       className={cx(
-                        'size-8 shrink-0 rounded-md text-[10px] font-semibold disabled:opacity-50',
+                        'size-8 shrink-0 rounded-md font-display text-[8px] disabled:opacity-50',
                         seat.seatType === SeatType.PREMIUM
                           ? 'bg-gold-500/25 text-gold-400 hover:bg-gold-500/45'
                           : 'bg-ink-700 text-ink-100 hover:bg-ink-600',

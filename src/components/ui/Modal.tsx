@@ -49,11 +49,11 @@ export function Modal({
         onClose();
       }}
       className={cx(
-        'm-auto w-full rounded-card border border-ink-800 bg-ink-900 p-0 text-ink-100 backdrop:bg-black/70',
+        'm-auto w-full cine-card bg-ink-900 p-0 text-ink-100 backdrop:bg-black/70',
         wide ? 'max-w-3xl' : 'max-w-lg',
       )}
     >
-      <div className="flex items-center justify-between border-b border-ink-800 px-5 py-4">
+      <div className="flex items-center justify-between border-b-2 border-ink-700 px-5 py-4">
         <h2 id={titleId} className="text-base font-semibold">
           {title}
         </h2>

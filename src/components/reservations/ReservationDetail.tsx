@@ -64,7 +64,7 @@ function DetailPanel() {
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{reservation.movieName}</h1>
+          <h1 className="text-lg sm:text-2xl">{reservation.movieName}</h1>
           <p className="text-sm text-ink-500">
             Reservada el {formatDateTime(reservation.createdAt)} · referencia{' '}
             <code>{reservation.uuid.slice(0, 8)}</code>

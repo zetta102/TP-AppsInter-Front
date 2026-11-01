@@ -52,8 +52,10 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
 
   const linkClass = (href: string) =>
     cx(
-      'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-      isActive(href) ? 'bg-ink-800 text-ink-100' : 'text-ink-300 hover:text-ink-100',
+      'rounded-lg border-2 border-transparent px-3 py-1.5 text-sm font-medium transition-colors',
+      isActive(href)
+        ? 'border-brand-400 bg-brand-600 text-white shadow-[inset_0_-2px_0_var(--color-brand-700)]'
+        : 'text-ink-300 hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100',
     );
 
   return (

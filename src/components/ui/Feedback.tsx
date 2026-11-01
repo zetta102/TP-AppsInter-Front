@@ -8,7 +8,7 @@ export function Spinner({ className = '' }: { readonly className?: string }) {
     <span
       aria-hidden="true"
       className={cx(
-        'inline-block size-4 rounded-full border-2 border-current border-t-transparent motion-safe:animate-spin',
+        'inline-block size-4 border-2 border-current border-t-transparent motion-safe:animate-[spin_0.8s_steps(8)_infinite]',
         className,
       )}
     />

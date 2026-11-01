@@ -158,11 +158,11 @@ function seatClass({
   // `scroll-mb-32`: al enfocar con teclado, el asiento queda por encima de la barra fija inferior
   // del selector (WCAG 2.4.11).
   const base =
-    'size-7 shrink-0 scroll-mb-32 rounded-md text-[10px] font-semibold transition-colors flex items-center justify-center';
+    'size-7 shrink-0 scroll-mb-32 rounded-md font-display text-[8px] transition-colors flex items-center justify-center';
 
   if (isLost)
-    return cx(base, 'bg-brand-600 ring-brand-400 motion-safe:animate-pulse text-white ring-2');
-  if (isSelected) return cx(base, 'text-ink-950 bg-emerald-500');
+    return cx(base, 'bg-virus-600 ring-virus-400 motion-safe:animate-pulse text-white ring-2');
+  if (isSelected) return cx(base, 'text-ink-950 bg-hp-500');
   if (!seat.available) return cx(base, 'bg-ink-800 text-ink-500 cursor-not-allowed line-through');
   // Borde punteado: el estado "retenido" no puede distinguirse solo por color (WCAG 1.4.1).
   if (seat.held) return cx(base, HELD_CLASS, 'text-gold-600 cursor-not-allowed');
@@ -195,11 +195,11 @@ export function SeatLegend({
         Premium · {formatMoney(ticketPrice(basePrice, SeatType.PREMIUM, premiumMultiplier))}
       </li>
       <li className="flex items-center gap-2">
-        <span className="size-4 rounded-sm bg-emerald-500" />
+        <span className="size-4 rounded-sm bg-hp-500" />
         Seleccionado
       </li>
       <li className="flex items-center gap-2">
-        <span className="flex size-4 items-center justify-center rounded-sm bg-ink-800 text-[10px] text-ink-500 line-through">
+        <span className="flex size-4 items-center justify-center rounded-sm bg-ink-800 font-display text-[8px] text-ink-500 line-through">
           <span aria-hidden="true">1</span>
         </span>
         Ocupado

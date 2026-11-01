@@ -36,14 +36,14 @@ export function Field({ label, children, error, hint, required, className = '' }
         {label}
         {/* El `required` nativo ya lo anuncia; el asterisco es solo visual. */}
         {required && (
-          <span aria-hidden="true" className="ml-1 text-brand-400">
+          <span aria-hidden="true" className="ml-1 text-virus-400">
             *
           </span>
         )}
       </label>
       {children({ id, describedBy })}
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-brand-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-virus-400">
           {error}
         </p>
       )}

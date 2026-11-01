@@ -5,7 +5,7 @@ import { LoadingBlock } from '../../components/ui/Feedback.tsx';
 ---
 
 <Layout title="Mis reservas" description="Tus entradas y tu confitería.">
-  <h1 class="mb-6 text-2xl font-bold">Mis reservas</h1>
+  <h1 class="mb-6 text-lg sm:text-2xl">Mis reservas</h1>
   <MyReservations client:only="react">
     <div slot="fallback">
       <LoadingBlock label="Cargando tus reservas…" />

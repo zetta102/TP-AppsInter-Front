@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig, envField } from 'astro/config';
+import { defineConfig, envField, fontProviders } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -9,6 +9,28 @@ export default defineConfig({
   // React Compiler (Oxc): memoiza componentes y hooks automáticamente, sin useMemo/useCallback.
   // `oxc-transform-react` lo consume `@vitejs/plugin-react`; ver `overrides` en package.json.
   integrations: [react({ compiler: true })],
+  // Tipografías de píxeles del tema "Net", descargadas en el build y servidas desde el propio
+  // sitio. `latin-ext` cubre los acentos y la eñe.
+  fonts: [
+    {
+      provider: fontProviders.google(),
+      name: 'Pixelify Sans',
+      cssVariable: '--font-pixelify',
+      weights: ['400 700'],
+      styles: ['normal'],
+      subsets: ['latin', 'latin-ext'],
+      fallbacks: ['monospace'],
+    },
+    {
+      provider: fontProviders.google(),
+      name: 'Press Start 2P',
+      cssVariable: '--font-press-start',
+      weights: [400],
+      styles: ['normal'],
+      subsets: ['latin', 'latin-ext'],
+      fallbacks: ['monospace'],
+    },
+  ],
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover',

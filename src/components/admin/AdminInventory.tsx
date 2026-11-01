@@ -506,7 +506,7 @@ function AdjustStockModal({
                   className="flex items-center justify-between gap-3 rounded-lg border border-ink-800 px-3 py-2"
                 >
                   <span>
-                    <span className={entry.delta >= 0 ? 'text-emerald-400' : 'text-brand-400'}>
+                    <span className={entry.delta >= 0 ? 'text-hp-400' : 'text-virus-400'}>
                       {entry.delta >= 0 ? '+' : ''}
                       {entry.delta}
                     </span>{' '}

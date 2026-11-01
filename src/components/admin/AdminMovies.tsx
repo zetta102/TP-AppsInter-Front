@@ -295,7 +295,7 @@ function MovieFormModal({
             ))}
           </div>
           {state.fieldErrors['genres'] && (
-            <p role="alert" className="mt-1 text-xs text-brand-400">
+            <p role="alert" className="mt-1 text-xs text-virus-400">
               Seleccioná al menos un género.
             </p>
           )}

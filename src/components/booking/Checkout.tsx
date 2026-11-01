@@ -248,7 +248,7 @@ function CheckoutPanel() {
     <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
       <div className="flex flex-col gap-6">
         <header>
-          <h1 className="text-2xl font-bold">{screening.movieName}</h1>
+          <h1 className="text-lg sm:text-2xl">{screening.movieName}</h1>
           <p className="text-sm text-ink-500">
             {formatDateTime(screening.startsAt)} · {screening.roomName}
           </p>

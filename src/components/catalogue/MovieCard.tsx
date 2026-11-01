@@ -34,7 +34,7 @@ function PosterPlaceholder({ title }: { readonly title: string }) {
   return (
     <div
       aria-hidden="true"
-      className="flex aspect-2/3 w-full items-center justify-center rounded-lg text-3xl font-black text-white/80"
+      className="flex aspect-2/3 w-full items-center justify-center rounded-lg font-display text-2xl text-white/80 [text-shadow:2px_2px_0_rgb(0_0_0/0.5)]"
       style={{
         background: `linear-gradient(150deg, oklch(0.34 0.09 ${hue}), oklch(0.2 0.05 ${(hue + 60) % 360}))`,
       }}

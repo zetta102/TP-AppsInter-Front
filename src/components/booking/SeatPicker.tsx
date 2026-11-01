@@ -102,7 +102,7 @@ export default function SeatPicker() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{screening.movieName}</h1>
+          <h1 className="text-lg sm:text-2xl">{screening.movieName}</h1>
           <p className="text-sm text-ink-500">
             {formatDateTime(screening.startsAt)} · {screening.roomName} · desde{' '}
             {formatMoney(screening.basePrice)}

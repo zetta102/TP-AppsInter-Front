@@ -1,0 +1,119 @@
+---
+/**
+ * Fondo animado "Net": dos capas de baldosas de 16 bits que se desplazan en diagonal, al estilo
+ * de las áreas de Internet de Mega Man Battle Network. Lejos, una grilla de circuito; cerca, los
+ * pares "6 7", que además giran sobre su eje vertical como los emblemas de MMBN 4-6.
+ *
+ * El giro vive dentro de `net-67-spin.svg`, con cuadros de píxeles dibujados a mano y sin escalados
+ * que emborronen. La página no puede pausar la animación de una imagen: en pausa o con movimiento
+ * reducido se usa la baldosa estática `net-67.svg`.
+ *
+ * Persiste entre transiciones (`transition:persist`): el `ClientRouter` reemplaza el `<body>` en
+ * cada navegación y, sin persistir, la animación volvería a empezar.
+ *
+ * Movimiento (WCAG 2.2.2 y 2.3.3): solo se anima con `prefers-reduced-motion: no-preference`, y
+ * el botón `[data-net-toggle]` del pie lo pausa; la elección se recuerda en `localStorage`.
+ */
+---
+
+<div class="net-bg" aria-hidden="true" transition:persist="net-bg">
+  <div class="net-layer net-layer-far"></div>
+  <div class="net-layer net-layer-near"></div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'cine:fondo-pausado';
+
+  function readPaused(): boolean {
+    try {
+      return window.localStorage.getItem(STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function writePaused(paused: boolean) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, paused ? '1' : '0');
+    } catch {
+      // Sin almacenamiento (navegación privada) la pausa vale solo para esta página.
+    }
+  }
+
+  function applyPaused(paused: boolean) {
+    document.querySelector('.net-bg')?.toggleAttribute('data-paused', paused);
+    document.querySelector('[data-net-toggle]')?.setAttribute('aria-pressed', String(paused));
+  }
+
+  // El pie se reemplaza en cada navegación (el fondo no): se vuelve a enlazar el botón cada vez.
+  document.addEventListener('astro:page-load', () => {
+    applyPaused(readPaused());
+    document.querySelector('[data-net-toggle]')?.addEventListener('click', (event) => {
+      const paused = (event.currentTarget as HTMLElement).getAttribute('aria-pressed') !== 'true';
+      writePaused(paused);
+      applyPaused(paused);
+    });
+  });
+</script>
+
+<style>
+  .net-bg {
+    --net-tile: 96px;
+
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    background: linear-gradient(to bottom, #020d29, #001b45);
+  }
+
+  /* Una baldosa de margen arriba y a la derecha: el desplazamiento nunca deja huecos. */
+  .net-layer {
+    position: absolute;
+    inset: calc(var(--net-tile) * -1) calc(var(--net-tile) * -1) 0 0;
+    background-size: var(--net-tile) var(--net-tile);
+    image-rendering: pixelated;
+  }
+
+  .net-layer-far {
+    background-image: url('../assets/net-grid.svg');
+  }
+
+  .net-layer-near {
+    background-image: url('../assets/net-67.svg');
+  }
+
+  /*
+   * `steps()` con tantos pasos como píxeles tiene la baldosa: avanza de a 1px entero, sin
+   * subpíxeles que emborronen el arte. Recorrer una baldosa exacta hace el bucle invisible.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .net-layer {
+      will-change: transform;
+    }
+
+    /* La grilla lejana va a mitad de velocidad: paralaje. */
+    .net-layer-far {
+      animation: net-scroll 6.4s steps(96) infinite;
+    }
+
+    .net-layer-near {
+      animation: net-scroll 3.2s steps(96) infinite;
+    }
+
+    .net-bg:not([data-paused]) .net-layer-near {
+      background-image: url('../assets/net-67-spin.svg');
+    }
+
+    .net-bg[data-paused] .net-layer {
+      animation-play-state: paused;
+    }
+  }
+
+  @keyframes net-scroll {
+    to {
+      transform: translate(calc(var(--net-tile) * -1), var(--net-tile));
+    }
+  }
+</style>
