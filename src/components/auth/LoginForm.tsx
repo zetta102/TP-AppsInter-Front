@@ -1,5 +1,5 @@
-import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { formError, formRaw, formText, initialFormState, type FormState } from '../../lib/form.ts';
 import { safeNext } from '../../lib/login-redirect.ts';
 import { useAuth } from '../../lib/use-auth.ts';
@@ -7,19 +7,16 @@ import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { TextInput } from '../ui/Field.tsx';
 import { SubmitButton } from '../ui/SubmitButton.tsx';
 
-/** Adónde volver tras iniciar sesión: el `?next=` validado o, por defecto, las reservas. */
-function nextDestination(): string {
-  if (typeof window === 'undefined') return safeNext(null);
-  return safeNext(new URLSearchParams(window.location.search).get('next'));
-}
-
 export default function LoginForm() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
     try {
       await login({ email: formText(formData, 'email'), password: formRaw(formData, 'password') });
-      void navigate(nextDestination());
+      // Adónde volver: el `?next=` validado o, por defecto, las reservas.
+      void navigate(safeNext(searchParams.get('next')));
       return initialFormState;
     } catch (error) {
       // El 400 se vincula a los campos; el 401 `INVALID_CREDENTIALS` aparece en el banner.
@@ -53,9 +50,9 @@ export default function LoginForm() {
 
       <p className="text-center text-sm text-ink-500">
         ¿No tenés cuenta?{' '}
-        <a href="/register" className="cine-link">
+        <Link to="/register" className="cine-link">
           Creá una
-        </a>
+        </Link>
       </p>
     </form>
   );

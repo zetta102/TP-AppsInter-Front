@@ -1,9 +1,9 @@
+import { Link, useParams } from 'react-router';
 import { getReservation } from '../../lib/api/reservations.ts';
 import { ReservationStatus, seatTypeLabels } from '../../lib/enums.ts';
 import { formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import type { Reservation } from '../../lib/types.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
 import { useKeyedResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
@@ -29,7 +29,7 @@ export default function ReservationDetail() {
 }
 
 function DetailPanel() {
-  const reservationId = useQueryParam('id');
+  const { id: reservationId } = useParams();
 
   const resource = useKeyedResource<string, Reservation>(reservationId, (id, signal) =>
     getReservation(id, { signal }),
@@ -43,9 +43,9 @@ function DetailPanel() {
       <EmptyState
         title="No seleccionaste ninguna reserva"
         action={
-          <a href="/reservations" className="cine-btn cine-btn-primary">
+          <Link to="/reservations" className="cine-btn cine-btn-primary">
             Mis reservas
-          </a>
+          </Link>
         }
       />
     );
@@ -132,9 +132,9 @@ function DetailPanel() {
       </div>
 
       <div className="ml-auto flex cine-plate justify-end gap-2">
-        <a href="/reservations" className="cine-btn cine-btn-ghost">
+        <Link to="/reservations" className="cine-btn cine-btn-ghost">
           Volver a mis reservas
-        </a>
+        </Link>
         {!cancelled && (
           <button
             type="button"

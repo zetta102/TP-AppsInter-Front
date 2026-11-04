@@ -1,8 +1,10 @@
 import { useId, useState } from 'react';
+import { Link, useParams } from 'react-router';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { getScreeningWithSeatMap } from '../../lib/api/screenings.ts';
 import { formatCount, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
 import { loginHref } from '../../lib/login-redirect.ts';
+import { checkoutPath, moviePath } from '../../lib/paths.ts';
 import { estimateTotal } from '../../lib/pricing.ts';
 import type {
   MetadataConfig,
@@ -14,7 +16,6 @@ import { useAuth } from '../../lib/use-auth.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useLiveSeatMap } from '../../lib/use-live-seat-map.ts';
 import { useNow } from '../../lib/use-now.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
 import { useKeyedResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
@@ -38,7 +39,7 @@ interface SeatPickerData {
  * seguridad (más espaciado mientras el stream está conectado).
  */
 export default function SeatPicker() {
-  const screeningId = useQueryParam('id');
+  const { id: screeningId } = useParams();
   const now = useNow();
   const { isAuthenticated, ready, user } = useAuth();
 
@@ -95,9 +96,9 @@ export default function SeatPicker() {
         title="No se seleccionó ninguna función"
         description="Elegí un horario desde la cartelera."
         action={
-          <a href="/" className="cine-btn cine-btn-primary">
+          <Link to="/" className="cine-btn cine-btn-primary">
             Ver cartelera
-          </a>
+          </Link>
         }
       />
     );
@@ -112,7 +113,7 @@ export default function SeatPicker() {
   const estimate = estimateTotal(screening.basePrice, chosen, [], config.premiumSeatMultiplier);
   const closed = isScreeningClosed(screening, now);
 
-  const checkoutHref = `/checkout?screening=${screening.uuid}&seats=${selected.join(',')}`;
+  const checkoutHref = checkoutPath(screening.uuid, selected);
   // Por qué no se puede continuar: un botón deshabilitado sin explicación no dice qué hacer
   // (WCAG 3 "Disabled controls explained").
   const blockReason = closed
@@ -132,12 +133,9 @@ export default function SeatPicker() {
               {formatMoney(screening.basePrice)}
             </p>
           </div>
-          <a
-            href={`/movies/detail?id=${screening.movieId}`}
-            className="cine-btn cine-btn-ghost bg-ink-950/50"
-          >
+          <Link to={moviePath(screening.movieId)} className="cine-btn cine-btn-ghost bg-ink-950/50">
             Otros horarios
-          </a>
+          </Link>
         </div>
         <PurchaseSteps current="seats" />
         {/* Lo que pide el proceso, antes de empezar (WCAG 3 "Information requirements available at start"). */}
@@ -231,17 +229,17 @@ export default function SeatPicker() {
                 Continuar con la reserva
               </button>
             ) : (
-              <a href={checkoutHref} className="cine-btn cine-btn-primary">
+              <Link to={checkoutHref} className="cine-btn cine-btn-primary">
                 Continuar con la reserva
-              </a>
+              </Link>
             )
           ) : (
-            <a
-              href={loginHref(selected.length === 0 ? null : checkoutHref)}
+            <Link
+              to={loginHref(selected.length === 0 ? null : checkoutHref)}
               className="cine-btn cine-btn-primary"
             >
               Iniciá sesión para reservar
-            </a>
+            </Link>
           )}
         </div>
       </div>

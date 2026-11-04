@@ -1,4 +1,5 @@
 import { useActionState, useState } from 'react';
+import { Link } from 'react-router';
 import { listMovies } from '../../lib/api/movies.ts';
 import { listRooms } from '../../lib/api/rooms.ts';
 import {
@@ -26,6 +27,7 @@ import {
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
 } from '../../lib/format.ts';
+import { screeningSeatsPath } from '../../lib/paths.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import type { Movie, Page, Room, Screening, ScreeningRequest } from '../../lib/types.ts';
 import { useMetadataConfig } from '../../lib/use-metadata-config.ts';
@@ -157,9 +159,9 @@ export default function AdminScreenings() {
       className: 'text-right',
       cell: (screening) => (
         <div className="flex justify-end gap-1">
-          <a href={`/screenings/seats?id=${screening.uuid}`} className="cine-btn cine-btn-ghost">
+          <Link to={screeningSeatsPath(screening.uuid)} className="cine-btn cine-btn-ghost">
             Asientos
-          </a>
+          </Link>
           <button
             type="button"
             className="cine-btn cine-btn-ghost"

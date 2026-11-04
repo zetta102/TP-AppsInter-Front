@@ -1,4 +1,5 @@
 import { useState, useTransition } from 'react';
+import { Link, useParams } from 'react-router';
 import { generateSeats, getRoom, getRoomLayout } from '../../lib/api/rooms.ts';
 import { deleteSeat, updateSeat } from '../../lib/api/seats.ts';
 import { cx } from '../../lib/cx.ts';
@@ -7,7 +8,6 @@ import { formatMultiplier, seatLabel } from '../../lib/format.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
 import type { Seat, SeatLayout } from '../../lib/types.ts';
 import { useMetadataConfig } from '../../lib/use-metadata-config.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
 import { useKeyedResource } from '../../lib/use-resource.ts';
 import { Badge } from '../ui/Badge.tsx';
 import { useConfirm } from '../ui/ConfirmDialog.tsx';
@@ -36,7 +36,7 @@ function isStringArray(value: unknown): value is readonly string[] {
 }
 
 /**
- * `/admin/rooms/seats?id=<uuid>` — el generador de distribución de asientos.
+ * `/admin/rooms/:id/seats` — el generador de distribución de asientos.
  *
  * Generar una grilla llama a `POST /api/rooms/{id}/seats:generate` en una única
  * transacción, de modo que o bien existe toda la distribución solicitada o no
@@ -44,7 +44,7 @@ function isStringArray(value: unknown): value is readonly string[] {
  * ampliar una sala nunca falle por las filas que ya existen.
  */
 export default function AdminRoomSeats() {
-  const roomId = useQueryParam('id');
+  const { id: roomId } = useParams();
 
   const room = useKeyedResource(roomId, (id, signal) => getRoom(id, { signal }));
 
@@ -71,9 +71,9 @@ export default function AdminRoomSeats() {
         <EmptyState
           title="No hay ninguna sala seleccionada"
           action={
-            <a href="/admin/rooms" className="cine-btn cine-btn-primary">
+            <Link to="/admin/rooms" className="cine-btn cine-btn-primary">
               Seleccionar sala
-            </a>
+            </Link>
           }
         />
       </AdminPage>
@@ -166,9 +166,9 @@ export default function AdminRoomSeats() {
       description={`Seleccioná un asiento para alternar entre normal y premium. Las entradas premium cuestan ${premiumMultiplier} el precio base; se reconocen por el respaldo (borde superior) grueso.`}
       action={
         <div className="flex gap-2">
-          <a href="/admin/rooms" className="cine-btn cine-btn-ghost bg-ink-950/50">
+          <Link to="/admin/rooms" className="cine-btn cine-btn-ghost bg-ink-950/50">
             Todas las salas
-          </a>
+          </Link>
           <button
             type="button"
             className="cine-btn cine-btn-primary"

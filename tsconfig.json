@@ -1,10 +1,20 @@
 {
-  "extends": "astro/tsconfigs/strictest",
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "tools"],
+  "extends": "@tsconfig/strictest/tsconfig.json",
+  "include": ["src", "*.config.ts"],
   "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    "erasableSyntaxOnly": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    // Igual que el `strictest` de Astro que se usaba antes: `obj.prop` sobre un índice es válido.
+    "noPropertyAccessFromIndexSignature": false
   }
 }

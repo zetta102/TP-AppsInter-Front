@@ -1,10 +1,10 @@
-import { navigate } from 'astro:transitions/client';
-import { useEffect, useId, useRef } from 'react';
+import { useId } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../lib/use-auth.ts';
 import { cx } from '../lib/cx.ts';
 
 /**
- * Isla de navegación del sitio.
+ * Navegación principal del sitio, en el layout raíz.
  *
  * Los enlaces de administración se ocultan salvo que `/api/users/me` informe `ADMIN`.
  * Eso es solo una comodidad: el backend es la barrera real y cada pantalla de admin
@@ -28,23 +28,13 @@ const adminLinks = [
   { href: '/admin/contact', label: 'Mensajes de contacto' },
 ] as const;
 
-export default function NavBar({ pathname }: { readonly pathname: string }) {
+export default function NavBar() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { ready, isAuthenticated, isAdmin, user, logout } = useAuth();
   // Menú de administración sobre la Popover API nativa (`popover="auto"`): el navegador resuelve
   // abrir/cerrar, Escape, el clic afuera, la capa superior y `aria-expanded` del botón.
   const adminMenuId = useId();
-  const adminMenuRef = useRef<HTMLDivElement>(null);
-
-  // La isla persiste entre transiciones (`transition:persist`), y el popover con ella: se cierra
-  // al navegar para no quedar abierto sobre la página nueva.
-  useEffect(() => {
-    const close = () => {
-      const menu = adminMenuRef.current;
-      if (menu?.matches(':popover-open')) menu.hidePopover();
-    };
-    document.addEventListener('astro:before-swap', close);
-    return () => document.removeEventListener('astro:before-swap', close);
-  }, []);
 
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
@@ -66,24 +56,24 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
   return (
     <nav aria-label="Principal" className="flex flex-wrap items-center gap-2">
       {publicLinks.map((link) => (
-        <a
+        <Link
           key={link.href}
-          href={link.href}
+          to={link.href}
           aria-current={currentFor(link.href)}
           className={linkClass(link.href)}
         >
           {link.label}
-        </a>
+        </Link>
       ))}
 
       {isAuthenticated && (
-        <a
-          href="/reservations"
+        <Link
+          to="/reservations"
           aria-current={currentFor('/reservations')}
           className={linkClass('/reservations')}
         >
           Mis reservas
-        </a>
+        </Link>
       )}
 
       {isAdmin && (
@@ -99,22 +89,25 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
             CSS anchor positioning: el popover vive en la capa superior, anclado bajo el botón. Sin
             soporte, `@supports` deja el centrado predeterminado del navegador en lugar de tirarlo
             a la esquina superior izquierda.
+
+            La navegación no se vuelve a montar al cambiar de página: la `key` reemplaza el popover
+            en cada ruta, así no queda abierto sobre la página nueva.
           */}
           <div
+            key={pathname}
             id={adminMenuId}
-            ref={adminMenuRef}
             popover="auto"
             className="w-56 cine-card p-1 [position-anchor:--admin-menu] supports-[position-area:bottom]:inset-auto supports-[position-area:bottom]:m-0 supports-[position-area:bottom]:mt-1 supports-[position-area:bottom]:[position-area:bottom_span-left]"
           >
             {adminLinks.map((link) => (
-              <a
+              <Link
                 key={link.href}
-                href={link.href}
+                to={link.href}
                 aria-current={currentFor(link.href)}
                 className="block px-3 py-2 text-sm text-ink-300 hover:bg-ink-800 hover:text-ink-100 aria-[current=page]:bg-ink-800 aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-400)] forced-colors:aria-[current=page]:underline"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </div>
         </>
@@ -129,15 +122,15 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
         ) : isAuthenticated ? (
           <>
             {/* Visible en todos los anchos: es el único camino a la cuenta. */}
-            <a
-              href="/account"
+            <Link
+              to="/account"
               aria-current={currentFor('/account')}
               className={linkClass('/account')}
             >
               <span className="sr-only">Tu cuenta: </span>
               {/* El recorte va en un hijo: `text-overflow` no aplica a la caja `inline-flex`. */}
               <span className="max-w-[12ch] truncate">{user?.firstName ?? 'Cuenta'}</span>
-            </a>
+            </Link>
             <button
               type="button"
               className="cine-btn cine-btn-ghost"
@@ -150,12 +143,12 @@ export default function NavBar({ pathname }: { readonly pathname: string }) {
           </>
         ) : (
           <>
-            <a href="/login" className="cine-btn cine-btn-ghost">
+            <Link to="/login" className="cine-btn cine-btn-ghost">
               Iniciar sesión
-            </a>
-            <a href="/register" className="cine-btn cine-btn-primary">
+            </Link>
+            <Link to="/register" className="cine-btn cine-btn-primary">
               Crear cuenta
-            </a>
+            </Link>
           </>
         )}
       </div>

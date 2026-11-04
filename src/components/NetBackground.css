@@ -1,0 +1,70 @@
+.net-bg {
+  --net-tile: 96px;
+
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  /* Degradé en cuatro bandas duras, como una paleta de 16 bits: sin interpolación suave. */
+  background: linear-gradient(
+    to bottom,
+    var(--color-ink-950) 0 25%,
+    color-mix(in oklch, var(--color-ink-950) 67%, var(--color-ink-900)) 25% 50%,
+    color-mix(in oklch, var(--color-ink-950) 33%, var(--color-ink-900)) 50% 75%,
+    var(--color-ink-900) 75% 100%
+  );
+}
+
+/* Una baldosa de margen arriba y a la derecha: el desplazamiento nunca deja huecos. */
+.net-layer {
+  position: absolute;
+  inset: calc(var(--net-tile) * -1) calc(var(--net-tile) * -1) 0 0;
+  background-size: var(--net-tile) var(--net-tile);
+  image-rendering: pixelated;
+}
+
+.net-layer-far {
+  background-image: url('../assets/net-grid.svg');
+}
+
+.net-layer-near {
+  background-image: url('../assets/net-67.svg');
+}
+
+.net-bg[data-mode='liso'] .net-layer {
+  display: none;
+}
+
+/*
+ * `steps()` con tantos pasos como píxeles tiene la baldosa: avanza de a 1px entero, sin
+ * subpíxeles que emborronen el arte. Recorrer una baldosa exacta hace el bucle invisible.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .net-bg[data-mode='animado'] .net-layer {
+    will-change: transform;
+  }
+
+  /* La grilla lejana va a mitad de velocidad: paralaje. */
+  .net-bg[data-mode='animado'] .net-layer-far {
+    animation: net-scroll 6.4s steps(96) infinite;
+  }
+
+  .net-bg[data-mode='animado'] .net-layer-near {
+    background-image: url('../assets/net-67-spin.svg');
+    animation: net-scroll 3.2s steps(96) infinite;
+  }
+}
+
+/* Alto contraste: el sistema impone sus colores y las baldosas solo estorbarían la lectura. */
+@media (forced-colors: active) {
+  .net-bg {
+    display: none;
+  }
+}
+
+@keyframes net-scroll {
+  to {
+    transform: translate(calc(var(--net-tile) * -1), var(--net-tile));
+  }
+}

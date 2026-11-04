@@ -1,6 +1,6 @@
 # Cine — frontend
 
-Un frontend Astro + React para el backend de reservas de cine **Cine**: el
+Un frontend React (SPA sobre Vite) para el backend de reservas de cine **Cine**: el
 catálogo público, la autenticación JWT, la selección de asientos con retención,
 el checkout con confitería, la gestión de reservas y las consolas de administración.
 
@@ -10,13 +10,14 @@ de ordenación y el registro de códigos de error del cliente no se desvíen de 
 
 ## Stack
 
-| Elemento  | Elección                                               | Notas                                                                                                                                                                                                                              |
-| --------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework | Astro 7.4, `output: 'static'`                          | Sin adaptador, sin SSR — cada llamada a la API se hace desde el cliente.                                                                                                                                                           |
-| Islands   | React 19.3 vía `@astrojs/react` + React Compiler       | Actions (`useActionState`/`useFormStatus`), `useOptimistic`, Effect Events (`useEffectEvent`), ref-as-prop; sin `useMemo`/`useCallback` manuales salvo donde el compilador no llega (`use-resource.ts`).                           |
-| Estilos   | Tailwind CSS 4.3 vía `@tailwindcss/vite`               | Sin `tailwind.config.js`; los tokens viven en `@theme` en `src/styles/global.css`.                                                                                                                                                 |
-| Tipos     | TypeScript 7                                           | `verbatimModuleSyntax` + `erasableSyntaxOnly`, por lo que no hay `enum` — los enums de la API son objetos `as const`.                                                                                                              |
-| Runtime   | Node ≥ 24 (desarrollo en Node 26, ver `.node-version`) | `using` (Explicit Resource Management), `Intl.DurationFormat`, métodos de `Set` (`intersection`, `difference`, `isSubsetOf`), `Array.fromAsync`, `Map.groupBy`, `URL.parse`, `Promise.withResolvers`, `AbortSignal.any`/`timeout`. |
+| Elemento | Elección                                               | Notas                                                                                                                                                                                                                              |
+| -------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI       | React 19.3 + React Compiler (Oxc)                      | Actions (`useActionState`/`useFormStatus`), `useOptimistic`, Effect Events (`useEffectEvent`), `<ViewTransition>`, ref-as-prop; sin `useMemo`/`useCallback` manuales salvo donde el compilador no llega (`use-resource.ts`).       |
+| Build    | Vite 8 vía `@vitejs/plugin-react`                      | SPA sin SSR: un único `index.html` y un fragmento por página — cada llamada a la API se hace desde el cliente.                                                                                                                     |
+| Rutas    | React Router 8, modo data (`createBrowserRouter`)      | Rutas `lazy` en `src/router.tsx`; la documentación viene con el paquete, en `node_modules/react-router/docs`.                                                                                                                      |
+| Estilos  | Tailwind CSS 4.3 vía `@tailwindcss/vite`               | Sin `tailwind.config.js`; los tokens viven en `@theme` en `src/styles/global.css`.                                                                                                                                                 |
+| Tipos    | TypeScript 7                                           | `verbatimModuleSyntax` + `erasableSyntaxOnly`, por lo que no hay `enum` — los enums de la API son objetos `as const`.                                                                                                              |
+| Runtime  | Node ≥ 24 (desarrollo en Node 26, ver `.node-version`) | `using` (Explicit Resource Management), `Intl.DurationFormat`, métodos de `Set` (`intersection`, `difference`, `isSubsetOf`), `Array.fromAsync`, `Map.groupBy`, `URL.parse`, `Promise.withResolvers`, `AbortSignal.any`/`timeout`. |
 
 ## Primeros pasos
 
@@ -35,21 +36,17 @@ incluido en el `CINE_CORS_ALLOWED_ORIGINS` por defecto del backend.
 | Comando                           | Acción                                                                                                                                                                        |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run dev`                     | Servidor de desarrollo en `localhost:5173`                                                                                                                                    |
-| `npm run build`                   | Build estático en `./dist/`                                                                                                                                                   |
-| `npm run preview`                 | Sirve el resultado del build                                                                                                                                                  |
-| `npm run typecheck`               | `astro sync` (genera los tipos de `astro:env`) + `tsc --noEmit`                                                                                                               |
+| `npm run build`                   | Build de producción en `./dist/`                                                                                                                                              |
+| `npm run preview`                 | Sirve el resultado del build en `localhost:5173`                                                                                                                              |
+| `npm run typecheck`               | `tsc --noEmit`                                                                                                                                                                |
 | `npm run lint`                    | `oxlint` (reglas de React Hooks, a11y y correctness)                                                                                                                          |
-| `npm run format` / `format:check` | Prettier con los plugins de Astro y Tailwind (orden de clases)                                                                                                                |
-| `npm run check:astro`             | `astro check` sobre los `.astro` con TypeScript 6 aislado en `tools/astro-check`                                                                                              |
+| `npm run format` / `format:check` | Prettier con el plugin de Tailwind (orden de clases)                                                                                                                          |
 | `npm test`                        | Pruebas unitarias de `src/lib` (proyecto `unit` de Vitest)                                                                                                                    |
 | `npm run test:integration`        | Pruebas contra el backend real (proyecto `integration`); el flujo de admin necesita `QA_ADMIN_EMAIL`/`QA_ADMIN_PASSWORD` en `.env.test.local` (ver `.env.test.local.example`) |
-| `npm run check`                   | Typecheck (TS + `.astro`), lint, pruebas unitarias y build completo                                                                                                           |
+| `npm run check`                   | Typecheck, lint, pruebas unitarias y build completo                                                                                                                           |
 
 > ESLint no se usa porque `typescript-eslint` todavía no soporta TypeScript 7; `oxlint` no depende
 > de la API de TypeScript.
->
-> `@astrojs/check` todavía no soporta TypeScript 7, así que `check:astro` lo ejecuta desde
-> `tools/astro-check`, con su propio TypeScript 6 fijado. El proyecto sigue usando TypeScript 7.
 
 ### Entorno
 
@@ -58,28 +55,56 @@ incluido en el `CINE_CORS_ALLOWED_ORIGINS` por defecto del backend.
 | `PUBLIC_API_BASE_URL`   | `http://localhost:8080` | Origen del backend.    |
 | `PUBLIC_API_TIMEOUT_MS` | `15000`                 | Timeout por solicitud. |
 
-Ambas están declaradas en el esquema `astro:env` en `astro.config.mjs` y se
-leen desde `astro:env/client` — nunca directamente mediante `import.meta.env`.
+Vite solo expone al cliente las variables `PUBLIC_*`. `src/lib/env.ts` les aplica
+los valores por defecto y las valida al cargar; el resto del código las importa
+de ahí, nunca directamente de `import.meta.env`.
 
-## Desviaciones de rutas
+## Rutas
 
-El build es SSG puro, y un UUID desconocido no puede prerenderizarse, así que
-los parámetros de ruta conceptuales se llevan como parámetros de consulta en
-su lugar. El comportamiento es idéntico en todo lo demás.
+Las rutas con parámetros siguen el contrato tal cual. Las armá siempre con
+`src/lib/paths.ts`.
 
-| Ruta conceptual          | Implementado como                              |
-| ------------------------ | ---------------------------------------------- |
-| `/movies/:id`            | `/movies/detail?id=<uuid>`                     |
-| `/screenings/:id/seats`  | `/screenings/seats?id=<uuid>`                  |
-| `/checkout/:screeningId` | `/checkout?screening=<uuid>&seats=<uuid,uuid>` |
-| `/reservations/:id`      | `/reservations/detail?id=<uuid>`               |
-| `/admin/rooms/:id/seats` | `/admin/rooms/seats?id=<uuid>`                 |
+| Ruta                     | Notas                                                |
+| ------------------------ | ---------------------------------------------------- |
+| `/movies/:id`            |                                                      |
+| `/screenings/:id/seats`  |                                                      |
+| `/checkout/:screeningId` | La selección de asientos va en `?seats=<uuid,uuid>`. |
+| `/reservations/:id`      |                                                      |
+| `/admin/rooms/:id/seats` |                                                      |
+
+Hasta la migración a React Router el build era estático y esas rutas viajaban en
+la query string (`/movies/detail?id=<uuid>`, `/checkout?screening=<uuid>&seats=…`).
+Esas URLs siguen funcionando: redirigen a las actuales (`legacyRedirects` en
+`src/lib/paths.ts`).
+
+## Despliegue
+
+`dist/` es una SPA: cualquier ruta que no sea un archivo existente tiene que
+responder con `index.html` (fallback de SPA), o las URLs profundas como
+`/movies/<uuid>` darán 404 al recargar. Por ejemplo, en nginx:
+
+```nginx
+location / {
+  try_files $uri /index.html;
+}
+```
+
+Los archivos de `dist/assets/` llevan hash en el nombre y se pueden cachear para
+siempre; `index.html` no.
 
 ## Estructura
 
 ```
+index.html                el documento de la SPA (monta src/main.tsx)
 src/
+  main.tsx                arranque: tipografías, estilos y <RouterProvider>
+  router.tsx              tabla de rutas (lazy), títulos y redirecciones de las URLs viejas
+  layouts/RootLayout.tsx  shell: fondo, navegación, <main> con <ViewTransition>, pie
+  pages/                  páginas con contenido propio (inicio, login, privacidad, …)
   lib/
+    env.ts                PUBLIC_API_BASE_URL / PUBLIC_API_TIMEOUT_MS validadas
+    paths.ts              constructores de rutas con parámetros y redirecciones de las URLs viejas
+    navigation.ts         navegación para el código fuera de React (lo registra el router)
     types.ts              DTOs de solo tipos (mismos nombres que los schemas de OpenAPI), Page<T>, Problem
     enums.ts              enums de la API como uniones `as const` + mapas de etiquetas
     problem.ts            ApiError, parseo de RFC 7807, extracción de errores de campo
@@ -99,11 +124,13 @@ src/
     use-seat-stream.ts    disponibilidad de asientos en vivo por SSE
     use-live-seat-map.ts  stream SSE + refetch al reconectar + polling de seguridad sobre el mapa
     sse.ts                parser de Server-Sent Events sobre fetch
+    use-net-mode.ts       modo del fondo "Net" (animado/quieto/liso) recordado en localStorage
   components/
     ui/                   Field, DataTable, Pagination, Modal, ConfirmDialog, Badge, Feedback, Guards, …
     catalogue/ booking/ reservations/ admin/ auth/ account/ contact/
-  layouts/Layout.astro    shell con <ClientRouter /> y una navegación persistente
-  pages/                  rutas públicas, de autenticación, cuenta y /admin
+    NavBar.tsx            navegación principal
+    NetBackground.tsx     el fondo de baldosas y el selector "Fondo" del pie
+    RouteError.tsx        404 y límite de errores de las páginas
 ```
 
 ## Comportamientos a tener en cuenta

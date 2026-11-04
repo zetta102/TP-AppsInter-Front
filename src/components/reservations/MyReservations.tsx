@@ -1,4 +1,5 @@
 import { useOptimistic, useState } from 'react';
+import { Link } from 'react-router';
 import { listMovies } from '../../lib/api/movies.ts';
 import { listMyReservations } from '../../lib/api/reservations.ts';
 import { collectAllPages } from '../../lib/api/shared.ts';
@@ -9,6 +10,7 @@ import {
   reservationStatusValues,
 } from '../../lib/enums.ts';
 import { formatDateTime, formatMoney } from '../../lib/format.ts';
+import { reservationPath } from '../../lib/paths.ts';
 import type { Page, Reservation } from '../../lib/types.ts';
 import { useResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
@@ -220,9 +222,9 @@ function ReservationList() {
           }
           action={
             hasActiveFilters ? undefined : (
-              <a href="/" className="cine-btn cine-btn-primary">
+              <Link to="/" className="cine-btn cine-btn-primary">
                 Buscar una función
-              </a>
+              </Link>
             )
           }
         />
@@ -245,12 +247,12 @@ function ReservationList() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold">
-                    <a
-                      href={`/reservations/detail?id=${reservation.uuid}`}
+                    <Link
+                      to={reservationPath(reservation.uuid)}
                       className="decoration-2 underline-offset-3 hover:text-brand-400 hover:underline"
                     >
                       {reservation.movieName}
-                    </a>
+                    </Link>
                   </h2>
                   <p className="text-xs text-ink-500">
                     Función el {formatDateTime(reservation.screeningStartsAt)} ·{' '}
@@ -277,12 +279,9 @@ function ReservationList() {
               <ItemLines reservation={reservation} />
 
               <div className="flex justify-end gap-2">
-                <a
-                  href={`/reservations/detail?id=${reservation.uuid}`}
-                  className="cine-btn cine-btn-ghost"
-                >
+                <Link to={reservationPath(reservation.uuid)} className="cine-btn cine-btn-ghost">
                   Detalle
-                </a>
+                </Link>
                 {!cancelled && (
                   <button
                     type="button"

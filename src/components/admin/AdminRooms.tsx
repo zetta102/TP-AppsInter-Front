@@ -1,4 +1,5 @@
 import { useActionState, useState } from 'react';
+import { Link } from 'react-router';
 import {
   createRoom,
   deleteRoom,
@@ -15,6 +16,7 @@ import {
   initialFormState,
   type FormState,
 } from '../../lib/form.ts';
+import { roomSeatsPath } from '../../lib/paths.ts';
 import { parseSort, toggleSort, type SortSpec } from '../../lib/query.ts';
 import type { Page, Room, RoomRequest } from '../../lib/types.ts';
 import { useResource } from '../../lib/use-resource.ts';
@@ -75,9 +77,9 @@ export default function AdminRooms() {
       key: 'seats',
       header: 'Asientos',
       cell: (room) => (
-        <a href={`/admin/rooms/seats?id=${room.uuid}`} className="cine-link">
+        <Link to={roomSeatsPath(room.uuid)} className="cine-link">
           Gestionar distribución
-        </a>
+        </Link>
       ),
     },
     {

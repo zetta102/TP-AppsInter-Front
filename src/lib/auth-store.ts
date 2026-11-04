@@ -1,4 +1,4 @@
-import { navigate } from 'astro:transitions/client';
+import { navigate } from './navigation.ts';
 import { ApiError, isApiErrorWithStatus } from './problem.ts';
 import { apiFetch, registerAuthHooks, requestJson } from './http.ts';
 import { currentPath, loginHref } from './login-redirect.ts';

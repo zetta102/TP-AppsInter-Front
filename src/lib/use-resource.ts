@@ -115,9 +115,9 @@ export function useResource<T>(
 }
 
 /**
- * `useResource` para un recurso identificado por una clave que puede faltar (p. ej. un `?id=`
- * todavía sin leer). Con `key` nulo queda en `idle`; si no, el fetcher recibe la clave ya
- * narrowed, sin aserciones `!` en el llamador.
+ * `useResource` para un recurso identificado por una clave que puede faltar (p. ej. un parámetro
+ * de ruta, que `useParams()` tipa como opcional). Con `key` nulo queda en `idle`; si no, el
+ * fetcher recibe la clave ya narrowed, sin aserciones `!` en el llamador.
  */
 export function useKeyedResource<K, T>(
   key: K | null | undefined,

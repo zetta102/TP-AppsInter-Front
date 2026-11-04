@@ -1,5 +1,5 @@
-import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
+import { useNavigate } from 'react-router';
 import { changeMyPassword, updateMyProfile } from '../../lib/api/users.ts';
 import { fieldErrors, formError, formRaw, formText, type FormState } from '../../lib/form.ts';
 import { isApiErrorWithCode, toUserMessage } from '../../lib/problem.ts';
@@ -32,6 +32,7 @@ const initialState: SavedFormState = { error: null, fieldErrors: {}, success: fa
 const savedState: SavedFormState = { ...initialState, success: true };
 
 function AccountPanel() {
+  const navigate = useNavigate();
   const { user, tokens, setUser, logout } = useAuth();
 
   const [profileState, profileAction] = useActionState(

@@ -1,5 +1,5 @@
-import { navigate } from 'astro:transitions/client';
 import { useActionState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import {
   fieldErrors,
   formError,
@@ -22,6 +22,7 @@ import { SubmitButton } from '../ui/SubmitButton.tsx';
  * `CINE_ADMIN_EMAIL` y `CINE_ADMIN_PASSWORD`.
  */
 export default function RegisterForm() {
+  const navigate = useNavigate();
   const { register, login } = useAuth();
 
   const [state, formAction] = useActionState(async (_prev: FormState, formData: FormData) => {
@@ -98,9 +99,9 @@ export default function RegisterForm() {
 
       <p className="text-center text-sm text-ink-500">
         ¿Ya tenés una cuenta?{' '}
-        <a href="/login" className="cine-link">
+        <Link to="/login" className="cine-link">
           Iniciá sesión
-        </a>
+        </Link>
       </p>
     </form>
   );

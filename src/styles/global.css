@@ -11,7 +11,7 @@
  * (`border-t-2 border-ink-700`, `divide-y-2 divide-ink-700`).
  *
  * Movimiento (WCAG 3 "No visual motion"): ninguna animación dura más de 5 s. Los bucles tienen
- * un número fijo de vueltas y el fondo animado es opcional (`NetBackground.astro`).
+ * un número fijo de vueltas y el fondo animado es opcional (`NetBackground.tsx`).
  */
 @theme {
   /* Azul marino/cobalto de la red. */
@@ -58,10 +58,10 @@
   --radius-xl: 0;
   --radius-card: 0;
 
-  /* `--font-pixelify`/`--font-press-start` las define <Font> en el layout, con `monospace` de respaldo. */
-  --font-sans: var(--font-pixelify), monospace;
-  --font-display: var(--font-press-start), monospace;
-  --font-mono: var(--font-press-start), monospace;
+  /* Las `@font-face` vienen de los paquetes `@fontsource` que importa `src/main.tsx`. */
+  --font-sans: 'Pixelify Sans Variable', monospace;
+  --font-display: 'Press Start 2P', monospace;
+  --font-mono: 'Press Start 2P', monospace;
 
   /* Pixelify tiene x-height chica: se agrandan los tamaños pequeños para que sigan legibles. */
   --text-xs: 0.8125rem;
@@ -702,5 +702,17 @@
   50%,
   100% {
     visibility: visible;
+  }
+}
+
+/*
+ * Navegación: React cruza el contenido de `<main>` con una transición de vista
+ * (`RootLayout.tsx`). Con movimiento reducido se cambia de página sin animar.
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

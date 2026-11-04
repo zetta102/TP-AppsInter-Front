@@ -1,7 +1,7 @@
 /**
  * Enlaces a `/login` que recuerdan adónde volver (`?next=`), y la validación de ese destino.
  *
- * Sin dependencias del navegador ni de Astro, para poder probarlo en Node.
+ * Sin dependencias del navegador ni del router, para poder probarlo en Node.
  */
 
 /** Adónde ir tras iniciar sesión cuando no hay un `next` válido. */

@@ -1,24 +1,21 @@
+import { Link, useParams } from 'react-router';
 import { getMovie } from '../../lib/api/movies.ts';
 import { listScreenings } from '../../lib/api/screenings.ts';
 import { collectAllPages } from '../../lib/api/shared.ts';
 import { formatDayHeading, formatRuntime } from '../../lib/format.ts';
 import type { Movie, Screening } from '../../lib/types.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
-import { useQueryParam } from '../../lib/use-query-param.ts';
 import { useKeyedResource } from '../../lib/use-resource.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
 import { EmptyState, LoadingBlock } from '../ui/Feedback.tsx';
 import { GenreList, MovieMeta, Poster, ScreeningRow, groupByDay } from './MovieCard.tsx';
 
 /**
- * Detalle de la película más sus próximas funciones
+ * `/movies/:id` — detalle de la película más sus próximas funciones
  * (`GET /api/screenings?movieId=…&upcomingOnly=true`).
- *
- * La salida estática no puede prerenderizar un UUID desconocido, así que el id
- * llega como parámetro de consulta en lugar de como `/movies/:id`.
  */
 export default function MovieDetail() {
-  const movieId = useQueryParam('id');
+  const { id: movieId } = useParams();
 
   const resource = useKeyedResource<
     string,
@@ -46,9 +43,9 @@ export default function MovieDetail() {
         title="No seleccionaste ninguna película"
         description="Elegí un título del catálogo."
         action={
-          <a href="/movies" className="cine-btn cine-btn-primary">
+          <Link to="/movies" className="cine-btn cine-btn-primary">
             Ver películas
-          </a>
+          </Link>
         }
       />
     );

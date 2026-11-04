@@ -20,5 +20,5 @@
     ],
     "react/memo-dependencies": "off"
   },
-  "ignorePatterns": ["dist/**", ".astro/**"]
+  "ignorePatterns": ["dist/**"]
 }

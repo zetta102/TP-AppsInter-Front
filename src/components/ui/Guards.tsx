@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { currentPath, loginHref } from '../../lib/login-redirect.ts';
+import { Link, useLocation } from 'react-router';
+import { loginHref } from '../../lib/login-redirect.ts';
 import { useAuth } from '../../lib/use-auth.ts';
 import { LoadingBlock } from './Feedback.tsx';
 
@@ -13,13 +14,14 @@ import { LoadingBlock } from './Feedback.tsx';
  */
 
 function SignInPrompt({ message }: { readonly message: string }) {
+  const { pathname, search } = useLocation();
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-4 cine-card px-6 py-12 text-center">
       <p className="text-lg font-semibold text-ink-100">Iniciá sesión para continuar</p>
       <p className="text-sm text-ink-500">{message}</p>
-      <a href={loginHref(currentPath())} className="cine-btn cine-btn-primary">
+      <Link to={loginHref(`${pathname}${search}`)} className="cine-btn cine-btn-primary">
         Iniciar sesión
-      </a>
+      </Link>
     </div>
   );
 }
@@ -54,9 +56,9 @@ export function AdminGuard({ children }: { readonly children: ReactNode }) {
           autoservicio: un admin solo se crea al iniciar a partir de <code>CINE_ADMIN_EMAIL</code> y{' '}
           <code>CINE_ADMIN_PASSWORD</code>.
         </p>
-        <a href="/" className="cine-btn cine-btn-secondary">
+        <Link to="/" className="cine-btn cine-btn-secondary">
           Volver al cine
-        </a>
+        </Link>
       </div>
     );
   }

@@ -16,8 +16,8 @@ import { Role } from './enums.ts';
 /**
  * Bindings de React 19 sobre el store de autenticación (que no depende de ningún framework).
  *
- * Las islas se hidratan por separado, así que no existe una raíz de React común que envolver
- * con un provider: `useAuth()` lee el store directamente con `useSyncExternalStore`.
+ * La sesión también se usa fuera de React (`http.ts` la consulta en cada pedido), así que vive en
+ * un store y no en un provider: `useAuth()` lo lee directamente con `useSyncExternalStore`.
  */
 
 export interface AuthContextValue extends AuthState {

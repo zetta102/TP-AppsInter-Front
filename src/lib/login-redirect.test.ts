@@ -3,8 +3,8 @@ import { DEFAULT_AFTER_LOGIN, loginHref, safeNext } from './login-redirect.ts';
 
 describe('safeNext', () => {
   it.for([
-    ['/checkout?screening=1&seats=a,b', '/checkout?screening=1&seats=a,b'],
-    ['/reservations/detail?id=x#entradas', '/reservations/detail?id=x#entradas'],
+    ['/checkout/1?seats=a,b', '/checkout/1?seats=a,b'],
+    ['/reservations/x#entradas', '/reservations/x#entradas'],
   ])('acepta la ruta del mismo origen %s', ([raw, expected]) => {
     expect(safeNext(raw)).toBe(expected);
   });
@@ -28,9 +28,7 @@ describe('safeNext', () => {
 
 describe('loginHref', () => {
   it('codifica el destino en `next`', () => {
-    expect(loginHref('/checkout?screening=1&seats=a,b')).toBe(
-      '/login?next=%2Fcheckout%3Fscreening%3D1%26seats%3Da%2Cb',
-    );
+    expect(loginHref('/checkout/1?seats=a,b')).toBe('/login?next=%2Fcheckout%2F1%3Fseats%3Da%2Cb');
   });
 
   it('sin destino es `/login` a secas', () => {

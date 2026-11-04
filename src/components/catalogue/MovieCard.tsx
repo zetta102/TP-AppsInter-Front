@@ -1,6 +1,8 @@
+import { Link } from 'react-router';
 import { cx } from '../../lib/cx.ts';
 import { movieGenreLabels, type MovieGenre } from '../../lib/enums.ts';
 import { dayKey, formatMoney, formatRuntime, formatTime } from '../../lib/format.ts';
+import { moviePath, screeningSeatsPath } from '../../lib/paths.ts';
 import type { Movie, Screening } from '../../lib/types.ts';
 import { Badge } from '../ui/Badge.tsx';
 
@@ -97,23 +99,18 @@ export function MovieCard({
         Duplica el enlace del título: se saca del orden de tabulación y del árbol accesible para no
         repetirlo (y porque con el marcador de póster quedaría sin nombre accesible).
       */}
-      <a
-        href={`/movies/detail?id=${movie.uuid}`}
-        tabIndex={-1}
-        aria-hidden="true"
-        className="block"
-      >
+      <Link to={moviePath(movie.uuid)} tabIndex={-1} aria-hidden="true" className="block">
         <Poster movie={movie} />
-      </a>
+      </Link>
 
       <div className="flex flex-col gap-2">
         <h3 className="text-base leading-tight font-semibold">
-          <a
-            href={`/movies/detail?id=${movie.uuid}`}
+          <Link
+            to={moviePath(movie.uuid)}
             className="decoration-2 underline-offset-3 hover:text-brand-400 hover:underline"
           >
             {movie.movieName}
-          </a>
+          </Link>
         </h3>
         <p className="text-xs text-ink-500">{formatRuntime(movie.runtime)}</p>
         <MovieMeta movie={movie} />
@@ -135,9 +132,9 @@ export function MovieCard({
                 <span className="sr-only">, {screening.roomName}, agotado</span>
               </span>
             ) : (
-              <a
+              <Link
                 key={screening.uuid}
-                href={`/screenings/seats?id=${screening.uuid}`}
+                to={screeningSeatsPath(screening.uuid)}
                 className="cine-btn cine-btn-secondary px-2 py-1 text-xs"
                 title={`${screening.roomName} · ${formatMoney(screening.basePrice)}`}
               >
@@ -145,17 +142,17 @@ export function MovieCard({
                 <span className="sr-only">
                   , {screening.roomName}, {formatMoney(screening.basePrice)}
                 </span>
-              </a>
+              </Link>
             ),
           )}
           {screenings.length > 4 && (
-            <a
-              href={`/movies/detail?id=${movie.uuid}`}
+            <Link
+              to={moviePath(movie.uuid)}
               className="self-center px-2 py-1 text-xs text-ink-500 hover:text-ink-100"
             >
               +{screenings.length - 4} más
               <span className="sr-only"> funciones de {movie.movieName}</span>
-            </a>
+            </Link>
           )}
         </div>
       )}
@@ -203,15 +200,12 @@ export function ScreeningAvailability({ screening }: { readonly screening: Scree
 
 /** Una única fila de función, usada en la página de detalle de la película. */
 export function ScreeningRow({ screening }: { readonly screening: Screening }) {
-  const Tag = screening.soldOut ? 'div' : 'a';
-  return (
-    <Tag
-      {...(screening.soldOut ? {} : { href: `/screenings/seats?id=${screening.uuid}` })}
-      className={cx(
-        'flex items-center justify-between gap-4 border-2 border-ink-700 bg-ink-950/50 px-4 py-3 transition-colors',
-        screening.soldOut ? 'opacity-50' : 'hover:bg-ink-800/50',
-      )}
-    >
+  const className = cx(
+    'flex items-center justify-between gap-4 border-2 border-ink-700 bg-ink-950/50 px-4 py-3 transition-colors',
+    screening.soldOut ? 'opacity-50' : 'hover:bg-ink-800/50',
+  );
+  const content = (
+    <>
       <div>
         <p className="font-semibold">{formatTime(screening.startsAt)}</p>
         <p className="text-xs text-ink-500">
@@ -222,7 +216,16 @@ export function ScreeningRow({ screening }: { readonly screening: Screening }) {
         <p className="text-sm font-medium">{formatMoney(screening.basePrice)}</p>
         <ScreeningAvailability screening={screening} />
       </div>
-    </Tag>
+    </>
+  );
+
+  // Una función agotada no lleva a ningún lado: es una fila sin enlace.
+  return screening.soldOut ? (
+    <div className={className}>{content}</div>
+  ) : (
+    <Link to={screeningSeatsPath(screening.uuid)} className={className}>
+      {content}
+    </Link>
   );
 }
 

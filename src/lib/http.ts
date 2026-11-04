@@ -1,4 +1,4 @@
-import { PUBLIC_API_BASE_URL, PUBLIC_API_TIMEOUT_MS } from 'astro:env/client';
+import { PUBLIC_API_BASE_URL, PUBLIC_API_TIMEOUT_MS } from './env.ts';
 import { ApiError, parseProblem } from './problem.ts';
 import { buildQuery, type QueryParams } from './query.ts';
 
@@ -6,7 +6,7 @@ import { buildQuery, type QueryParams } from './query.ts';
  * El único punto de salida de `fetch` de toda la app.
  *
  * Responsabilidades:
- *  - resolver URLs contra la base validada por `astro:env`;
+ *  - resolver URLs contra la base validada por `env.ts`;
  *  - adjuntar `Authorization: Bearer …` cuando la llamada lo requiere;
  *  - acotar cada solicitud con `AbortSignal.timeout()`, combinada con la señal
  *    del llamador mediante `AbortSignal.any()`;

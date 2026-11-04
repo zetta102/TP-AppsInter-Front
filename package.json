@@ -6,45 +6,37 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "check": "npm run typecheck && npm run check:astro && oxlint && npm test && astro build",
-    "typecheck": "astro sync && tsc --noEmit",
-    "check:astro": "npm --prefix tools/astro-check install --no-audit --no-fund --silent && node tools/astro-check/node_modules/@astrojs/check/bin/astro-check.js --root .",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "npm run typecheck && oxlint && npm test && npm run build",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "astro": "astro"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@astrojs/react": "^7.1.2",
+    "@fontsource-variable/pixelify-sans": "^5.3.0",
+    "@fontsource/press-start-2p": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.4.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-router": "^8.5.1",
     "tailwindcss": "^4.3.3"
   },
-  "allowScripts": {
-    "esbuild": true
-  },
   "devDependencies": {
+    "@tsconfig/strictest": "^2.0.8",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
     "oxc-transform-react": "^0.156.0",
     "oxlint": "^1.90.0",
     "prettier": "^3.9.10",
-    "prettier-plugin-astro": "^1.1.2",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
-    "vitest": "^5.0.5"
-  },
-  "overrides": {
-    "@astrojs/react": {
-      "oxc-transform-react": "$oxc-transform-react"
-    }
+    "vitest": "^5.1.0"
   }
 }

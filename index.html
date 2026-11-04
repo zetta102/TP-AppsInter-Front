@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- `RootLayout.tsx` actualiza el título y la descripción en cada página. -->
+    <meta
+      name="description"
+      content="Reservá asientos, elegí tu confitería y gestioná funciones."
+    />
+    <title>Cine</title>
+    <script type="module" src="/src/main.tsx"></script>
+  </head>
+  <body>
+    <!--
+      Columna flexible de al menos un viewport: `<main>` absorbe el alto sobrante y el pie queda
+      abajo aunque la página sea corta. `dvh` sigue el alto visible real en móviles. El fondo es
+      `fixed` y el enlace de salto `absolute`, así que no participan del flujo.
+    -->
+    <div id="root" class="flex min-h-dvh flex-col"></div>
+    <noscript>
+      <p style="padding: 2rem; text-align: center">Cine necesita JavaScript para funcionar.</p>
+    </noscript>
+  </body>
+</html>

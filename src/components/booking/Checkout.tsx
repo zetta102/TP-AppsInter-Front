@@ -1,6 +1,6 @@
-import { navigate } from 'astro:transitions/client';
 import { useActionState, useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { getMetadataConfigOrDefault } from '../../lib/api/metadata.ts';
 import { cardFields, validateCard } from '../../lib/card.ts';
 import { cx } from '../../lib/cx.ts';
@@ -12,6 +12,7 @@ import { collectAllPages } from '../../lib/api/shared.ts';
 import { delay } from '../../lib/delay.ts';
 import { productCategoryLabels, SeatType } from '../../lib/enums.ts';
 import { formatCountdown, formatDateTime, formatMoney, seatLabel } from '../../lib/format.ts';
+import { reservationPath } from '../../lib/paths.ts';
 import { estimateTotal, lineTotal, ticketPrice } from '../../lib/pricing.ts';
 import { isApiErrorWithCode, isApiErrorWithStatus } from '../../lib/problem.ts';
 import type {
@@ -25,7 +26,6 @@ import { useAuth } from '../../lib/use-auth.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useLiveSeatMap } from '../../lib/use-live-seat-map.ts';
 import { useNow } from '../../lib/use-now.ts';
-import { useQueryParams } from '../../lib/use-query-param.ts';
 import { useKeyedResource, useResource } from '../../lib/use-resource.ts';
 import { holdIdFor, useSeatHold } from '../../lib/use-seat-hold.ts';
 import { ErrorBanner } from '../ui/ErrorBanner.tsx';
@@ -87,8 +87,9 @@ export default function Checkout() {
 }
 
 function CheckoutPanel() {
-  const params = useQueryParams(['screening', 'seats'] as const);
-  const screeningId = params.screening;
+  const { screeningId } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const now = useNow();
   const { user } = useAuth();
 
@@ -128,12 +129,12 @@ function CheckoutPanel() {
   });
   useDocumentTitle(resource.data && `Reserva · ${resource.data.screening.movieName}`);
 
-  // Inicializa la selección desde la query string una vez conocido el mapa,
+  // Inicializa la selección desde `?seats=` una vez conocido el mapa,
   // descartando cualquier asiento que ya no esté disponible.
   const seatsById = indexSeatsById(resource.data?.seatMap.seats ?? []);
 
   if (resource.data && !initialised) {
-    const requested = (params.seats ?? '').split(',').filter(Boolean);
+    const requested = (searchParams.get('seats') ?? '').split(',').filter(Boolean);
     setSelected(requested.filter((id) => seatsById.get(id)?.available === true));
     setInitialised(true);
   }
@@ -226,7 +227,7 @@ function CheckoutPanel() {
         });
         // El servidor consume la retención enviada; no hay que liberarla también al desmontar.
         if (holdId) seatHold.markConsumed();
-        void navigate(`/reservations/detail?id=${data.uuid}`);
+        void navigate(reservationPath(data.uuid));
         return initialSubmitState;
       } catch (error) {
         // 409: otra persona reservó uno de estos asientos antes. Se vuelve a consultar y se
@@ -257,9 +258,9 @@ function CheckoutPanel() {
         title="No se seleccionó ninguna función"
         description="Empezá desde un horario para elegir tus asientos."
         action={
-          <a href="/" className="cine-btn cine-btn-primary">
+          <Link to="/" className="cine-btn cine-btn-primary">
             Ver cartelera
-          </a>
+          </Link>
         }
       />
     );
