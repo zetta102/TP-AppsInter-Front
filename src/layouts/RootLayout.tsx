@@ -119,8 +119,9 @@ export default function RootLayout() {
       <footer className="mt-16 flex flex-col items-center gap-3 border-t-2 border-ink-700 bg-ink-950/85 px-4 py-8 text-center text-xs text-ink-500">
         <p>
           Cine · frontend del backend TP-AppsInter. La disponibilidad de asientos es orientativa
-          hasta que confirmás la reserva.
-
+          hasta que confirmás la reserva. 
+        </p>
+        <p>
           Contenido diseñado y desarrollado por el equipo compuesto por José Sierra, Naiara Sánchez, Santiago Herrera, y Agustín Mollo, que componen
           el equipo 67.
         </p>
