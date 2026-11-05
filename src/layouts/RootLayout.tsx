@@ -120,6 +120,9 @@ export default function RootLayout() {
         <p>
           Cine · frontend del backend TP-AppsInter. La disponibilidad de asientos es orientativa
           hasta que confirmás la reserva.
+
+          Contenido diseñado y desarrrollado por el equipo 67, compuesto por José Sierra, Naiara Sánchez, Santiago Herrera, y Agustín Mollo, que componen
+          el equipo 67.
         </p>
         <nav aria-label="Legal">
           <Link to="/privacidad" className="cine-link">
